@@ -5,7 +5,7 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #0a1628;
+  background: #0a0420;
   font-family: monospace;
   -webkit-user-select: none;
   user-select: none;
@@ -23,7 +23,28 @@ html, body {
 
 #gameCanvas {
   display: block;
-  background: #0a1628;
+  background: #0a0420;
+}
+
+#game-center-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 10000;
+  color: #ffd24a;
+  text-decoration: none;
+  font-family: monospace;
+  font-size: 14px;
+  padding: 6px 10px;
+  background: rgba(10, 4, 32, 0.72);
+  border: 1px solid #7744ff;
+  border-radius: 6px;
+  pointer-events: auto;
+}
+
+#game-center-link:hover {
+  background: rgba(60, 20, 120, 0.92);
+  color: #ffffff;
 }
 
 /* Orientation hint for portrait phones/tablets */
@@ -34,14 +55,17 @@ html, body {
   #game-container {
     display: none;
   }
+  #game-center-link {
+    display: none;
+  }
 }
 
 #rotate-hint {
   display: none;
   position: fixed;
   inset: 0;
-  background: #0a1628;
-  color: #66ccff;
+  background: #0a0420;
+  color: #bb88ff;
   font-family: monospace;
   font-size: 20px;
   flex-direction: column;

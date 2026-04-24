@@ -874,47 +874,99 @@
         c.fill();
       }
     }
+
+    /* ---------- Space helmet overlay ---------- */
+    /* Translucent bubble helmet with a cyan rim and faint shine.
+       Drawn on top of everything so it reads clearly. */
+    var hx = sx + 14;
+    var hy = sy + 7;
+    c.save();
+    /* Rim ring */
+    c.strokeStyle = '#44ffff';
+    c.lineWidth = 1.2;
+    c.globalAlpha = 0.9;
+    c.beginPath();
+    c.arc(hx, hy, 11, 0, Math.PI * 2);
+    c.stroke();
+    /* Helmet fill */
+    c.globalAlpha = 0.15;
+    c.fillStyle = '#aaddff';
+    c.beginPath();
+    c.arc(hx, hy, 11, 0, Math.PI * 2);
+    c.fill();
+    /* Shine highlight */
+    c.globalAlpha = 0.45;
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.ellipse(hx - 3, hy - 4, 3, 1.5, -0.5, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+
+    /* ---------- Glove cuffs ---------- */
+    c.fillStyle = '#44ffff';
+    c.fillRect(sx + 1, sy + 18, 4, 1.5);
+    c.fillRect(sx + 23, sy + 18, 4, 1.5);
   }
 
-  /* Crab companion – drawn separately so it can follow the player at an
-     offset from the main sprite bounding box. `variant` picks the shell
-     palette (red/blue/gold) or 'none' to skip entirely. */
+  /* Pet-dog companion — re-themed from crab. `variant` picks the coat
+     palette (brown/blue/gold remapped to brown/spotted/golden) or 'none'. */
   function drawCrabPet(c, px, py, variant, frame) {
     if (!variant || variant === 'none') return;
-    var body, claw;
-    if (variant === 'blue') { body = '#4477cc'; claw = '#335599'; }
-    else if (variant === 'gold') { body = '#ffcc44'; claw = '#cc9922'; }
-    else { body = '#dd4444'; claw = '#aa2222'; }
-    var wobble = Math.sin((frame || 0) * 0.25) * 0.8;
-    /* Shell */
+    var body, accent;
+    if (variant === 'blue' || variant === 'spotted') {
+      body = '#dddddd'; accent = '#553322';
+    } else if (variant === 'gold' || variant === 'golden') {
+      body = '#ffcc66'; accent = '#aa6622';
+    } else {
+      /* red → brown */
+      body = '#8a5a32'; accent = '#5a3818';
+    }
+    var wobble = Math.sin((frame || 0) * 0.2) * 0.8;
+    /* Body — plump ellipse */
     c.fillStyle = body;
     c.beginPath();
-    c.ellipse(px, py, 5, 3.5, 0, 0, Math.PI * 2);
+    c.ellipse(px, py, 6, 4, 0, 0, Math.PI * 2);
     c.fill();
-    c.fillStyle = 'rgba(255,255,255,0.35)';
+    /* Head */
     c.beginPath();
-    c.ellipse(px - 1.2, py - 1, 1.6, 0.8, 0, 0, Math.PI * 2);
+    c.arc(px - 5, py - 1, 3, 0, Math.PI * 2);
     c.fill();
-    /* Claws */
-    c.fillStyle = claw;
-    c.beginPath(); c.arc(px - 5, py - 1 + wobble, 1.9, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(px + 5, py - 1 - wobble, 1.9, 0, Math.PI * 2); c.fill();
-    /* Eye stalks */
-    c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(px - 1.5, py - 2.6, 0.85, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(px + 1.5, py - 2.6, 0.85, 0, Math.PI * 2); c.fill();
+    /* Ear */
+    c.fillStyle = accent;
+    c.beginPath();
+    c.moveTo(px - 6, py - 3.5);
+    c.lineTo(px - 4.5, py - 4.6);
+    c.lineTo(px - 4, py - 3);
+    c.closePath();
+    c.fill();
+    /* Spots for 'spotted' coat */
+    if (variant === 'blue' || variant === 'spotted') {
+      c.fillStyle = '#443322';
+      c.beginPath(); c.arc(px + 1, py - 1, 0.9, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(px + 3, py + 1, 0.8, 0, Math.PI * 2); c.fill();
+    }
+    /* Snout */
+    c.fillStyle = accent;
+    c.beginPath(); c.arc(px - 7, py, 0.8, 0, Math.PI * 2); c.fill();
+    /* Eye */
     c.fillStyle = '#000000';
-    c.beginPath(); c.arc(px - 1.5, py - 2.6, 0.35, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(px + 1.5, py - 2.6, 0.35, 0, Math.PI * 2); c.fill();
-    /* Legs */
-    c.strokeStyle = claw;
-    c.lineWidth = 0.7;
+    c.beginPath(); c.arc(px - 5.5, py - 1.4, 0.5, 0, Math.PI * 2); c.fill();
+    /* Tail (wagging) */
+    c.strokeStyle = body;
+    c.lineWidth = 1.8;
     c.lineCap = 'round';
     c.beginPath();
-    c.moveTo(px - 3, py + 2); c.lineTo(px - 4, py + 3.8);
-    c.moveTo(px + 3, py + 2); c.lineTo(px + 4, py + 3.8);
-    c.moveTo(px - 1.5, py + 2.8); c.lineTo(px - 2, py + 4.4);
-    c.moveTo(px + 1.5, py + 2.8); c.lineTo(px + 2, py + 4.4);
+    c.moveTo(px + 5, py - 1);
+    c.lineTo(px + 8, py - 2 + wobble * 2);
+    c.stroke();
+    /* Legs */
+    c.strokeStyle = accent;
+    c.lineWidth = 0.9;
+    c.beginPath();
+    c.moveTo(px - 3, py + 3); c.lineTo(px - 3, py + 4.8);
+    c.moveTo(px - 1, py + 3); c.lineTo(px - 1, py + 4.8);
+    c.moveTo(px + 1, py + 3); c.lineTo(px + 1, py + 4.8);
+    c.moveTo(px + 3, py + 3); c.lineTo(px + 3, py + 4.8);
     c.stroke();
   }
 
@@ -1154,20 +1206,38 @@
     if (this.life <= 0) this.active = false;
   };
 
+  /* Re-themed as Sparkle — a 4-point twinkling star with a colour cycle. */
   Bubble.prototype.draw = function (c, camX, camY) {
     if (!this.active) return;
     var sx = this.x - camX;
     var sy = this.y - camY;
     c.save();
-    c.globalAlpha = 0.8;
-    c.fillStyle = 'hsl(' + this.hue + ',90%,65%)';
+    c.globalAlpha = 0.95;
+    var col = 'hsl(' + this.hue + ',95%,70%)';
+    c.fillStyle = col;
+    var r = this.r;
+    /* 4-point star */
     c.beginPath();
-    c.arc(sx, sy, this.r, 0, Math.PI * 2);
+    c.moveTo(sx, sy - r);
+    c.lineTo(sx + r * 0.35, sy - r * 0.35);
+    c.lineTo(sx + r, sy);
+    c.lineTo(sx + r * 0.35, sy + r * 0.35);
+    c.lineTo(sx, sy + r);
+    c.lineTo(sx - r * 0.35, sy + r * 0.35);
+    c.lineTo(sx - r, sy);
+    c.lineTo(sx - r * 0.35, sy - r * 0.35);
+    c.closePath();
     c.fill();
-    /* Highlight */
-    c.fillStyle = 'rgba(255,255,255,0.6)';
+    /* Bright core */
+    c.fillStyle = '#ffffff';
     c.beginPath();
-    c.arc(sx - 2, sy - 2, 2, 0, Math.PI * 2);
+    c.arc(sx, sy, r * 0.35, 0, Math.PI * 2);
+    c.fill();
+    /* Soft halo */
+    c.globalAlpha = 0.35;
+    c.fillStyle = col;
+    c.beginPath();
+    c.arc(sx, sy, r * 1.6, 0, Math.PI * 2);
     c.fill();
     c.restore();
   };
@@ -1246,6 +1316,14 @@
       return true;
     }
     Game.audio.play('enemyHit');
+    return false;
+  };
+
+  /* Comfortable RPG — aliens are friendly. Sparkle makes them twirl. */
+  Fish.prototype.delight = function () {
+    this.flash = 6;
+    this.delighted = 60;
+    Game.audio.play('pickup');
     return false;
   };
 
@@ -1502,6 +1580,14 @@
     return false;
   };
 
+  /* Floating UFO — comfortable RPG behavior, sparkle makes it twinkle. */
+  Octopus.prototype.delight = function () {
+    this.flash = 8;
+    this.delighted = 60;
+    Game.audio.play('pickup');
+    return false;
+  };
+
   Octopus.prototype.draw = function (c, camX, camY) {
     if (!this.active) return;
     if (this.flash > 0 && this.flash % 2 === 0) return;
@@ -1552,313 +1638,6 @@
     c.arc(sx + 20, sy + 11, 5, Math.PI + 0.3, Math.PI * 2 - 0.3);
     c.stroke();
   };
-
-  /* ========== MONI (Boss) ========== */
-  function Moni(x, y) {
-    this.x = x;
-    this.y = y;
-    this.w = 44;
-    this.h = 60;
-    this.hp = 15;
-    this.maxHp = 15;
-    this.active = false; /* activated when player enters boss area */
-    this.phase = 1;
-    this.timer = 0;
-    this.attackTimer = 0;
-    this.moveTimer = 0;
-    this.flash = 0;
-    this.projectiles = [];
-    this.tailPhase = 0;
-    this.defeated = false;
-    this.defeatTimer = 0;
-    this.hasTaunted = false;
-    this.hasTaunted2 = false;
-    this.hasTaunted3 = false;
-    this.hasChallenged = false;
-    /* Dialogue queue – items advance when the current line's talkTimer
-       expires. Each item: { speaker, text, duration }. Engine seeds this
-       with pre-fight / mid-fight / post-defeat exchanges. */
-    this.dialogueQueue = [];
-    this.talkText = '';
-    this.talkSpeaker = '';
-    this.talkTimer = 0;
-  }
-
-  Moni.prototype.activate = function () {
-    this.active = true;
-    this.timer = 0;
-  };
-
-  Moni.prototype.update = function (playerX, playerY) {
-    if (!this.active || this.defeated) {
-      if (this.defeated) {
-        this.defeatTimer++;
-        this.y += 0.5;
-      }
-      return;
-    }
-    this.timer++;
-    this.tailPhase += 0.06;
-    if (this.flash > 0) this.flash--;
-
-    /* Movement – float around */
-    this.moveTimer++;
-    this.x += Math.sin(this.moveTimer * 0.015) * 1.2;
-    this.y += Math.cos(this.moveTimer * 0.02) * 0.8;
-
-    /* Clamp boss position */
-    if (this.y < 80) this.y = 80;
-    if (this.y + this.h > 400) this.y = 400 - this.h;
-
-    /* Phase check */
-    if (this.hp <= this.maxHp * 0.5) this.phase = 2;
-
-    /* Attack patterns. Phase-2 fire rate is intentionally a touch slower
-       than the raw 40-frame cadence (44 ≈ 10% longer interval) – playtest
-       feedback was that the spread shot felt too punishing at point-blank. */
-    this.attackTimer++;
-    var attackRate = this.phase === 1 ? 60 : 44;
-    if (this.attackTimer >= attackRate) {
-      this.attackTimer = 0;
-      this.fireProjectiles(playerX, playerY);
-    }
-
-    /* Update projectiles */
-    for (var i = this.projectiles.length - 1; i >= 0; i--) {
-      var p = this.projectiles[i];
-      p.x += p.vx;
-      p.y += p.vy;
-      p.life--;
-      if (p.life <= 0) this.projectiles.splice(i, 1);
-    }
-  };
-
-  Moni.prototype.fireProjectiles = function (px, py) {
-    var cx = this.x + this.w / 2;
-    var cy = this.y + this.h / 2;
-    if (this.phase === 1) {
-      /* Aimed shot */
-      var dx = px - cx;
-      var dy = py - cy;
-      var dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      this.projectiles.push({
-        x: cx, y: cy, vx: (dx / dist) * 2.5, vy: (dy / dist) * 2.5, life: 120, r: 6
-      });
-    } else {
-      /* Spread shot */
-      for (var i = -2; i <= 2; i++) {
-        var angle = Math.atan2(py - cy, px - cx) + i * 0.3;
-        this.projectiles.push({
-          x: cx, y: cy, vx: Math.cos(angle) * 2.5, vy: Math.sin(angle) * 2.5, life: 100, r: 5
-        });
-      }
-    }
-  };
-
-  Moni.prototype.hit = function () {
-    if (this.defeated) return false;
-    this.hp--;
-    this.flash = 8;
-    Game.audio.play('enemyHit');
-    if (this.hp <= 0) {
-      this.defeated = true;
-      this.defeatTimer = 0;
-      this.projectiles = [];
-      Game.audio.play('enemyDefeat');
-      return true;
-    }
-    return false;
-  };
-
-  Moni.prototype.draw = function (c, camX, camY) {
-    if (!this.active) return;
-    var sx = Math.round(this.x - camX);
-    var sy = Math.round(this.y - camY);
-    if (this.flash > 0 && this.flash % 2 === 0) {
-      this.drawProjectiles(c, camX, camY);
-      return;
-    }
-
-    c.save();
-
-    /* Defeated fade */
-    if (this.defeated) {
-      c.globalAlpha = Math.max(0, 1 - this.defeatTimer / 120);
-    }
-
-    /* Tail – flowing bezier mermaid tail */
-    c.fillStyle = '#7733aa';
-    var tailWave = Math.sin(this.tailPhase) * 6;
-    c.beginPath();
-    c.moveTo(sx + 10, sy + 36);
-    c.lineTo(sx + 34, sy + 36);
-    c.bezierCurveTo(sx + 34, sy + 44, sx + 30 + tailWave, sy + 50, sx + 36, sy + 58);
-    c.quadraticCurveTo(sx + 38, sy + 62, sx + 34, sy + 64);
-    c.lineTo(sx + 10, sy + 64);
-    c.quadraticCurveTo(sx + 6, sy + 62, sx + 8, sy + 58);
-    c.bezierCurveTo(sx + 14 + tailWave, sy + 50, sx + 10, sy + 44, sx + 10, sy + 36);
-    c.closePath();
-    c.fill();
-
-    /* Tail fin */
-    c.fillStyle = '#6622aa';
-    c.beginPath();
-    c.moveTo(sx + 16, sy + 60);
-    c.quadraticCurveTo(sx + 6, sy + 66 + tailWave, sx + 2, sy + 64);
-    c.quadraticCurveTo(sx + 8, sy + 60, sx + 16, sy + 60);
-    c.fill();
-    c.beginPath();
-    c.moveTo(sx + 28, sy + 60);
-    c.quadraticCurveTo(sx + 38, sy + 66 + tailWave, sx + 42, sy + 64);
-    c.quadraticCurveTo(sx + 36, sy + 60, sx + 28, sy + 60);
-    c.fill();
-
-    /* Tail scales */
-    c.fillStyle = '#6622aa';
-    for (var s = 0; s < 3; s++) {
-      c.beginPath();
-      c.arc(sx + 16 + s * 6, sy + 42 + s * 4, 3, 0, Math.PI * 2);
-      c.fill();
-    }
-
-    /* Body / torso – ellipse */
-    c.fillStyle = '#bb88dd';
-    c.beginPath();
-    c.ellipse(sx + 22, sy + 28, 12, 8, 0, 0, Math.PI * 2);
-    c.fill();
-
-    /* Shell bra */
-    c.fillStyle = '#9944cc';
-    c.beginPath(); c.arc(sx + 16, sy + 24, 5, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 28, sy + 24, 5, 0, Math.PI * 2); c.fill();
-
-    /* Arms – tapered bezier */
-    c.fillStyle = '#bb88dd';
-    c.beginPath();
-    c.moveTo(sx + 10, sy + 24);
-    c.quadraticCurveTo(sx + 2, sy + 26, sx + 4, sy + 30);
-    c.quadraticCurveTo(sx + 6, sy + 28, sx + 10, sy + 28);
-    c.closePath();
-    c.fill();
-    c.beginPath();
-    c.moveTo(sx + 34, sy + 24);
-    c.quadraticCurveTo(sx + 42, sy + 26, sx + 40, sy + 30);
-    c.quadraticCurveTo(sx + 38, sy + 28, sx + 34, sy + 28);
-    c.closePath();
-    c.fill();
-
-    /* Head – ellipse */
-    c.fillStyle = '#ddbbee';
-    c.beginPath();
-    c.ellipse(sx + 22, sy + 12, 14, 13, 0, 0, Math.PI * 2);
-    c.fill();
-
-    /* Hair – flowing bezier strands */
-    c.fillStyle = '#552288';
-    c.beginPath();
-    c.ellipse(sx + 22, sy + 4, 16, 8, 0, Math.PI, 0);
-    c.fill();
-    /* Side hair strands */
-    c.beginPath();
-    c.moveTo(sx + 6, sy + 6);
-    c.bezierCurveTo(sx + 2, sy + 12, sx + 3, sy + 20, sx + 6, sy + 26);
-    c.lineTo(sx + 10, sy + 24);
-    c.bezierCurveTo(sx + 8, sy + 16, sx + 8, sy + 10, sx + 10, sy + 6);
-    c.closePath();
-    c.fill();
-    c.beginPath();
-    c.moveTo(sx + 38, sy + 6);
-    c.bezierCurveTo(sx + 42, sy + 12, sx + 41, sy + 20, sx + 38, sy + 26);
-    c.lineTo(sx + 34, sy + 24);
-    c.bezierCurveTo(sx + 36, sy + 16, sx + 36, sy + 10, sx + 34, sy + 6);
-    c.closePath();
-    c.fill();
-
-    /* Crown – pointed arcs */
-    c.fillStyle = '#ffcc33';
-    c.beginPath();
-    c.moveTo(sx + 10, sy + 1);
-    c.lineTo(sx + 14, sy - 6);
-    c.quadraticCurveTo(sx + 17, sy - 2, sx + 20, sy - 8);
-    c.quadraticCurveTo(sx + 22, sy - 3, sx + 24, sy - 8);
-    c.quadraticCurveTo(sx + 27, sy - 2, sx + 30, sy - 6);
-    c.lineTo(sx + 34, sy + 1);
-    c.closePath();
-    c.fill();
-    /* Crown gems */
-    c.fillStyle = '#cc3355';
-    c.beginPath(); c.arc(sx + 15, sy - 3, 1.5, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 22, sy - 5, 1.5, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 29, sy - 3, 1.5, 0, Math.PI * 2); c.fill();
-
-    /* Eyes – round */
-    c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(sx + 16, sy + 11, 4, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 28, sy + 11, 4, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#cc2244';
-    c.beginPath(); c.arc(sx + 16, sy + 12, 2.5, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 28, sy + 12, 2.5, 0, Math.PI * 2); c.fill();
-    /* Evil eyebrows – arcs */
-    c.strokeStyle = '#552288';
-    c.lineWidth = 2;
-    c.beginPath();
-    c.arc(sx + 16, sy + 8, 5, Math.PI + 0.4, Math.PI * 2 - 0.2);
-    c.stroke();
-    c.beginPath();
-    c.arc(sx + 28, sy + 8, 5, Math.PI + 0.2, Math.PI * 2 - 0.4);
-    c.stroke();
-
-    /* Mouth (smirk) – arc */
-    c.fillStyle = '#993355';
-    c.beginPath();
-    c.arc(sx + 22, sy + 17, 4, 0.2, Math.PI - 0.2);
-    c.fill();
-
-    c.restore();
-
-    this.drawProjectiles(c, camX, camY);
-  };
-
-  Moni.prototype.drawProjectiles = function (c, camX, camY) {
-    c.save();
-    for (var i = 0; i < this.projectiles.length; i++) {
-      var p = this.projectiles[i];
-      var px = p.x - camX;
-      var py = p.y - camY;
-      /* Dark magic orb */
-      c.fillStyle = '#9933cc';
-      c.beginPath();
-      c.arc(px, py, p.r, 0, Math.PI * 2);
-      c.fill();
-      c.fillStyle = '#dd66ff';
-      c.beginPath();
-      c.arc(px - 1, py - 1, p.r * 0.5, 0, Math.PI * 2);
-      c.fill();
-    }
-    c.restore();
-  };
-
-  Moni.prototype.drawHealthBar = function (c) {
-    if (!this.active || this.defeated) return;
-    var barW = 200;
-    var barH = 12;
-    var bx = (W - barW) / 2;
-    var by = 14;
-    /* Background */
-    c.fillStyle = '#330033';
-    c.fillRect(bx - 2, by - 2, barW + 4, barH + 4);
-    /* Bar */
-    c.fillStyle = '#882288';
-    c.fillRect(bx, by, barW, barH);
-    c.fillStyle = '#cc44cc';
-    c.fillRect(bx, by, barW * (this.hp / this.maxHp), barH);
-    /* Label */
-    c.fillStyle = '#ffffff';
-    c.font = 'bold 10px monospace';
-    c.textAlign = 'center';
-    c.fillText(Game.i18n.t('bossHP'), W / 2, by + 10);
-  };
-
   /* ========== OLIVER (NPC - Otter) ========== */
   function Oliver(x, y) {
     this.x = x;
@@ -2478,26 +2257,51 @@
     this.y = this.spawnY + Math.sin(this.timer * 0.05) * 6;
   };
 
+  /* Re-themed as StarGem — a cut gem with a twinkle core. */
   HeartPickup.prototype.draw = function (c, camX, camY) {
     if (!this.active) return;
     var sx = this.x - camX + 8;
-    var sy = this.y - camY + 6;
-    var pulse = 1 + Math.sin(this.timer * 0.08) * 0.1;
+    var sy = this.y - camY + 8;
+    var pulse = 1 + Math.sin(this.timer * 0.08) * 0.15;
+    var spin = Math.sin(this.timer * 0.04) * 0.3;
 
     c.save();
     c.translate(sx, sy);
+    c.rotate(spin);
     c.scale(pulse, pulse);
-    c.fillStyle = '#ff4466';
+    /* Gem body — diamond facets */
+    c.fillStyle = '#ff66cc';
     c.beginPath();
-    c.moveTo(0, 3);
-    c.bezierCurveTo(-8, -4, -8, -8, 0, -4);
-    c.bezierCurveTo(8, -8, 8, -4, 0, 3);
+    c.moveTo(0, -7);
+    c.lineTo(6, -2);
+    c.lineTo(4, 7);
+    c.lineTo(-4, 7);
+    c.lineTo(-6, -2);
+    c.closePath();
     c.fill();
-    /* Shine */
-    c.fillStyle = '#ff88aa';
+    /* Facet highlight */
+    c.fillStyle = '#ffaae0';
     c.beginPath();
-    c.arc(-3, -3, 2, 0, Math.PI * 2);
+    c.moveTo(0, -7);
+    c.lineTo(6, -2);
+    c.lineTo(0, 0);
+    c.closePath();
     c.fill();
+    /* Bright sparkle center */
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.arc(-1, -3, 1.3, 0, Math.PI * 2);
+    c.fill();
+    /* Outer glow */
+    c.globalAlpha = 0.45;
+    c.strokeStyle = '#ff99dd';
+    c.lineWidth = 0.8;
+    c.beginPath();
+    c.moveTo(0, -11);
+    c.lineTo(0, 11);
+    c.moveTo(-9, 0);
+    c.lineTo(9, 0);
+    c.stroke();
     c.restore();
   };
 
@@ -2571,40 +2375,340 @@
     if (this.y < -10) this.y = levelHeight + 10;
   };
 
+  /* Re-themed as AmbientSparkle — cosmic dust drifting upward. */
   AmbientBubble.prototype.draw = function (c, camX, camY) {
     var sx = this.x - camX + Math.sin(this.phase) * this.wobbleAmp;
     var sy = this.y - camY;
     c.save();
-    c.globalAlpha = this.alpha;
-    c.fillStyle = '#88ccff';
+    c.globalAlpha = this.alpha * 0.85;
+    c.fillStyle = this.phase > Math.PI ? '#ff99dd' : '#ccddff';
     c.beginPath();
     c.arc(sx, sy, this.r, 0, Math.PI * 2);
     c.fill();
-    c.fillStyle = '#bbddff';
+    c.fillStyle = '#ffffff';
+    c.globalAlpha = this.alpha;
     c.beginPath();
-    c.arc(sx - this.r * 0.3, sy - this.r * 0.3, this.r * 0.3, 0, Math.PI * 2);
+    c.arc(sx, sy, this.r * 0.4, 0, Math.PI * 2);
     c.fill();
     c.restore();
+  };
+
+  /* ========== ROCKET SHIP (interactable — opens travel menu) ========== */
+  function RocketShip(x, y) {
+    this.x = x;
+    this.y = y;
+    this.w = 32;
+    this.h = 50;
+    this.talking = false;
+    this.timer = 0;
+  }
+
+  RocketShip.prototype.update = function () {
+    this.timer++;
+  };
+
+  RocketShip.prototype.interact = function () {
+    /* engine.js reads keys.up/jp.up and calls onRocketInteract directly,
+       so this stub just ensures the NPC loop doesn't freak out. */
+  };
+
+  RocketShip.prototype.draw = function (c, camX, camY) {
+    var sx = Math.round(this.x - camX);
+    var sy = Math.round(this.y - camY);
+    /* Body */
+    c.fillStyle = '#dddddd';
+    c.beginPath();
+    c.moveTo(sx + 16, sy);           /* tip */
+    c.lineTo(sx + 26, sy + 20);
+    c.lineTo(sx + 26, sy + 40);
+    c.lineTo(sx + 6, sy + 40);
+    c.lineTo(sx + 6, sy + 20);
+    c.closePath();
+    c.fill();
+    /* Window */
+    c.fillStyle = '#44ccff';
+    c.beginPath();
+    c.arc(sx + 16, sy + 20, 5, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.arc(sx + 14, sy + 18, 1.5, 0, Math.PI * 2);
+    c.fill();
+    /* Fins */
+    c.fillStyle = '#ff66cc';
+    c.beginPath();
+    c.moveTo(sx + 6, sy + 30);
+    c.lineTo(sx + 0, sy + 44);
+    c.lineTo(sx + 6, sy + 44);
+    c.closePath();
+    c.fill();
+    c.beginPath();
+    c.moveTo(sx + 26, sy + 30);
+    c.lineTo(sx + 32, sy + 44);
+    c.lineTo(sx + 26, sy + 44);
+    c.closePath();
+    c.fill();
+    /* Exhaust flicker */
+    var flick = Math.sin(this.timer * 0.3) * 2 + 4;
+    c.fillStyle = '#ffd24a';
+    c.beginPath();
+    c.arc(sx + 16, sy + 44 + flick, 3, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ff6644';
+    c.beginPath();
+    c.arc(sx + 16, sy + 44 + flick, 1.5, 0, Math.PI * 2);
+    c.fill();
+  };
+
+  /* ========== HOUSE DOOR (interactable — enters house interior) ========== */
+  function HouseDoor(x, y, houseId) {
+    this.x = x;
+    this.y = y;
+    this.w = 24;
+    this.h = 30;
+    this.houseId = houseId || 'heroHome';
+    this.talking = false;
+    this.timer = 0;
+  }
+
+  HouseDoor.prototype.update = function () { this.timer++; };
+  HouseDoor.prototype.interact = function () { /* handled by engine */ };
+
+  HouseDoor.prototype.draw = function (c, camX, camY) {
+    var sx = Math.round(this.x - camX);
+    var sy = Math.round(this.y - camY);
+    /* Door frame */
+    c.fillStyle = '#5a3a22';
+    c.fillRect(sx, sy, 24, 30);
+    /* Door panel */
+    c.fillStyle = '#8a5a32';
+    c.fillRect(sx + 2, sy + 2, 20, 26);
+    /* Handle */
+    c.fillStyle = '#ffd24a';
+    c.beginPath();
+    c.arc(sx + 18, sy + 16, 1.5, 0, Math.PI * 2);
+    c.fill();
+    /* Welcome dot above */
+    c.fillStyle = '#ff66cc';
+    c.beginPath();
+    c.arc(sx + 12, sy - 3, 1.8, 0, Math.PI * 2);
+    c.fill();
+  };
+
+  /* ========== LILA (friendly neighbor NPC) ========== */
+  function Lila(x, y) {
+    this.x = x;
+    this.y = y;
+    this.w = 26;
+    this.h = 34;
+    this.timer = 0;
+    this.talking = false;
+    this.talkTimer = 0;
+    this.currentText = '';
+  }
+
+  Lila.prototype.update = function () {
+    this.timer++;
+    if (this.talkTimer > 0) {
+      this.talkTimer--;
+      if (this.talkTimer <= 0) this.talking = false;
+    }
+  };
+
+  Lila.prototype.interact = function () {
+    this.talking = true;
+    this.talkTimer = 280;
+    /* Pick text based on quest state */
+    var q = Game.quests && Game.quests.lila;
+    if (q === 'done') {
+      this.currentText = Game.i18n.t('lilaThanks');
+    } else {
+      this.currentText = Game.i18n.t('lilaGreet');
+    }
+  };
+
+  Lila.prototype.draw = function (c, camX, camY) {
+    var sx = Math.round(this.x - camX);
+    var sy = Math.round(this.y - camY);
+    var bob = Math.sin(this.timer * 0.05) * 1;
+    /* Body — space suit in teal */
+    c.fillStyle = '#33aaaa';
+    c.fillRect(sx + 6, sy + 14 + bob, 14, 16);
+    /* Head */
+    c.fillStyle = '#ffccaa';
+    c.beginPath();
+    c.arc(sx + 13, sy + 10 + bob, 7, 0, Math.PI * 2);
+    c.fill();
+    /* Hair — short bob, purple */
+    c.fillStyle = '#8844cc';
+    c.beginPath();
+    c.arc(sx + 13, sy + 7 + bob, 7, Math.PI, Math.PI * 2);
+    c.fill();
+    c.fillRect(sx + 6, sy + 7 + bob, 14, 5);
+    /* Eyes */
+    c.fillStyle = '#000000';
+    c.beginPath(); c.arc(sx + 10, sy + 10 + bob, 0.9, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 16, sy + 10 + bob, 0.9, 0, Math.PI * 2); c.fill();
+    /* Smile */
+    c.strokeStyle = '#993333';
+    c.lineWidth = 0.8;
+    c.beginPath();
+    c.arc(sx + 13, sy + 12 + bob, 1.8, 0.1, Math.PI - 0.1);
+    c.stroke();
+    /* Helmet ring */
+    c.strokeStyle = '#44ffff';
+    c.lineWidth = 1;
+    c.beginPath();
+    c.arc(sx + 13, sy + 10 + bob, 8.5, 0, Math.PI * 2);
+    c.stroke();
+    /* Legs */
+    c.fillStyle = '#225577';
+    c.fillRect(sx + 8, sy + 30 + bob, 4, 4);
+    c.fillRect(sx + 14, sy + 30 + bob, 4, 4);
+  };
+
+  /* ========== MIGWORD (cheese-moon resident NPC) ========== */
+  function MigWord(x, y) {
+    this.x = x;
+    this.y = y;
+    this.w = 28;
+    this.h = 34;
+    this.timer = 0;
+    this.talking = false;
+    this.talkTimer = 0;
+    this.currentText = '';
+  }
+
+  MigWord.prototype.update = function () {
+    this.timer++;
+    if (this.talkTimer > 0) {
+      this.talkTimer--;
+      if (this.talkTimer <= 0) this.talking = false;
+    }
+  };
+
+  MigWord.prototype.interact = function () {
+    this.talking = true;
+    this.talkTimer = 300;
+    var q = Game.quests && Game.quests.migword;
+    if (q === 'done') {
+      this.currentText = Game.i18n.t('migwordThanks');
+    } else {
+      this.currentText = Game.i18n.t('migwordGreet');
+    }
+  };
+
+  MigWord.prototype.draw = function (c, camX, camY) {
+    var sx = Math.round(this.x - camX);
+    var sy = Math.round(this.y - camY);
+    var bob = Math.sin(this.timer * 0.04) * 1.3;
+    /* Round cheese-y body */
+    c.fillStyle = '#ffcc66';
+    c.beginPath();
+    c.ellipse(sx + 14, sy + 20 + bob, 13, 12, 0, 0, Math.PI * 2);
+    c.fill();
+    /* Cheese holes */
+    c.fillStyle = '#cc9933';
+    c.beginPath(); c.arc(sx + 9, sy + 18 + bob, 1.5, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 18, sy + 22 + bob, 1.2, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 14, sy + 26 + bob, 1, 0, Math.PI * 2); c.fill();
+    /* Eyes */
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.arc(sx + 10, sy + 15 + bob, 2.5, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 18, sy + 15 + bob, 2.5, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#000000';
+    c.beginPath(); c.arc(sx + 10, sy + 15 + bob, 1.2, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 18, sy + 15 + bob, 1.2, 0, Math.PI * 2); c.fill();
+    /* Cheerful smile */
+    c.strokeStyle = '#663300';
+    c.lineWidth = 1.3;
+    c.beginPath();
+    c.arc(sx + 14, sy + 19 + bob, 3.5, 0.3, Math.PI - 0.3);
+    c.stroke();
+    /* Tiny antenna */
+    c.strokeStyle = '#aa7700';
+    c.lineWidth = 0.8;
+    c.beginPath();
+    c.moveTo(sx + 14, sy + 8 + bob);
+    c.lineTo(sx + 14, sy + 4 + bob);
+    c.stroke();
+    c.fillStyle = '#44ffff';
+    c.beginPath();
+    c.arc(sx + 14, sy + 3.5 + bob, 1.3, 0, Math.PI * 2);
+    c.fill();
+  };
+
+  /* ========== CHEESE WHEEL (pickup for MigWord's quest) ========== */
+  function CheeseWheel(x, y) {
+    this.x = x;
+    this.y = y;
+    this.w = 16;
+    this.h = 16;
+    this.active = true;
+    this.kind = 'cheese';
+    this.timer = Math.random() * 100;
+  }
+
+  CheeseWheel.prototype.update = function () {
+    this.timer++;
+  };
+
+  CheeseWheel.prototype.draw = function (c, camX, camY) {
+    if (!this.active) return;
+    var sx = Math.round(this.x - camX);
+    var sy = Math.round(this.y - camY + Math.sin(this.timer * 0.07) * 2);
+    /* Rim */
+    c.fillStyle = '#aa6a18';
+    c.beginPath();
+    c.arc(sx + 8, sy + 8, 8, 0, Math.PI * 2);
+    c.fill();
+    /* Cheese body */
+    c.fillStyle = '#ffcc44';
+    c.beginPath();
+    c.arc(sx + 8, sy + 8, 6.5, 0, Math.PI * 2);
+    c.fill();
+    /* Holes */
+    c.fillStyle = '#cc8820';
+    c.beginPath(); c.arc(sx + 5, sy + 6, 1, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 10, sy + 9, 1.2, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 7, sy + 11, 0.7, 0, Math.PI * 2); c.fill();
+    /* Sparkle */
+    c.fillStyle = '#ffffff';
+    c.globalAlpha = 0.8;
+    c.beginPath();
+    c.arc(sx + 11, sy + 4, 0.8, 0, Math.PI * 2);
+    c.fill();
+    c.globalAlpha = 1;
   };
 
   /* ========== EXPORTS ========== */
   window.Game.entities = {
     Momoko: Momoko,
     Bubble: Bubble,
+    Sparkle: Bubble,               /* alias — same class, re-themed visual */
     Fish: Fish,
+    Alien: Fish,                   /* alias */
     Octopus: Octopus,
-    Moni: Moni,
+    FloatingUfo: Octopus,          /* alias */
     Oliver: Oliver,
     KittyCorn: KittyCorn,
     Bob: Bob,
     Crab: Crab,
     Wolfe: Wolfe,
+    Lila: Lila,
+    MigWord: MigWord,
+    RocketShip: RocketShip,
+    HouseDoor: HouseDoor,
+    CheeseWheel: CheeseWheel,
     HeartPickup: HeartPickup,
+    StarGem: HeartPickup,          /* alias — same class, re-themed visual */
     Particle: Particle,
     AmbientBubble: AmbientBubble,
+    AmbientSparkle: AmbientBubble, /* alias */
     spawnBurst: spawnBurst,
     drawMomokoSprite: drawMomokoSprite,
     drawMomokoFloss: drawMomokoFloss,
     drawCrabPet: drawCrabPet,
+    drawPetDog: drawCrabPet,       /* alias */
   };
 })();

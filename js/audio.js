@@ -147,7 +147,7 @@
   /* ---- Music (looping chiptune patterns) ---- */
   var musicInterval = null;
 
-  /* Underwater BGM – calm pentatonic melody */
+  /* Cosmic BGM – calm pentatonic melody that suits drifting through space */
   var bgmPattern = [
     [262, 'triangle'], [330, 'triangle'], [392, 'triangle'], [330, 'triangle'],
     [294, 'triangle'], [392, 'triangle'], [440, 'triangle'], [392, 'triangle'],

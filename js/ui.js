@@ -7,22 +7,22 @@
   var titleAnimTimer = 0;
   var titleBubbles = [];
 
-  /* Initialise floating title bubbles */
-  for (var i = 0; i < 30; i++) {
+  /* Title-screen twinkling stars */
+  for (var i = 0; i < 60; i++) {
     titleBubbles.push({
       x: Math.random() * W,
-      y: Math.random() * H,
-      r: 2 + Math.random() * 6,
-      speed: 0.3 + Math.random() * 0.8,
+      y: Math.random() * H * 0.9,
+      r: 1 + Math.random() * 4,
+      speed: 0, /* stars stay put, they just twinkle */
       wobble: Math.random() * Math.PI * 2,
     });
   }
 
   /* ---- Helpers ---- */
   function drawButton(c, text, x, y, w, h, hover) {
-    c.fillStyle = hover ? '#3388cc' : '#225588';
+    c.fillStyle = hover ? '#7744cc' : '#4a1f7a';
     c.fillRect(x, y, w, h);
-    c.strokeStyle = '#66bbee';
+    c.strokeStyle = '#ff66cc';
     c.lineWidth = 2;
     c.strokeRect(x, y, w, h);
     c.fillStyle = '#ffffff';
@@ -62,78 +62,78 @@
   function drawTitleScreen(c) {
     titleAnimTimer++;
 
-    /* Background gradient */
+    /* Space background gradient */
     var grad = c.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, '#0a1628');
-    grad.addColorStop(0.5, '#0d2847');
-    grad.addColorStop(1, '#162e50');
+    grad.addColorStop(0, '#0a0420');
+    grad.addColorStop(0.5, '#1a0b3d');
+    grad.addColorStop(1, '#2a1458');
     c.fillStyle = grad;
     c.fillRect(0, 0, W, H);
 
-    /* Animated bubbles */
+    /* Twinkling stars scattered on title screen */
     for (var i = 0; i < titleBubbles.length; i++) {
       var b = titleBubbles[i];
-      b.wobble += 0.02;
-      b.y -= b.speed;
-      if (b.y < -10) { b.y = H + 10; b.x = Math.random() * W; }
+      b.wobble += 0.04;
+      var twinkle = 0.3 + 0.7 * Math.abs(Math.sin(b.wobble));
       c.save();
-      c.globalAlpha = 0.3;
-      c.fillStyle = '#66bbee';
+      c.globalAlpha = twinkle * 0.9;
+      c.fillStyle = i % 13 === 0 ? '#44ffff' : (i % 17 === 0 ? '#ff66cc' : '#ffffff');
       c.beginPath();
-      c.arc(b.x + Math.sin(b.wobble) * 15, b.y, b.r, 0, Math.PI * 2);
+      c.arc(b.x, b.y, 0.8 + b.r * 0.4 * twinkle, 0, Math.PI * 2);
       c.fill();
+      if (b.r > 3) {
+        c.strokeStyle = c.fillStyle;
+        c.lineWidth = 0.6;
+        c.beginPath();
+        c.moveTo(b.x - b.r * 1.3, b.y);
+        c.lineTo(b.x + b.r * 1.3, b.y);
+        c.moveTo(b.x, b.y - b.r * 1.3);
+        c.lineTo(b.x, b.y + b.r * 1.3);
+        c.stroke();
+      }
       c.restore();
     }
 
-    /* Light rays */
+    /* A ringed planet in the upper-right */
     c.save();
-    c.globalAlpha = 0.04;
-    for (var r = 0; r < 5; r++) {
-      var rx = 100 + r * 160 + Math.sin(titleAnimTimer * 0.005 + r) * 30;
-      c.fillStyle = '#88ccff';
-      c.beginPath();
-      c.moveTo(rx, 0);
-      c.lineTo(rx + 40, 0);
-      c.lineTo(rx + 80, H);
-      c.lineTo(rx - 40, H);
-      c.closePath();
-      c.fill();
-    }
+    var pcx = W - 110, pcy = 80;
+    c.fillStyle = '#ff88dd';
+    c.beginPath();
+    c.arc(pcx, pcy, 38, 0, Math.PI * 2);
+    c.fill();
+    c.globalAlpha = 0.25;
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.arc(pcx - 8, pcy - 8, 18, 0, Math.PI * 2);
+    c.fill();
+    c.globalAlpha = 0.7;
+    c.strokeStyle = '#ffd24a';
+    c.lineWidth = 3;
+    c.beginPath();
+    c.ellipse(pcx, pcy, 62, 12, -0.3, 0, Math.PI * 2);
+    c.stroke();
     c.restore();
 
-    /* Seaweed at bottom */
-    for (var sw = 0; sw < 12; sw++) {
-      var swx = sw * 70 + 20;
-      var sway = Math.sin(titleAnimTimer * 0.02 + sw) * 8;
-      c.fillStyle = '#1a5533';
-      c.beginPath();
-      c.moveTo(swx, H);
-      c.quadraticCurveTo(swx + sway, H - 40, swx + 5, H - 60 - Math.random() * 10);
-      c.quadraticCurveTo(swx - sway + 10, H - 40, swx + 10, H);
-      c.closePath();
-      c.fill();
-    }
-
-    /* Title text with wave effect */
+    /* Title text */
     var title = Game.i18n.t('title');
     c.save();
     c.font = 'bold 36px monospace';
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     /* Shadow */
-    c.fillStyle = '#003366';
+    c.fillStyle = '#220044';
     c.fillText(title, W / 2 + 2, 102);
     /* Main */
-    c.fillStyle = '#66ccff';
+    c.fillStyle = '#44ffff';
     c.fillText(title, W / 2, 100);
     /* Glow */
-    c.shadowColor = '#44aaff';
-    c.shadowBlur = 15;
+    c.shadowColor = '#ff66cc';
+    c.shadowBlur = 16;
     c.fillText(title, W / 2, 100);
     c.restore();
 
     /* Subtitle */
-    c.fillStyle = '#88aacc';
+    c.fillStyle = '#ffd24a';
     c.font = '14px monospace';
     c.textAlign = 'center';
     c.fillText(Game.i18n.t('titleSubtitle'), W / 2, 140);
@@ -231,9 +231,9 @@
   function drawPauseMenu(c) {
     pauseFlossTimer++;
     c.save();
-    c.fillStyle = 'rgba(0,0,0,0.7)';
+    c.fillStyle = 'rgba(10, 4, 32, 0.82)';
     c.fillRect(0, 0, W, H);
-    c.fillStyle = '#66ccff';
+    c.fillStyle = '#44ffff';
     c.font = 'bold 32px monospace';
     c.textAlign = 'center';
     c.fillText(Game.i18n.t('paused'), W / 2, 90);
@@ -283,7 +283,7 @@
      level M) encoding the game's public URL. Generated offline; see the
      commit notes. Rendered in canvas-space so it sits in the empty
      upper-right strip area, inviting someone else to scan and play. */
-  var QR_URL = 'https://ruck314.github.io/momokos-underwater-world/';
+  var QR_URL = 'https://ruck314.github.io/momoko-in-space/';
   var QR_SIZE = 33;
   var QR_ROWS = [
     '111111100010000010111011101111111',
@@ -2121,6 +2121,478 @@
   }
 
   /* ---- Exports ---- */
+  /* ============================================================ */
+  /*               TRAVEL MENU (rocket destinations)                */
+  /* ============================================================ */
+  function drawTravelMenu(c) {
+    /* Dim backdrop over the game */
+    c.save();
+    c.fillStyle = 'rgba(10, 4, 32, 0.85)';
+    c.fillRect(0, 0, W, H);
+
+    /* Panel */
+    c.fillStyle = '#1a0b3d';
+    c.strokeStyle = '#ff66cc';
+    c.lineWidth = 3;
+    var px = W / 2 - 240, py = 70, pw = 480, ph = 340;
+    roundRect(c, px, py, pw, ph, 12);
+    c.fill();
+    c.stroke();
+
+    /* Title */
+    c.fillStyle = '#44ffff';
+    c.font = 'bold 28px monospace';
+    c.textAlign = 'center';
+    c.fillText(Game.i18n.t('travelMenuTitle'), W / 2, 110);
+
+    /* Destination buttons */
+    var bw = 190, bh = 180, gap = 30;
+    var bx1 = W / 2 - bw - gap / 2;
+    var bx2 = W / 2 + gap / 2;
+    var by = 150;
+
+    drawDestinationCard(c, bx1, by, bw, bh, 'home');
+    drawDestinationCard(c, bx2, by, bw, bh, 'moon');
+
+    /* Cancel button */
+    drawButton(c, Game.i18n.t('travelCancel'), W / 2 - 90, 360, 180, 36);
+    c.restore();
+  }
+
+  function drawDestinationCard(c, x, y, w, h, kind) {
+    c.save();
+    c.fillStyle = '#2a1458';
+    c.strokeStyle = '#44ffff';
+    c.lineWidth = 2;
+    roundRect(c, x, y, w, h, 10);
+    c.fill();
+    c.stroke();
+
+    /* Planet preview */
+    var pcx = x + w / 2, pcy = y + 65;
+    if (kind === 'home') {
+      /* Ringed home planet */
+      c.fillStyle = '#ff88dd';
+      c.beginPath();
+      c.arc(pcx, pcy, 32, 0, Math.PI * 2);
+      c.fill();
+      c.strokeStyle = '#ffd24a';
+      c.lineWidth = 3;
+      c.beginPath();
+      c.ellipse(pcx, pcy, 52, 10, -0.2, 0, Math.PI * 2);
+      c.stroke();
+    } else {
+      /* Cheese moon */
+      c.fillStyle = '#ffcc44';
+      c.beginPath();
+      c.arc(pcx, pcy, 32, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#cc9922';
+      c.beginPath(); c.arc(pcx - 8, pcy - 4, 5, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(pcx + 6, pcy + 6, 4, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(pcx - 2, pcy + 10, 3, 0, Math.PI * 2); c.fill();
+    }
+
+    /* Label */
+    c.fillStyle = '#ffffff';
+    c.font = 'bold 16px monospace';
+    c.textAlign = 'center';
+    var label = kind === 'home'
+      ? Game.i18n.t('destHerosPlanet')
+      : Game.i18n.t('destCheeseMoon');
+    c.fillText(label, pcx, y + 130);
+
+    /* Launch button */
+    drawButton(c, Game.i18n.t('travelConfirm'), x + 20, y + 145, w - 40, 30);
+    c.restore();
+  }
+
+  function handleTravelMenuClick(mx, my) {
+    var bw = 190, bh = 180, gap = 30;
+    var bx1 = W / 2 - bw - gap / 2;
+    var bx2 = W / 2 + gap / 2;
+    var by = 150;
+    /* Launch buttons within each card */
+    if (hitButton(mx, my, bx1 + 20, by + 145, bw - 40, 30)) {
+      Game.audio.play('select');
+      return { zone: 0 };
+    }
+    if (hitButton(mx, my, bx2 + 20, by + 145, bw - 40, 30)) {
+      Game.audio.play('select');
+      return { zone: 1 };
+    }
+    /* Cancel */
+    if (hitButton(mx, my, W / 2 - 90, 360, 180, 36)) {
+      Game.audio.play('select');
+      return 'cancel';
+    }
+    return null;
+  }
+
+  function updateTravelMenu(keys, jp) {
+    /* no-op; click handles all interaction */
+  }
+
+  /* ============================================================ */
+  /*                    ROCKET LAUNCH ANIMATION                     */
+  /* ============================================================ */
+  function drawRocketAnim(c, timer, target) {
+    /* Space backdrop */
+    var grad = c.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#0a0420');
+    grad.addColorStop(1, '#1a0b3d');
+    c.fillStyle = grad;
+    c.fillRect(0, 0, W, H);
+
+    /* Warp stars streaking toward viewer */
+    for (var s = 0; s < 60; s++) {
+      var ang = (s * 73) % 360 * Math.PI / 180;
+      var dist = 20 + ((timer * 8 + s * 30) % 400);
+      var sx = W / 2 + Math.cos(ang) * dist;
+      var sy = H / 2 + Math.sin(ang) * dist;
+      c.fillStyle = '#ffffff';
+      c.globalAlpha = Math.min(1, dist / 200);
+      c.beginPath();
+      c.arc(sx, sy, 1 + (dist / 200), 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+
+    /* Rocket trail and ship */
+    var t = timer / 120; /* 0..1 */
+    var ry = H - 80 - t * 200; /* launches upward */
+    var rx = W / 2 - 20;
+    /* Flame */
+    c.fillStyle = '#ffd24a';
+    c.beginPath();
+    c.ellipse(rx + 20, ry + 54 + Math.sin(timer * 0.5) * 2, 8, 18, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ff4444';
+    c.beginPath();
+    c.ellipse(rx + 20, ry + 54, 4, 10, 0, 0, Math.PI * 2);
+    c.fill();
+    /* Rocket body */
+    c.fillStyle = '#dddddd';
+    c.beginPath();
+    c.moveTo(rx + 20, ry);
+    c.lineTo(rx + 34, ry + 20);
+    c.lineTo(rx + 34, ry + 50);
+    c.lineTo(rx + 6, ry + 50);
+    c.lineTo(rx + 6, ry + 20);
+    c.closePath();
+    c.fill();
+    c.fillStyle = '#44ccff';
+    c.beginPath();
+    c.arc(rx + 20, ry + 24, 5, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ff66cc';
+    c.beginPath();
+    c.moveTo(rx + 6, ry + 38);
+    c.lineTo(rx, ry + 54);
+    c.lineTo(rx + 6, ry + 54);
+    c.closePath();
+    c.fill();
+    c.beginPath();
+    c.moveTo(rx + 34, ry + 38);
+    c.lineTo(rx + 40, ry + 54);
+    c.lineTo(rx + 34, ry + 54);
+    c.closePath();
+    c.fill();
+
+    /* Text */
+    c.fillStyle = '#44ffff';
+    c.font = 'bold 24px monospace';
+    c.textAlign = 'center';
+    c.fillText(
+      timer < 60 ? Game.i18n.t('rocketLaunching') : Game.i18n.t('rocketArriving'),
+      W / 2, 60
+    );
+  }
+
+  /* ============================================================ */
+  /*                    HOUSE INTERIOR & FURNITURE                  */
+  /* ============================================================ */
+  var FURNITURE_TYPES = ['bed', 'table', 'chair', 'lamp', 'rug', 'plant', 'painting', 'bookshelf'];
+  var selectedFurniture = null;
+
+  function loadFurnitureState() {
+    try {
+      var raw = localStorage.getItem('momoko-space-furniture');
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* fallthrough */ }
+    return {};
+  }
+
+  function saveFurnitureState(state) {
+    try {
+      localStorage.setItem('momoko-space-furniture', JSON.stringify(state));
+    } catch (e) { /* storage disabled */ }
+  }
+
+  function drawHouseInterior(c, houseId) {
+    /* Room background */
+    c.fillStyle = '#2a1458';
+    c.fillRect(0, 0, W, H);
+    /* Back wall gradient */
+    var wallGrad = c.createLinearGradient(0, 0, 0, H - 120);
+    wallGrad.addColorStop(0, '#3d2468');
+    wallGrad.addColorStop(1, '#5a3888');
+    c.fillStyle = wallGrad;
+    c.fillRect(0, 0, W, H - 120);
+    /* Floor */
+    c.fillStyle = '#6a4aa0';
+    c.fillRect(0, H - 120, W, 120);
+    /* Wooden planks */
+    c.strokeStyle = '#4a2a70';
+    c.lineWidth = 1;
+    for (var pl = 0; pl < 8; pl++) {
+      c.beginPath();
+      c.moveTo(0, H - 120 + pl * 15);
+      c.lineTo(W, H - 120 + pl * 15);
+      c.stroke();
+    }
+    /* Window with stars */
+    c.fillStyle = '#0a0420';
+    c.fillRect(540, 60, 160, 100);
+    c.strokeStyle = '#ff66cc';
+    c.lineWidth = 3;
+    c.strokeRect(540, 60, 160, 100);
+    c.fillStyle = '#ffffff';
+    for (var ws = 0; ws < 12; ws++) {
+      c.globalAlpha = 0.5 + Math.random() * 0.5;
+      c.beginPath();
+      c.arc(550 + Math.random() * 140, 70 + Math.random() * 80, 0.8 + Math.random() * 1.2, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+
+    /* House name label */
+    c.fillStyle = '#44ffff';
+    c.font = 'bold 20px monospace';
+    c.textAlign = 'left';
+    var nameKey = houseId === 'heroHome' ? 'houseHero'
+                : houseId === 'lilaHouse' ? 'houseLila'
+                : 'houseMigword';
+    c.fillText(Game.i18n.t(nameKey), 20, 40);
+
+    /* Placed furniture */
+    var state = loadFurnitureState();
+    var items = state[houseId] || [];
+    for (var pi = 0; pi < items.length; pi++) {
+      drawFurniture(c, items[pi].type, items[pi].x, items[pi].y);
+    }
+
+    /* Furniture palette strip along the top */
+    c.fillStyle = 'rgba(10, 4, 32, 0.7)';
+    c.fillRect(0, 50, W, 60);
+    c.fillStyle = '#ffd24a';
+    c.font = '12px monospace';
+    c.textAlign = 'left';
+    c.fillText(Game.i18n.t('furnitureTabTitle'), 10, 62);
+    for (var fi = 0; fi < FURNITURE_TYPES.length; fi++) {
+      var ft = FURNITURE_TYPES[fi];
+      var fx = 20 + fi * 70;
+      var fy = 70;
+      var hover = selectedFurniture === ft;
+      c.fillStyle = hover ? '#7744cc' : '#2a1458';
+      c.strokeStyle = '#44ffff';
+      c.lineWidth = hover ? 3 : 1;
+      roundRect(c, fx, fy, 60, 34, 6);
+      c.fill();
+      c.stroke();
+      /* Small icon */
+      drawFurniture(c, ft, fx + 30, fy + 22, true);
+    }
+
+    /* Exit door */
+    c.fillStyle = '#ff66cc';
+    c.fillRect(W - 90, H - 130, 4, 70);
+    c.fillStyle = '#5a3a22';
+    c.fillRect(W - 86, H - 130, 50, 70);
+    c.fillStyle = '#8a5a32';
+    c.fillRect(W - 84, H - 128, 46, 66);
+    c.fillStyle = '#ffd24a';
+    c.beginPath();
+    c.arc(W - 50, H - 95, 2, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ffffff';
+    c.font = 'bold 11px monospace';
+    c.textAlign = 'center';
+    c.fillText(Game.i18n.t('furnitureExit'), W - 61, H - 30);
+  }
+
+  function drawFurniture(c, type, x, y, small) {
+    c.save();
+    var scale = small ? 0.6 : 1;
+    c.translate(x, y);
+    c.scale(scale, scale);
+    switch (type) {
+      case 'bed':
+        c.fillStyle = '#dd5599';
+        c.fillRect(-30, -20, 60, 30);
+        c.fillStyle = '#ffaacc';
+        c.fillRect(-30, -22, 20, 14);
+        c.fillStyle = '#66bbff';
+        c.fillRect(-26, -10, 52, 18);
+        break;
+      case 'table':
+        c.fillStyle = '#aa7744';
+        c.fillRect(-24, -10, 48, 8);
+        c.fillStyle = '#885522';
+        c.fillRect(-22, -2, 4, 14);
+        c.fillRect(18, -2, 4, 14);
+        break;
+      case 'chair':
+        c.fillStyle = '#cc66aa';
+        c.fillRect(-10, -18, 20, 16);
+        c.fillRect(-10, -2, 20, 4);
+        c.fillStyle = '#994488';
+        c.fillRect(-10, 2, 3, 10);
+        c.fillRect(7, 2, 3, 10);
+        break;
+      case 'lamp':
+        c.fillStyle = '#ffd24a';
+        c.beginPath();
+        c.moveTo(-10, -20);
+        c.lineTo(10, -20);
+        c.lineTo(6, -6);
+        c.lineTo(-6, -6);
+        c.closePath();
+        c.fill();
+        c.fillStyle = '#666666';
+        c.fillRect(-1, -6, 2, 18);
+        c.fillStyle = '#444444';
+        c.fillRect(-6, 10, 12, 2);
+        break;
+      case 'rug':
+        c.fillStyle = '#44ccff';
+        c.beginPath();
+        c.ellipse(0, 0, 30, 10, 0, 0, Math.PI * 2);
+        c.fill();
+        c.strokeStyle = '#ff66cc';
+        c.lineWidth = 1.5;
+        c.beginPath();
+        c.ellipse(0, 0, 22, 7, 0, 0, Math.PI * 2);
+        c.stroke();
+        break;
+      case 'plant':
+        c.fillStyle = '#884422';
+        c.fillRect(-8, 4, 16, 12);
+        c.fillStyle = '#44cc66';
+        c.beginPath();
+        c.arc(-6, -2, 8, 0, Math.PI * 2);
+        c.arc(6, -2, 8, 0, Math.PI * 2);
+        c.arc(0, -10, 8, 0, Math.PI * 2);
+        c.fill();
+        break;
+      case 'painting':
+        c.fillStyle = '#884422';
+        c.fillRect(-16, -14, 32, 28);
+        c.fillStyle = '#44ffff';
+        c.fillRect(-13, -11, 26, 22);
+        c.fillStyle = '#ff66cc';
+        c.beginPath();
+        c.arc(-4, -4, 3, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#ffd24a';
+        c.beginPath();
+        c.arc(6, 2, 2, 0, Math.PI * 2);
+        c.fill();
+        break;
+      case 'bookshelf':
+        c.fillStyle = '#663322';
+        c.fillRect(-15, -22, 30, 40);
+        c.fillStyle = '#ff4466';
+        c.fillRect(-12, -20, 6, 10);
+        c.fillStyle = '#44ccff';
+        c.fillRect(-4, -20, 6, 10);
+        c.fillStyle = '#ffd24a';
+        c.fillRect(4, -20, 6, 10);
+        c.fillStyle = '#44cc66';
+        c.fillRect(-12, -6, 6, 10);
+        c.fillStyle = '#ff66cc';
+        c.fillRect(-4, -6, 6, 10);
+        c.fillStyle = '#cc44ff';
+        c.fillRect(4, -6, 6, 10);
+        break;
+    }
+    c.restore();
+  }
+
+  function handleHouseInteriorClick(mx, my, houseId) {
+    /* Exit door */
+    if (hitButton(mx, my, W - 90, H - 130, 60, 70)) {
+      Game.audio.play('select');
+      selectedFurniture = null;
+      return 'exit';
+    }
+    /* Palette clicks */
+    for (var fi = 0; fi < FURNITURE_TYPES.length; fi++) {
+      var fx = 20 + fi * 70;
+      var fy = 70;
+      if (hitButton(mx, my, fx, fy, 60, 34)) {
+        selectedFurniture = FURNITURE_TYPES[fi];
+        Game.audio.play('pickup');
+        return null;
+      }
+    }
+    /* Place or remove furniture on the floor area */
+    if (my > 130 && my < H - 20) {
+      var state = loadFurnitureState();
+      if (!state[houseId]) state[houseId] = [];
+      /* Click on existing item (small radius) → remove */
+      for (var ei = state[houseId].length - 1; ei >= 0; ei--) {
+        var it = state[houseId][ei];
+        var d = Math.sqrt((mx - it.x) * (mx - it.x) + (my - it.y) * (my - it.y));
+        if (d < 28) {
+          state[houseId].splice(ei, 1);
+          saveFurnitureState(state);
+          Game.audio.play('pickup');
+          return null;
+        }
+      }
+      /* Place if furniture selected */
+      if (selectedFurniture) {
+        state[houseId].push({ type: selectedFurniture, x: mx, y: my });
+        saveFurnitureState(state);
+        Game.audio.play('pickup');
+      }
+    }
+    return null;
+  }
+
+  function updateHouseInterior(keys, jp, houseId) {
+    /* no-op; clicks handle everything */
+  }
+
+  /* ============================================================ */
+  /*                         QUEST HUD                              */
+  /* ============================================================ */
+  function drawQuestHUD(c) {
+    var q = Game.quests;
+    if (!q) return;
+    var y = 50;
+    c.save();
+    c.font = 'bold 12px monospace';
+    c.textAlign = 'right';
+    if (q.lila === 'inProgress') {
+      c.fillStyle = '#ff66cc';
+      c.fillText(
+        Game.i18n.t('questLilaProgress') + ' ' + (q.progress.gems || 0) + '/5',
+        W - 10, y
+      );
+      y += 18;
+    }
+    if (q.migword === 'inProgress') {
+      c.fillStyle = '#ffd24a';
+      c.fillText(
+        Game.i18n.t('questMigwordProgress') + ' ' + (q.progress.cheese || 0) + '/3',
+        W - 10, y
+      );
+    }
+    c.restore();
+  }
+
   window.Game.ui = {
     drawTitleScreen: function (c) {
       drawTitleScreen(c);
@@ -2145,5 +2617,14 @@
     handleIntroClick: handleIntroClick,
     handleBeachClick: handleBeachClick,
     isShowingInstructions: function () { return showInstructions; },
+    /* Space re-theme additions */
+    drawTravelMenu: drawTravelMenu,
+    handleTravelMenuClick: handleTravelMenuClick,
+    updateTravelMenu: updateTravelMenu,
+    drawRocketAnim: drawRocketAnim,
+    drawHouseInterior: drawHouseInterior,
+    handleHouseInteriorClick: handleHouseInteriorClick,
+    updateHouseInterior: updateHouseInterior,
+    drawQuestHUD: drawQuestHUD,
   };
 })();

@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v1.4.0';
+  Game.VERSION = 'v2.0.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -42,6 +42,9 @@
     GAME_OVER: 'gameOver',
     VICTORY: 'victory',
     BEACH: 'beach',
+    TRAVEL_MENU: 'travelMenu',
+    ROCKET_ANIM: 'rocketAnim',
+    HOUSE_INTERIOR: 'houseInterior',
   };
   var state = State.TITLE;
   var prevState = null;
@@ -62,6 +65,13 @@
     food: 'none',
   };
 
+  /* Quest state – persisted in localStorage. */
+  Game.quests = {
+    lila: 'notStarted',      /* 'notStarted' | 'inProgress' | 'done' */
+    migword: 'notStarted',
+    progress: { gems: 0, cheese: 0 },
+  };
+
   /* ---- Camera ---- */
   var camera = { x: 0, y: 0 };
 
@@ -74,20 +84,19 @@
   var pickups = [];
   var particles = [];
   var ambientBubbles = [];
-  var boss = null;
   var wolfe = null;
-  var bossActivated = false;
   var respawnPos = { x: 0, y: 0 };
   var npcCooldowns = {};
-  /* Beach trigger arming. The cutscene fires every time the player breaks
-     the surface, but we don't want it ping-ponging while they bob near the
-     waterline – so the trigger disarms after firing and only re-arms once
-     the player has dived back below the surface by a reasonable amount. */
+  /* Rings-view cutscene trigger arming. Fires when the player floats above
+     the scene's upper-sky line, re-arms after they descend back below. */
   var beachReady = true;
-  /* True when the most recent GAME_OVER happened during the boss fight, so
-     the retry button can drop the player just outside the boss arena
-     instead of sending them all the way back to the level start. */
-  var lastDeathInBoss = false;
+  /* Current zone index for multi-planet travel (0 = hero's planet, 1 = moon). */
+  var currentZone = 0;
+  /* Rocket travel animation timer & destination. */
+  var rocketAnimTimer = 0;
+  var rocketTarget = 0;
+  /* House interior state. */
+  var currentHouseId = null;
 
   /* Dialogue message queued during the playing-state render; drawn in
      canvas-space after the game viewport is painted so it can live in
@@ -101,43 +110,44 @@
 
   function initBgLayers() {
     bgLayers = [];
-    /* Layer 0 – distant mountains / reefs */
+    /* Layer 0 – distant nebula clouds (soft violet/magenta blobs) */
     var layer0 = [];
-    var bgColors0 = ['#0a2040', '#0b2545', '#091e3a'];
+    var bgColors0 = level && level.bgLayer0 ? level.bgLayer0 : ['#3a1860', '#2a1050', '#4a1a70'];
     for (var i = 0; i < 30; i++) {
       layer0.push({
         x: i * 200 + Math.random() * 100,
-        y: 320 + Math.random() * 80,
-        w: 80 + Math.random() * 120,
-        h: 40 + Math.random() * 60,
+        y: 120 + Math.random() * 200,
+        w: 120 + Math.random() * 180,
+        h: 60 + Math.random() * 80,
         color: bgColors0[Math.floor(Math.random() * bgColors0.length)],
         blobSeed: Math.random() * 100,
       });
     }
     bgLayers.push({ items: layer0, parallax: 0.15 });
 
-    /* Layer 1 – mid-distance coral silhouettes */
+    /* Layer 1 – mid-distance planets & moons */
     var layer1 = [];
-    var bgColors1 = ['#122a48', '#14304e', '#102540'];
-    for (var j = 0; j < 40; j++) {
+    var bgColors1 = level && level.bgLayer1 ? level.bgLayer1 : ['#4a2878', '#5a2888', '#3a1868'];
+    for (var j = 0; j < 12; j++) {
       layer1.push({
-        x: j * 140 + Math.random() * 60,
-        y: 350 + Math.random() * 60,
-        w: 30 + Math.random() * 50,
-        h: 30 + Math.random() * 50,
+        x: j * 460 + Math.random() * 80,
+        y: 80 + Math.random() * 180,
+        w: 40 + Math.random() * 60,
+        h: 40 + Math.random() * 60,
         color: bgColors1[Math.floor(Math.random() * bgColors1.length)],
         blobSeed: Math.random() * 100,
+        isPlanet: true,
       });
     }
     bgLayers.push({ items: layer1, parallax: 0.3 });
 
-    /* Layer 2 – closer coral/rock formations */
+    /* Layer 2 – closer asteroid silhouettes */
     var layer2 = [];
-    var bgColors2 = ['#1a3858', '#1c3d5e', '#183350'];
+    var bgColors2 = level && level.bgLayer2 ? level.bgLayer2 : ['#2d1a4a', '#321d52', '#28154a'];
     for (var k = 0; k < 20; k++) {
       layer2.push({
         x: k * 280 + Math.random() * 120,
-        y: 370 + Math.random() * 40,
+        y: 340 + Math.random() * 60,
         w: 40 + Math.random() * 60,
         h: 25 + Math.random() * 35,
         color: bgColors2[Math.floor(Math.random() * bgColors2.length)],
@@ -146,26 +156,29 @@
     }
     bgLayers.push({ items: layer2, parallax: 0.5 });
 
-    /* Background fish schools */
+    /* Background UFO trails (tiny lights in formation — replaces fish schools) */
     bgFishSchools = [];
-    for (var fs = 0; fs < 4; fs++) {
-      var school = { x: Math.random() * (level ? level.width : 5600), y: 120 + Math.random() * 200, speed: 0.15 + Math.random() * 0.3, dir: Math.random() > 0.5 ? 1 : -1, fish: [] };
-      var count = 8 + Math.floor(Math.random() * 5);
+    for (var fs = 0; fs < 3; fs++) {
+      var school = { x: Math.random() * (level ? level.width : 5600), y: 80 + Math.random() * 140, speed: 0.15 + Math.random() * 0.3, dir: Math.random() > 0.5 ? 1 : -1, fish: [] };
+      var count = 4 + Math.floor(Math.random() * 3);
       for (var fi = 0; fi < count; fi++) {
-        school.fish.push({ ox: Math.random() * 60 - 30, oy: Math.random() * 30 - 15, phase: Math.random() * Math.PI * 2 });
+        school.fish.push({ ox: fi * 14 - count * 7, oy: Math.random() * 10 - 5, phase: Math.random() * Math.PI * 2 });
       }
       bgFishSchools.push(school);
     }
 
-    /* Current motes */
+    /* Twinkling stars – dense field, per-star twinkle phase */
     currentMotes = [];
-    for (var cm = 0; cm < 25; cm++) {
+    for (var cm = 0; cm < 80; cm++) {
       currentMotes.push({
         x: Math.random() * W,
-        y: Math.random() * H,
-        speed: 0.3 + Math.random() * 0.7,
-        alpha: 0.08 + Math.random() * 0.12,
-        size: 1 + Math.random(),
+        y: Math.random() * H * 0.75, /* upper 3/4 of screen */
+        speed: 0, /* stars don't drift — they twinkle in place */
+        alpha: 0.4 + Math.random() * 0.5,
+        size: 0.6 + Math.random() * 1.4,
+        twinkle: Math.random() * Math.PI * 2,
+        twinkleSpeed: 0.02 + Math.random() * 0.04,
+        color: cm % 13 === 0 ? '#44ffff' : (cm % 17 === 0 ? '#ff66cc' : '#ffffff'),
       });
     }
   }
@@ -191,13 +204,13 @@
     player = new Game.entities.Momoko(sp.x, sp.y);
     respawnPos = { x: sp.x, y: sp.y };
 
-    /* Enemies */
+    /* Enemies – aliens & UFOs (reusing Fish / Octopus classes for now). */
     enemies = [];
     for (var i = 0; i < level.spawns.enemies.length; i++) {
       var e = level.spawns.enemies[i];
-      if (e.type === 'fish') {
+      if (e.type === 'fish' || e.type === 'alien') {
         enemies.push(new Game.entities.Fish(e.x, e.y, e.pattern, e.dir, e.species));
-      } else if (e.type === 'octopus') {
+      } else if (e.type === 'octopus' || e.type === 'ufo') {
         enemies.push(new Game.entities.Octopus(e.x, e.y));
       }
     }
@@ -212,24 +225,30 @@
       else if (nd.type === 'kittycorn') npcEntity = new Game.entities.KittyCorn(nd.x, nd.y);
       else if (nd.type === 'bob') npcEntity = new Game.entities.Bob(nd.x, nd.y);
       else if (nd.type === 'crab') npcEntity = new Game.entities.Crab(nd.x, nd.y);
-      if (npcEntity) npcs.push({ entity: npcEntity, type: nd.type });
+      else if (nd.type === 'lila' && Game.entities.Lila) npcEntity = new Game.entities.Lila(nd.x, nd.y);
+      else if (nd.type === 'migword' && Game.entities.MigWord) npcEntity = new Game.entities.MigWord(nd.x, nd.y);
+      else if (nd.type === 'rocket' && Game.entities.RocketShip) npcEntity = new Game.entities.RocketShip(nd.x, nd.y);
+      else if (nd.type === 'houseDoor' && Game.entities.HouseDoor) npcEntity = new Game.entities.HouseDoor(nd.x, nd.y, nd.houseId);
+      if (npcEntity) npcs.push({ entity: npcEntity, type: nd.type, data: nd });
     }
 
-    /* Pickups */
+    /* Pickups – stars gems and cheese wheels */
     pickups = [];
     for (var p = 0; p < level.spawns.pickups.length; p++) {
       var pd = level.spawns.pickups[p];
-      pickups.push(new Game.entities.HeartPickup(pd.x, pd.y));
+      if (pd.type === 'cheese' && Game.entities.CheeseWheel) {
+        pickups.push(new Game.entities.CheeseWheel(pd.x, pd.y));
+      } else {
+        /* default: StarGem (HeartPickup re-skinned) */
+        pickups.push(new Game.entities.HeartPickup(pd.x, pd.y));
+      }
     }
-
-    /* Boss */
-    var bd = level.spawns.boss;
-    boss = new Game.entities.Moni(bd.x, bd.y);
-    bossActivated = false;
 
     /* Wolfe */
     if (level.wolfe) {
       wolfe = new Game.entities.Wolfe(level.wolfe.x, level.wolfe.y, level.wolfe.patrolWidth);
+    } else {
+      wolfe = null;
     }
 
     /* Bubbles & particles */
@@ -240,19 +259,12 @@
     initAmbientBubbles();
   }
 
-  /* Respawn position after losing a heart. During the boss fight we
-     don't want the player kicked all the way back to the level start –
-     drop them just outside the boss arena so they can rejoin quickly. */
+  /* Respawn at the zone's spawn point after losing a heart. With combat
+     removed this path is only reachable from obstacle interactions, kept
+     for robustness. */
   function respawnPlayerAfterHit() {
-    if (bossActivated && boss && !boss.defeated) {
-      var rx = Math.max(0, level.bossAreaX - 100);
-      var ry = 220;
-      player.respawn(rx, ry);
-      camera.x = Math.max(0, Math.min(rx - W / 2 + player.w / 2, level.width - W));
-    } else {
-      player.respawn(respawnPos.x, respawnPos.y);
-      camera.x = 0;
-    }
+    player.respawn(respawnPos.x, respawnPos.y);
+    camera.x = 0;
   }
 
   /* ---- Collision helpers ---- */
@@ -335,190 +347,142 @@
           if (!particles[pa].active) particles.splice(pa, 1);
         }
 
-        /* Boss */
-        if (boss && boss.active) {
-          boss.update(player.x + player.w / 2, player.y + player.h / 2);
-
-          /* Music transition */
-          if (Game.audio.currentMusic() !== 'boss') {
-            Game.audio.startMusic('boss');
-          }
-
-          /* Pre-fight: hero challenges first, then Moni snarls back */
-          if (!boss.hasChallenged && boss.timer > 20) {
-            boss.hasChallenged = true;
-            boss.hasTaunted = true;
-            boss.dialogueQueue.push({ speaker: 'Momoko', text: Game.i18n.t('heroChallenge'), duration: 260 });
-            boss.dialogueQueue.push({ speaker: 'Moni',   text: Game.i18n.t('moniTaunt1'),    duration: 260 });
-          }
-          /* Mid-fight taunt at ~75% HP */
-          if (!boss.hasTaunted3 && !boss.defeated && boss.hp <= boss.maxHp * 0.75) {
-            boss.hasTaunted3 = true;
-            boss.dialogueQueue.push({ speaker: 'Moni', text: Game.i18n.t('moniTaunt3'), duration: 240 });
-          }
-          /* Phase 2 taunt */
-          if (boss.phase === 2 && !boss.hasTaunted2) {
-            boss.hasTaunted2 = true;
-            boss.dialogueQueue.push({ speaker: 'Moni', text: Game.i18n.t('moniTaunt2'), duration: 260 });
-          }
-          /* Advance dialogue timer / dequeue next line */
-          if (boss.talkTimer > 0) boss.talkTimer--;
-          if (boss.talkTimer <= 0 && boss.dialogueQueue.length > 0) {
-            var next = boss.dialogueQueue.shift();
-            boss.talkText = next.text;
-            boss.talkSpeaker = next.speaker;
-            boss.talkTimer = next.duration;
-          } else if (boss.talkTimer <= 0) {
-            boss.talkText = '';
-          }
-        }
-
-        /* Check boss activation */
-        if (boss && !bossActivated && player.x > level.bossAreaX) {
-          boss.activate();
-          bossActivated = true;
-        }
-
         /* ---- Collisions ---- */
 
-        /* Bubble vs enemies */
+        /* Sparkle vs friendly aliens — aliens twirl happily, no defeat */
         for (var bei = bubbles.length - 1; bei >= 0; bei--) {
           var bub = bubbles[bei];
           if (!bub.active) continue;
-          /* vs enemies */
           for (var ej = 0; ej < enemies.length; ej++) {
             var en = enemies[ej];
             if (!en.active) continue;
             if (circleRect(bub.x, bub.y, bub.r, en.x, en.y, en.w, en.h)) {
               bub.active = false;
-              var defeated = en.hit();
-              if (defeated) {
-                var colors = ['#ff4466', '#44ff66', '#4488ff', '#ffcc33'];
-                var burst = Game.entities.spawnBurst(en.x + en.w / 2, en.y + en.h / 2, 10, colors);
-                particles = particles.concat(burst);
+              if (typeof en.delight === 'function') {
+                en.delight();
               }
-              break;
-            }
-          }
-          /* vs boss */
-          if (bub.active && boss && boss.active && !boss.defeated) {
-            if (circleRect(bub.x, bub.y, bub.r, boss.x, boss.y, boss.w, boss.h)) {
-              bub.active = false;
-              var bossDefeated = boss.hit();
-              var bColors = ['#cc44ff', '#ff44cc', '#ffcc33', '#44ccff'];
+              var heartColors = ['#ff88cc', '#ffd24a', '#44ffff'];
               particles = particles.concat(
-                Game.entities.spawnBurst(bub.x, bub.y, 5, bColors)
+                Game.entities.spawnBurst(bub.x, bub.y, 5, heartColors)
               );
-              if (bossDefeated) {
-                var vColors = ['#ff4466', '#44ff66', '#4488ff', '#ffcc33', '#ff66cc'];
-                particles = particles.concat(
-                  Game.entities.spawnBurst(boss.x + boss.w / 2, boss.y + boss.h / 2, 25, vColors)
-                );
-                /* Post-defeat exchange: Moni's cry → apology → hero's reply */
-                boss.dialogueQueue = [
-                  { speaker: 'Moni',   text: Game.i18n.t('moniDefeat'),  duration: 280 },
-                  { speaker: 'Moni',   text: Game.i18n.t('moniApology'), duration: 320 },
-                  { speaker: 'Momoko', text: Game.i18n.t('heroVictory'), duration: 320 },
-                ];
-                boss.talkTimer = 0;
-                boss.talkText = '';
-                /* Delay victory screen until all defeat dialogue has played
-                   (120+140+140 frames ≈ 6.7s at 60fps). */
-                setTimeout(function () {
-                  if (state === State.PLAYING) {
-                    state = State.VICTORY;
-                    Game.audio.stopMusic();
-                    Game.audio.play('victory');
-                  }
-                }, 7000);
-              }
-            }
-          }
-        }
-
-        /* Player vs enemies */
-        if (player.alive && player.invincible <= 0) {
-          for (var pe = 0; pe < enemies.length; pe++) {
-            var ene = enemies[pe];
-            if (!ene.active) continue;
-            if (aabb(player, ene)) {
-              var died = player.takeDamage();
-              if (died && !player.alive) {
-                if (player.health <= 0) {
-                  lastDeathInBoss = bossActivated && boss && !boss.defeated;
-                  state = State.GAME_OVER;
-                  Game.audio.stopMusic();
-                  Game.audio.play('gameOver');
-                }
-              } else if (died) {
-                respawnPlayerAfterHit();
-              }
+              Game.audio.play('pickup');
               break;
             }
           }
         }
 
-        /* Player vs boss projectiles */
-        if (player.alive && player.invincible <= 0 && boss && boss.active) {
-          for (var bp = boss.projectiles.length - 1; bp >= 0; bp--) {
-            var proj = boss.projectiles[bp];
-            if (circleRect(proj.x, proj.y, proj.r, player.x, player.y, player.w, player.h)) {
-              boss.projectiles.splice(bp, 1);
-              var died2 = player.takeDamage();
-              if (died2 && !player.alive) {
-                if (player.health <= 0) {
-                  lastDeathInBoss = true;
-                  state = State.GAME_OVER;
-                  Game.audio.stopMusic();
-                  Game.audio.play('gameOver');
-                }
-              } else if (died2) {
-                respawnPlayerAfterHit();
-              }
-              break;
-            }
-          }
-        }
+        /* Aliens don't hurt Momoko anymore — skipped.
+           This is a "comfortable RPG" for a 7-year-old. */
 
         /* Player vs pickups */
         for (var pk = 0; pk < pickups.length; pk++) {
           var pick = pickups[pk];
           if (!pick.active) continue;
           if (aabb(player, pick)) {
-            if (player.heal()) {
+            /* Try heal first (StarGem heart behavior) */
+            var consumed = false;
+            if (pick.kind === 'cheese') {
               pick.active = false;
-              var hColors = ['#ff4466', '#ff88aa', '#ffccdd'];
+              consumed = true;
+              if (Game.quests && Game.quests.migword === 'inProgress') {
+                Game.quests.progress.cheese = (Game.quests.progress.cheese || 0) + 1;
+                if (Game.quests.progress.cheese >= 3) {
+                  Game.quests.migword = 'done';
+                }
+                savePersistent();
+              }
+            } else {
+              /* Star gem – heals AND counts for Lila's quest */
+              if (player.heal()) {
+                pick.active = false;
+                consumed = true;
+              } else {
+                /* If full HP, still allow collection for quest progress. */
+                if (Game.quests && Game.quests.lila === 'inProgress') {
+                  pick.active = false;
+                  consumed = true;
+                }
+              }
+              if (consumed && Game.quests && Game.quests.lila === 'inProgress') {
+                Game.quests.progress.gems = (Game.quests.progress.gems || 0) + 1;
+                if (Game.quests.progress.gems >= 5) {
+                  Game.quests.lila = 'done';
+                }
+                savePersistent();
+              }
+            }
+            if (consumed) {
+              var hColors = pick.kind === 'cheese'
+                ? ['#ffd24a', '#ffe88a', '#fff3cc']
+                : ['#44ffff', '#ff66cc', '#ffd24a'];
               particles = particles.concat(
                 Game.entities.spawnBurst(pick.x + 8, pick.y + 8, 8, hColors)
               );
+              Game.audio.play('pickup');
+              /* Victory: both quests done. */
+              if (Game.quests &&
+                  Game.quests.lila === 'done' &&
+                  Game.quests.migword === 'done' &&
+                  state === State.PLAYING) {
+                setTimeout(function () {
+                  if (state === State.PLAYING) {
+                    state = State.VICTORY;
+                    Game.audio.stopMusic();
+                    Game.audio.play('victory');
+                  }
+                }, 800);
+              }
             }
           }
         }
 
-        /* Player vs NPCs – trigger dialogue */
+        /* Player vs NPCs – trigger dialogue (or rocket/house interaction) */
         for (var nc = 0; nc < npcs.length; nc++) {
           var npc = npcs[nc].entity;
           var npcType = npcs[nc].type;
+          var npcData = npcs[nc].data || {};
           var dist = Math.sqrt(
             Math.pow(player.x - npc.x, 2) + Math.pow(player.y - npc.y, 2)
           );
           if (dist < 80 && !npc.talking && (!npcCooldowns[npcType] || npcCooldowns[npcType] <= 0)) {
-            npc.interact();
-            npcCooldowns[npcType] = 300; /* cooldown frames before re-trigger */
+            /* Rocket – open travel menu. */
+            if (npcType === 'rocket') {
+              if (jp.up || keys.up) {
+                onRocketInteract();
+                npcCooldowns[npcType] = 300;
+              }
+            } else if (npcType === 'houseDoor') {
+              if (jp.up || keys.up) {
+                enterHouse(npcData.houseId || 'heroHome');
+                npcCooldowns[npcType] = 300;
+              }
+            } else if (npcType === 'lila') {
+              if (npc.interact) npc.interact();
+              /* Start quest on first contact */
+              if (Game.quests && Game.quests.lila === 'notStarted') {
+                Game.quests.lila = 'inProgress';
+                Game.quests.progress.gems = Game.quests.progress.gems || 0;
+                savePersistent();
+              }
+              npcCooldowns[npcType] = 300;
+            } else if (npcType === 'migword') {
+              if (npc.interact) npc.interact();
+              if (Game.quests && Game.quests.migword === 'notStarted') {
+                Game.quests.migword = 'inProgress';
+                Game.quests.progress.cheese = Game.quests.progress.cheese || 0;
+                savePersistent();
+              }
+              npcCooldowns[npcType] = 300;
+            } else {
+              if (npc.interact) npc.interact();
+              npcCooldowns[npcType] = 300;
+            }
           }
           if (npcCooldowns[npcType] > 0) npcCooldowns[npcType]--;
         }
 
-        /* Beach cutscene trigger – fires every time the player breaches
-           the surface. Re-arms once they dive back below the waterline by
-           a comfortable margin so the cutscene doesn't loop on bobs. */
-        if (beachReady && player.y < level.waterSurface - 10) {
-          beachReady = false;
-          if (Game.ui.startBeachCutscene) Game.ui.startBeachCutscene();
-          state = State.BEACH;
-        } else if (!beachReady && player.y > level.waterSurface + 60) {
-          beachReady = true;
-        }
+        /* Rings-view cutscene disabled in Momoko in Space — the town is open
+           sky; no ocean surface to break. */
 
         /* Camera follow */
         var targetCamX = player.x - W / 2 + player.w / 2;
@@ -548,6 +512,24 @@
       case State.BEACH:
         if (wolfe) wolfe.update();
         if (Game.ui.updateBeach) Game.ui.updateBeach(keys, jp);
+        break;
+
+      case State.TRAVEL_MENU:
+        if (jp.pause) { state = State.PLAYING; }
+        if (Game.ui.updateTravelMenu) Game.ui.updateTravelMenu(keys, jp);
+        break;
+
+      case State.ROCKET_ANIM:
+        rocketAnimTimer++;
+        /* ~2 seconds at 60fps */
+        if (rocketAnimTimer > 120) {
+          enterZone(rocketTarget);
+        }
+        break;
+
+      case State.HOUSE_INTERIOR:
+        if (jp.pause) { exitHouse(); }
+        if (Game.ui.updateHouseInterior) Game.ui.updateHouseInterior(keys, jp, currentHouseId);
         break;
     }
   }
@@ -585,7 +567,7 @@
       case State.PLAYING:
         renderGame();
         Game.ui.drawHUD(ctx, player);
-        if (boss && boss.active) boss.drawHealthBar(ctx);
+        if (Game.ui.drawQuestHUD) Game.ui.drawQuestHUD(ctx);
         /* Dialogue is deferred to canvas-space after the restore so it
            can live in the bottom bezel instead of covering gameplay. */
         pendingDialogue = null;
@@ -598,14 +580,26 @@
             else if (name === 'kittycorn') speakerName = 'Kitty Corn';
             else if (name === 'bob') speakerName = 'Bob';
             else if (name === 'crab') speakerName = Game.i18n.t('crabName');
+            else if (name === 'lila') speakerName = 'Lila';
+            else if (name === 'migword') speakerName = 'MigWord';
             else speakerName = name;
             var text = npc.currentJoke || npc.currentText || '';
             pendingDialogue = { speaker: speakerName, text: text };
           }
         }
-        if (boss && boss.talkTimer > 0 && boss.talkText) {
-          pendingDialogue = { speaker: boss.talkSpeaker || 'Moni', text: boss.talkText };
-        }
+        break;
+
+      case State.TRAVEL_MENU:
+        renderGame();
+        if (Game.ui.drawTravelMenu) Game.ui.drawTravelMenu(ctx);
+        break;
+
+      case State.ROCKET_ANIM:
+        if (Game.ui.drawRocketAnim) Game.ui.drawRocketAnim(ctx, rocketAnimTimer, rocketTarget);
+        break;
+
+      case State.HOUSE_INTERIOR:
+        if (Game.ui.drawHouseInterior) Game.ui.drawHouseInterior(ctx, currentHouseId, player);
         break;
 
       case State.PAUSED:
@@ -669,58 +663,74 @@
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
-    /* Light rays */
-    ctx.save();
-    ctx.globalAlpha = 0.03;
-    for (var r = 0; r < 6; r++) {
-      var rx = 150 * r - camera.x * 0.05 + Math.sin(Date.now() * 0.0003 + r) * 20;
-      ctx.fillStyle = '#88ccff';
-      ctx.beginPath();
-      ctx.moveTo(rx, 0);
-      ctx.lineTo(rx + 30, 0);
-      ctx.lineTo(rx + 90, H);
-      ctx.lineTo(rx - 30, H);
-      ctx.closePath();
-      ctx.fill();
+    /* Distant planet rings arcing across the sky (home planet only) */
+    if (level.showRings) {
+      ctx.save();
+      ctx.globalAlpha = 0.22;
+      ctx.strokeStyle = '#ffd24a';
+      ctx.lineWidth = 3;
+      var ringCx = W * 0.8 - camera.x * 0.08;
+      var ringCy = 60;
+      for (var ri = 0; ri < 3; ri++) {
+        ctx.beginPath();
+        ctx.ellipse(ringCx, ringCy, 420 - ri * 40, 40 - ri * 8, -0.2, Math.PI * 1.05, Math.PI * 1.95);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
-    ctx.restore();
 
-    /* Parallax background layers – organic blob shapes */
+    /* Parallax background – nebula blobs, distant planets, asteroid silhouettes */
     for (var li = 0; li < bgLayers.length; li++) {
       var layer = bgLayers[li];
       ctx.save();
-      ctx.globalAlpha = 0.5;
+      ctx.globalAlpha = li === 0 ? 0.35 : 0.55;
       for (var it = 0; it < layer.items.length; it++) {
         var item = layer.items[it];
         var bx = item.x - camera.x * layer.parallax;
         if (bx + item.w > 0 && bx < W) {
           ctx.fillStyle = item.color;
-          ctx.beginPath();
-          var cx = bx + item.w / 2;
-          var hw = item.w / 2;
-          var hh = item.h / 2;
-          var seed = item.blobSeed || 0;
-          ctx.moveTo(cx - hw, item.y);
-          ctx.bezierCurveTo(
-            cx - hw, item.y - hh - Math.sin(seed) * 8,
-            cx - hw * 0.3, item.y - hh - Math.cos(seed * 2) * 12,
-            cx, item.y - hh
-          );
-          ctx.bezierCurveTo(
-            cx + hw * 0.3, item.y - hh - Math.sin(seed * 3) * 10,
-            cx + hw, item.y - hh - Math.cos(seed) * 6,
-            cx + hw, item.y
-          );
-          ctx.closePath();
-          ctx.fill();
+          if (item.isPlanet) {
+            /* Round planet with a lighter crescent highlight */
+            var pcx = bx + item.w / 2;
+            var pcy = item.y;
+            ctx.beginPath();
+            ctx.arc(pcx, pcy, item.w / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.save();
+            ctx.globalAlpha = 0.25;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(pcx - item.w * 0.15, pcy - item.w * 0.15, item.w / 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          } else {
+            ctx.beginPath();
+            var cx = bx + item.w / 2;
+            var hw = item.w / 2;
+            var hh = item.h / 2;
+            var seed = item.blobSeed || 0;
+            ctx.moveTo(cx - hw, item.y);
+            ctx.bezierCurveTo(
+              cx - hw, item.y - hh - Math.sin(seed) * 8,
+              cx - hw * 0.3, item.y - hh - Math.cos(seed * 2) * 12,
+              cx, item.y - hh
+            );
+            ctx.bezierCurveTo(
+              cx + hw * 0.3, item.y - hh - Math.sin(seed * 3) * 10,
+              cx + hw, item.y - hh - Math.cos(seed) * 6,
+              cx + hw, item.y
+            );
+            ctx.closePath();
+            ctx.fill();
+          }
         }
       }
       ctx.restore();
     }
 
-    /* Background fish schools */
+    /* Distant UFO trails (tiny running lights in formation) */
     ctx.save();
-    ctx.globalAlpha = 0.2;
+    ctx.globalAlpha = 0.55;
     var now = Date.now();
     for (var fsi = 0; fsi < bgFishSchools.length; fsi++) {
       var school = bgFishSchools[fsi];
@@ -730,15 +740,12 @@
       var schX = school.x - camera.x * 0.4;
       for (var sfi = 0; sfi < school.fish.length; sfi++) {
         var sf = school.fish[sfi];
-        var fx = schX + sf.ox + Math.sin(now * 0.001 + sf.phase) * 3;
-        var fy = school.y + sf.oy + Math.cos(now * 0.0012 + sf.phase) * 2;
+        var fx = schX + sf.ox + Math.sin(now * 0.001 + sf.phase) * 2;
+        var fy = school.y + sf.oy + Math.cos(now * 0.0012 + sf.phase) * 1.5;
         if (fx > -10 && fx < W + 10) {
-          ctx.fillStyle = '#6688aa';
+          ctx.fillStyle = sfi % 2 === 0 ? '#44ffff' : '#ff66cc';
           ctx.beginPath();
-          ctx.moveTo(fx, fy);
-          ctx.lineTo(fx - 5 * school.dir, fy - 2);
-          ctx.lineTo(fx - 5 * school.dir, fy + 2);
-          ctx.closePath();
+          ctx.arc(fx, fy, 1.4, 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -753,9 +760,11 @@
     /* Decorations */
     renderDecorations();
 
-    /* Ocean floor – undulating contour */
+    /* Asteroid/moon surface – undulating contour */
     var floorBase = level.floorY - camera.y;
-    ctx.fillStyle = '#2a1a0a';
+    var floorColorA = level.floorColorA || '#2d1a0a';
+    var floorColorB = level.floorColorB || '#3d2b12';
+    ctx.fillStyle = floorColorA;
     ctx.beginPath();
     ctx.moveTo(0, H + 10);
     for (var fx = 0; fx <= W; fx += 4) {
@@ -766,8 +775,8 @@
     ctx.lineTo(W, H + 10);
     ctx.closePath();
     ctx.fill();
-    /* Sand ripple layer */
-    ctx.fillStyle = '#3d2b12';
+    /* Dust layer */
+    ctx.fillStyle = floorColorB;
     ctx.beginPath();
     ctx.moveTo(0, H + 10);
     for (var sx = 0; sx <= W; sx += 4) {
@@ -778,7 +787,7 @@
     ctx.lineTo(W, H + 10);
     ctx.closePath();
     ctx.fill();
-    /* Pebbles and starfish */
+    /* Star pebbles on the surface — tiny white specks that read as glinting crystal */
     ctx.save();
     var pebbleSeed = 42;
     for (var pb = 0; pb < 20; pb++) {
@@ -790,42 +799,27 @@
       if (screenPbx < -10 || screenPbx > W + 10) continue;
       var pby = floorBase + Math.sin(worldPbx * 0.008) * 6 + 4;
       if (pb < 3) {
-        /* Starfish */
-        ctx.fillStyle = '#cc6644';
-        for (var arm = 0; arm < 5; arm++) {
-          var angle = (arm * Math.PI * 2) / 5 - Math.PI / 2;
-          ctx.beginPath();
-          ctx.moveTo(screenPbx, pby);
-          ctx.lineTo(screenPbx + Math.cos(angle) * 5, pby + Math.sin(angle) * 5);
-          ctx.lineTo(screenPbx + Math.cos(angle + 0.3) * 2, pby + Math.sin(angle + 0.3) * 2);
-          ctx.closePath();
-          ctx.fill();
-        }
-      } else {
-        ctx.fillStyle = pb % 2 === 0 ? '#44382a' : '#55483a';
+        /* Tardigrade alien — little plump critter */
+        ctx.fillStyle = '#aaccff';
         ctx.beginPath();
-        ctx.ellipse(screenPbx, pby, 2 + (pb % 3), 1.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(screenPbx, pby - 1, 3.5, 2.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#222244';
+        ctx.beginPath();
+        ctx.arc(screenPbx - 1.2, pby - 1, 0.6, 0, Math.PI * 2);
+        ctx.arc(screenPbx + 1.2, pby - 1, 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = pb % 2 === 0 ? '#e8dfff' : '#ffd24a';
+        ctx.beginPath();
+        ctx.arc(screenPbx, pby, 0.8 + (pb % 2) * 0.6, 0, Math.PI * 2);
         ctx.fill();
       }
     }
     ctx.restore();
 
-    /* Caustic light patterns on floor */
-    ctx.save();
-    ctx.globalAlpha = 0.06;
-    ctx.fillStyle = '#ffffcc';
-    var causticTime = Date.now() * 0.0008;
-    for (var ci = 0; ci < 12; ci++) {
-      var cix = (ci * 70 + Math.sin(causticTime + ci * 1.3) * 40) % (W + 40) - 20;
-      var ciy = floorBase - 4 + Math.cos(causticTime * 0.7 + ci) * 3;
-      var ciw = 20 + Math.sin(causticTime + ci * 0.9) * 8;
-      ctx.beginPath();
-      ctx.ellipse(cix, ciy, ciw, 4 + Math.sin(causticTime + ci) * 2, Math.sin(causticTime * 0.5 + ci) * 0.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-
-    /* Platforms – barnacle-crusted ocean rocks instead of orange blobs.
+    /* Platforms – weathered asteroid rocks rendered with the same stone
+       detailing we inherited from the original reef theme.
        Each block is a weathered stone outcrop: dark base, a weathered
        top face, faint crack lines, scattered barnacle clusters, and a
        crown of algae / anemones up top so it reads as part of a reef. */
@@ -837,15 +831,7 @@
       drawRockPlatform(ctx, px, py, pf.w, pf.h, pf.x);
     }
 
-    /* Water surface effect */
-    var surfaceY = level.waterSurface - camera.y;
-    ctx.fillStyle = 'rgba(100, 200, 255, 0.3)';
-    for (var ws = -10; ws < W + 10; ws += 20) {
-      var wy = surfaceY + Math.sin(Date.now() * 0.002 + ws * 0.05) * 4;
-      ctx.beginPath();
-      ctx.arc(ws + camera.x % 20, wy, 12, 0, Math.PI);
-      ctx.fill();
-    }
+    /* (Water surface removed — we are in space.) */
 
     /* Pickups */
     for (var pk = 0; pk < pickups.length; pk++) {
@@ -880,9 +866,6 @@
       enemies[ei].draw(ctx, camera.x, camera.y);
     }
 
-    /* Boss */
-    if (boss) boss.draw(ctx, camera.x, camera.y);
-
     /* Player bubbles */
     for (var bi = 0; bi < bubbles.length; bi++) {
       bubbles[bi].draw(ctx, camera.x, camera.y);
@@ -901,25 +884,36 @@
       particles[pa].draw(ctx, camera.x, camera.y);
     }
 
-    /* Current drift motes */
+    /* Twinkling stars (in screen-space so they stay still while camera scrolls) */
     ctx.save();
     for (var mi = 0; mi < currentMotes.length; mi++) {
       var mote = currentMotes[mi];
-      mote.x -= mote.speed;
-      if (mote.x < -5) { mote.x = W + 5; mote.y = Math.random() * H; }
-      ctx.globalAlpha = mote.alpha;
-      ctx.fillStyle = '#88ccdd';
+      mote.twinkle += mote.twinkleSpeed;
+      var pulse = 0.5 + 0.5 * Math.sin(mote.twinkle);
+      ctx.globalAlpha = mote.alpha * (0.4 + pulse * 0.6);
+      ctx.fillStyle = mote.color || '#ffffff';
       ctx.beginPath();
-      ctx.arc(mote.x, mote.y, mote.size, 0, Math.PI * 2);
+      ctx.arc(mote.x, mote.y, mote.size * (0.6 + pulse * 0.4), 0, Math.PI * 2);
       ctx.fill();
+      /* Plus-cross sparkle for brighter stars */
+      if (mote.size > 1.6) {
+        ctx.globalAlpha = mote.alpha * pulse * 0.7;
+        ctx.strokeStyle = mote.color || '#ffffff';
+        ctx.lineWidth = 0.6;
+        ctx.beginPath();
+        ctx.moveTo(mote.x - mote.size * 2.5, mote.y);
+        ctx.lineTo(mote.x + mote.size * 2.5, mote.y);
+        ctx.moveTo(mote.x, mote.y - mote.size * 2.5);
+        ctx.lineTo(mote.x, mote.y + mote.size * 2.5);
+        ctx.stroke();
+      }
     }
     ctx.restore();
 
-    /* Depth fog – blue overlay intensifying toward bottom */
-    var fogGrad = ctx.createLinearGradient(0, 0, 0, H);
-    fogGrad.addColorStop(0, 'rgba(10, 22, 40, 0)');
-    fogGrad.addColorStop(0.6, 'rgba(10, 22, 40, 0)');
-    fogGrad.addColorStop(1, 'rgba(10, 22, 40, 0.1)');
+    /* Space vignette – subtle deep-purple darkening at edges */
+    var fogGrad = ctx.createRadialGradient(W / 2, H / 2, 120, W / 2, H / 2, W * 0.7);
+    fogGrad.addColorStop(0, 'rgba(10, 4, 32, 0)');
+    fogGrad.addColorStop(1, 'rgba(10, 4, 32, 0.3)');
     ctx.fillStyle = fogGrad;
     ctx.fillRect(0, 0, W, H);
   }
@@ -1095,11 +1089,13 @@
      1 – brain coral (rounded mound with meandering grooves)
      2 – sea fan (broad ribbed fan)
    */
+  /* Alien flora — re-themed from coral. Keeps the 3 variant shapes but uses
+     a cosmic palette: plasma-pink, cyan-glow, cosmic-gold. */
   function drawCoral(c, dx, dy, variant, seed) {
     var palette = [
-      { base: '#c95a4a', mid: '#e88366', tip: '#ffd0b0', accent: '#7a2a1d' },
-      { base: '#b8487a', mid: '#d76a9c', tip: '#ffd6e6', accent: '#5b1a3a' },
-      { base: '#d99a3a', mid: '#f0bf5c', tip: '#fff1b3', accent: '#7a5418' },
+      { base: '#aa44ff', mid: '#cc77ff', tip: '#eeccff', accent: '#4a1a70' },
+      { base: '#44ccdd', mid: '#66eeff', tip: '#ccffff', accent: '#1a4a5a' },
+      { base: '#ffaa33', mid: '#ffcc55', tip: '#fff0a0', accent: '#7a4a10' },
     ];
     var pal = palette[variant % palette.length];
     var sway = Math.sin(Date.now() * 0.0009 + seed * 0.013) * 1.4;
@@ -1259,24 +1255,147 @@
       if (dx < -100 || dx > W + 100) continue;
       var dy = d.y - camera.y;
 
-      if (d.type === 'seaweed') {
-        var sway = Math.sin(Date.now() * 0.001 + d.x * 0.01) * 8;
-        ctx.fillStyle = '#1a6633';
+      if (d.type === 'antenna') {
+        /* Radio tower silhouette with blinking top light */
+        var th = d.h || 80;
+        ctx.strokeStyle = '#7d8896';
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(dx, dy);
-        ctx.quadraticCurveTo(dx + sway, dy - d.h * 0.5, dx + 3, dy - d.h);
-        ctx.quadraticCurveTo(dx + sway + 6, dy - d.h * 0.5, dx + 8, dy);
-        ctx.closePath();
-        ctx.fill();
-        /* Second frond */
-        ctx.fillStyle = '#228844';
+        ctx.lineTo(dx, dy - th);
+        ctx.stroke();
+        /* Cross beams */
+        ctx.lineWidth = 1;
+        for (var an = 1; an <= 4; an++) {
+          var ay = dy - (th * an / 5);
+          var aw = 3 + (4 - an) * 2;
+          ctx.beginPath();
+          ctx.moveTo(dx - aw, ay);
+          ctx.lineTo(dx + aw, ay);
+          ctx.stroke();
+        }
+        /* Blink tip */
+        var blink = (Math.sin(Date.now() * 0.004 + d.x * 0.01) > 0) ? '#ff3344' : '#661122';
+        ctx.fillStyle = blink;
         ctx.beginPath();
-        ctx.moveTo(dx + 4, dy);
-        ctx.quadraticCurveTo(dx + 4 - sway * 0.7, dy - d.h * 0.4, dx + 6, dy - d.h * 0.8);
-        ctx.quadraticCurveTo(dx + 10 - sway * 0.7, dy - d.h * 0.3, dx + 10, dy);
+        ctx.arc(dx, dy - th - 2, 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (d.type === 'spaceVine') {
+        /* Bioluminescent stalk — glowing pods */
+        var vh = d.h || 90;
+        var vSway = Math.sin(Date.now() * 0.0015 + d.x * 0.01) * 6;
+        ctx.strokeStyle = '#44ccaa';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(dx, dy);
+        ctx.bezierCurveTo(dx + vSway * 0.3, dy - vh * 0.4, dx + vSway * 0.6, dy - vh * 0.7, dx + vSway, dy - vh);
+        ctx.stroke();
+        /* Glowing pods along the vine */
+        var podColors = ['#88ffdd', '#44ffcc', '#aaffee'];
+        for (var pv = 0; pv < 4; pv++) {
+          var t = (pv + 1) / 5;
+          var px = dx + vSway * t;
+          var py = dy - vh * t;
+          ctx.fillStyle = podColors[pv % podColors.length];
+          ctx.beginPath();
+          ctx.arc(px + (pv % 2 === 0 ? 4 : -4), py, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (d.type === 'satellite') {
+        /* Satellite dish on a tripod */
+        ctx.fillStyle = '#556677';
+        ctx.fillRect(dx - 1, dy - 8, 2, 8);
+        ctx.beginPath();
+        ctx.moveTo(dx - 6, dy);
+        ctx.lineTo(dx - 2, dy - 10);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(dx + 6, dy);
+        ctx.lineTo(dx + 2, dy - 10);
+        ctx.stroke();
+        /* Dish */
+        ctx.fillStyle = '#99aabb';
+        ctx.beginPath();
+        ctx.arc(dx, dy - 12, 7, Math.PI * 0.1, Math.PI * 0.9, true);
+        ctx.fill();
+        ctx.fillStyle = '#ffd24a';
+        ctx.beginPath();
+        ctx.arc(dx, dy - 13, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (d.type === 'crystal') {
+        /* Glowing crystal cluster */
+        var cColors = ['#88ddff', '#ff66cc', '#ffd24a'];
+        var baseC = cColors[(d.variant || 0) % cColors.length];
+        ctx.fillStyle = baseC;
+        ctx.beginPath();
+        ctx.moveTo(dx, dy);
+        ctx.lineTo(dx - 4, dy - 2);
+        ctx.lineTo(dx - 2, dy - 10);
+        ctx.lineTo(dx + 2, dy - 10);
+        ctx.lineTo(dx + 4, dy - 2);
         ctx.closePath();
         ctx.fill();
-      } else if (d.type === 'coral') {
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.beginPath();
+        ctx.moveTo(dx - 1, dy - 2);
+        ctx.lineTo(dx - 1, dy - 9);
+        ctx.lineTo(dx + 1, dy - 9);
+        ctx.closePath();
+        ctx.fill();
+      } else if (d.type === 'planetRing') {
+        /* Small ringed planet in foreground */
+        ctx.fillStyle = d.color || '#cc88ff';
+        ctx.beginPath();
+        ctx.arc(dx, dy, d.r || 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffd24a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(dx, dy, (d.r || 18) + 8, 4, -0.3, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (d.type === 'rocketPad') {
+        /* Static pad — the actual Rocket NPC draws the ship */
+        ctx.fillStyle = '#4a4a5a';
+        ctx.fillRect(dx - 30, dy - 4, 60, 6);
+        ctx.fillStyle = '#66667a';
+        ctx.fillRect(dx - 28, dy - 5, 56, 2);
+        /* Warning stripes */
+        ctx.fillStyle = '#ffd24a';
+        for (var rsv = 0; rsv < 4; rsv++) {
+          ctx.fillRect(dx - 26 + rsv * 14, dy - 4, 6, 1.5);
+        }
+      } else if (d.type === 'houseDecor') {
+        /* Decorative house silhouette behind the door */
+        var hc = d.color || '#8866aa';
+        ctx.fillStyle = hc;
+        ctx.fillRect(dx - 30, dy - 50, 60, 50);
+        /* Roof */
+        ctx.fillStyle = d.roofColor || '#cc4488';
+        ctx.beginPath();
+        ctx.moveTo(dx - 34, dy - 50);
+        ctx.lineTo(dx, dy - 72);
+        ctx.lineTo(dx + 34, dy - 50);
+        ctx.closePath();
+        ctx.fill();
+        /* Window */
+        ctx.fillStyle = '#ffd24a';
+        ctx.fillRect(dx + 8, dy - 38, 10, 10);
+        ctx.fillStyle = '#221133';
+        ctx.fillRect(dx + 12, dy - 38, 1.5, 10);
+        ctx.fillRect(dx + 8, dy - 33, 10, 1.5);
+      } else if (d.type === 'cheeseCrater') {
+        /* Cheese-hole crater — yellow pocked moon surface */
+        ctx.fillStyle = '#b98a28';
+        ctx.beginPath();
+        ctx.arc(dx, dy, d.r || 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#8a6220';
+        ctx.beginPath();
+        ctx.arc(dx - 2, dy - 2, (d.r || 14) * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (d.type === 'alienFlora' || d.type === 'coral') {
+        drawCoral(ctx, dx, dy, d.variant || 0, d.x);
+      } else if (d.type === 'coral_legacy') {
         drawCoral(ctx, dx, dy, d.variant || 0, d.x);
       } else if (d.type === 'shell') {
         ctx.fillStyle = '#ffddaa';
@@ -1355,7 +1474,30 @@
 
       case State.GAME_OVER:
         var gAction = Game.ui.handleGameOverClick(mx, my);
-        if (gAction === 'retry') startGame(lastDeathInBoss);
+        if (gAction === 'retry') startGame();
+        break;
+
+      case State.TRAVEL_MENU:
+        if (Game.ui.handleTravelMenuClick) {
+          var tvResult = Game.ui.handleTravelMenuClick(mx, my);
+          if (tvResult === 'cancel') {
+            state = State.PLAYING;
+          } else if (tvResult && typeof tvResult.zone === 'number') {
+            rocketTarget = tvResult.zone;
+            rocketAnimTimer = 0;
+            state = State.ROCKET_ANIM;
+            Game.audio.play('victory');
+          }
+        }
+        break;
+
+      case State.HOUSE_INTERIOR:
+        if (Game.ui.handleHouseInteriorClick) {
+          var hiResult = Game.ui.handleHouseInteriorClick(mx, my, currentHouseId);
+          if (hiResult === 'exit') {
+            exitHouse();
+          }
+        }
         break;
 
       case State.VICTORY:
@@ -1374,34 +1516,64 @@
     }
   }
 
-  /* ---- Start game ----
-     When fromBoss is true (retry after dying to the boss), drop the player
-     just outside the boss arena and re-arm the boss so they don't have to
-     swim through the whole level again. */
-  function startGame(fromBoss) {
-    loadLevel(0);
+  /* ---- Start game ---- */
+  function startGame() {
+    currentZone = 0;
+    loadLevel(currentZone);
     camera = { x: 0, y: 0 };
     Game.audio.init();
     Game.audio.resume();
-    if (fromBoss) {
-      var rx = Math.max(0, level.bossAreaX - 100);
-      var ry = 220;
-      player.x = rx;
-      player.y = ry;
-      respawnPos = { x: rx, y: ry };
-      boss.activate();
-      bossActivated = true;
-      /* Disarm the surface trigger – the player is mid-arena, no need to
-         pop the cutscene if a stray jump carries them up. */
-      beachReady = false;
-      camera.x = Math.max(0, Math.min(rx - W / 2 + player.w / 2, level.width - W));
-      Game.audio.startMusic('boss');
-    } else {
-      beachReady = true;
-      Game.audio.startMusic('bgm');
-    }
-    lastDeathInBoss = false;
+    beachReady = true;
+    Game.audio.startMusic('bgm');
     state = State.PLAYING;
+  }
+
+  /* ---- Zone switching (rocket travel) ---- */
+  function enterZone(zoneIndex) {
+    currentZone = zoneIndex;
+    loadLevel(currentZone);
+    camera = { x: 0, y: 0 };
+    beachReady = true;
+    state = State.PLAYING;
+  }
+
+  function onRocketInteract() {
+    state = State.TRAVEL_MENU;
+  }
+
+  /* ---- House interior ---- */
+  function enterHouse(id) {
+    currentHouseId = id;
+    state = State.HOUSE_INTERIOR;
+  }
+
+  function exitHouse() {
+    currentHouseId = null;
+    state = State.PLAYING;
+  }
+
+  /* ---- Persistence ---- */
+  function savePersistent() {
+    try {
+      localStorage.setItem('momoko-space-customization', JSON.stringify(Game.customization));
+      if (Game.quests) {
+        localStorage.setItem('momoko-space-quests', JSON.stringify(Game.quests));
+      }
+    } catch (e) { /* storage may be disabled */ }
+  }
+
+  function loadPersistent() {
+    try {
+      var cs = localStorage.getItem('momoko-space-customization');
+      if (cs) {
+        var parsed = JSON.parse(cs);
+        for (var k in parsed) { Game.customization[k] = parsed[k]; }
+      }
+      var qs = localStorage.getItem('momoko-space-quests');
+      if (qs) {
+        Game.quests = JSON.parse(qs);
+      }
+    } catch (e) { /* corrupted storage – ignore */ }
   }
 
   /* ---- Game loop ---- */
@@ -1504,6 +1676,9 @@
     computeCanvasLayout();
     resizeBackingStore();
 
+    /* Load saved customization + quest progress */
+    loadPersistent();
+
     /* Input */
     Game.input.init(canvas);
 
@@ -1549,6 +1724,11 @@
   window.Game.engine = {
     init: init,
     State: State,
+    onRocketInteract: onRocketInteract,
+    enterHouse: enterHouse,
+    exitHouse: exitHouse,
+    savePersistent: savePersistent,
+    getCurrentZone: function () { return currentZone; },
   };
 
   /* Auto-init when DOM is ready */
