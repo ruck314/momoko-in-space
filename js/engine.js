@@ -85,7 +85,6 @@
   var particles = [];
   var ambientBubbles = [];
   var wolfe = null;
-  var respawnPos = { x: 0, y: 0 };
   var npcCooldowns = {};
   /* Rings-view cutscene trigger arming. Fires when the player floats above
      the scene's upper-sky line, re-arms after they descend back below. */
@@ -107,6 +106,9 @@
   var bgLayers = [];
   var bgFishSchools = [];
   var currentMotes = [];
+  /* World-space x of the background UFO. Persisted across frames so the UFO
+     glides smoothly. Reset whenever a level loads. */
+  var bgUfoX = 0;
 
   function initBgLayers() {
     bgLayers = [];
@@ -202,7 +204,6 @@
     /* Player */
     var sp = level.spawns.player;
     player = new Game.entities.Momoko(sp.x, sp.y);
-    respawnPos = { x: sp.x, y: sp.y };
 
     /* Enemies – aliens & UFOs (reusing Fish / Octopus classes for now). */
     enemies = [];
@@ -227,21 +228,17 @@
       else if (nd.type === 'crab') npcEntity = new Game.entities.Crab(nd.x, nd.y);
       else if (nd.type === 'lila' && Game.entities.Lila) npcEntity = new Game.entities.Lila(nd.x, nd.y);
       else if (nd.type === 'migword' && Game.entities.MigWord) npcEntity = new Game.entities.MigWord(nd.x, nd.y);
+      else if (nd.type === 'moonMouse' && Game.entities.MoonMouse) npcEntity = new Game.entities.MoonMouse(nd.x, nd.y, nd.mouseId, nd.color);
       else if (nd.type === 'rocket' && Game.entities.RocketShip) npcEntity = new Game.entities.RocketShip(nd.x, nd.y);
       else if (nd.type === 'houseDoor' && Game.entities.HouseDoor) npcEntity = new Game.entities.HouseDoor(nd.x, nd.y, nd.houseId);
       if (npcEntity) npcs.push({ entity: npcEntity, type: nd.type, data: nd });
     }
 
-    /* Pickups – stars gems and cheese wheels */
+    /* Pickups – star gems for Lila's quest. */
     pickups = [];
     for (var p = 0; p < level.spawns.pickups.length; p++) {
       var pd = level.spawns.pickups[p];
-      if (pd.type === 'cheese' && Game.entities.CheeseWheel) {
-        pickups.push(new Game.entities.CheeseWheel(pd.x, pd.y));
-      } else {
-        /* default: StarGem (HeartPickup re-skinned) */
-        pickups.push(new Game.entities.HeartPickup(pd.x, pd.y));
-      }
+      pickups.push(new Game.entities.HeartPickup(pd.x, pd.y));
     }
 
     /* Wolfe */
@@ -257,14 +254,81 @@
 
     initBgLayers();
     initAmbientBubbles();
+    bgUfoX = (level && level.bgUfo && level.bgUfo.dir === -1) ? level.width : -100;
   }
 
-  /* Respawn at the zone's spawn point after losing a heart. With combat
-     removed this path is only reachable from obstacle interactions, kept
-     for robustness. */
-  function respawnPlayerAfterHit() {
-    player.respawn(respawnPos.x, respawnPos.y);
-    camera.x = 0;
+  /* Friendly background UFO — saucer with a glowing dome and running lights. */
+  function drawBgUfo(c, sx, sy) {
+    c.save();
+    /* Glow halo */
+    var glow = c.createRadialGradient(sx, sy + 4, 6, sx, sy + 4, 60);
+    glow.addColorStop(0, 'rgba(180,255,255,0.35)');
+    glow.addColorStop(1, 'rgba(180,255,255,0)');
+    c.fillStyle = glow;
+    c.beginPath();
+    c.arc(sx, sy + 4, 60, 0, Math.PI * 2);
+    c.fill();
+    /* Saucer disc */
+    c.fillStyle = '#bbcdd8';
+    c.beginPath();
+    c.ellipse(sx, sy + 6, 36, 8, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#7d8896';
+    c.beginPath();
+    c.ellipse(sx, sy + 9, 30, 4, 0, 0, Math.PI * 2);
+    c.fill();
+    /* Dome */
+    c.fillStyle = '#88ddee';
+    c.beginPath();
+    c.ellipse(sx, sy + 4, 16, 11, 0, Math.PI, 0);
+    c.fill();
+    /* Dome shine */
+    c.fillStyle = 'rgba(255,255,255,0.55)';
+    c.beginPath();
+    c.ellipse(sx - 5, sy - 2, 5, 2.4, -0.4, 0, Math.PI * 2);
+    c.fill();
+    /* Running lights */
+    var t = Date.now() * 0.005;
+    var lightCols = ['#ff66cc', '#ffd24a', '#44ffff', '#44ff88'];
+    for (var rl = 0; rl < 5; rl++) {
+      var lx = sx - 24 + rl * 12;
+      var on = (Math.sin(t + rl) + 1) * 0.5;
+      c.globalAlpha = 0.6 + on * 0.4;
+      c.fillStyle = lightCols[rl % lightCols.length];
+      c.beginPath();
+      c.arc(lx, sy + 9, 1.8, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+    /* Tractor beam — soft wedge below */
+    var beam = c.createLinearGradient(sx, sy + 10, sx, sy + 60);
+    beam.addColorStop(0, 'rgba(180,255,255,0.35)');
+    beam.addColorStop(1, 'rgba(180,255,255,0)');
+    c.fillStyle = beam;
+    c.beginPath();
+    c.moveTo(sx - 8, sy + 11);
+    c.lineTo(sx + 8, sy + 11);
+    c.lineTo(sx + 22, sy + 60);
+    c.lineTo(sx - 22, sy + 60);
+    c.closePath();
+    c.fill();
+    c.restore();
+  }
+
+  /* If both quests have completed, drop into VICTORY after a short beat. */
+  function checkVictory() {
+    if (!Game.quests) return;
+    if (Game.quests.lila === 'done' &&
+        Game.quests.migword === 'done' &&
+        state === State.PLAYING) {
+      setTimeout(function () {
+        if (state === State.PLAYING) {
+          state = State.VICTORY;
+          Game.audio.stopMusic();
+          Game.audio.play('victory');
+        }
+      }, 800);
+    }
   }
 
   /* ---- Collision helpers ---- */
@@ -374,65 +438,26 @@
         /* Aliens don't hurt Momoko anymore — skipped.
            This is a "comfortable RPG" for a 7-year-old. */
 
-        /* Player vs pickups */
+        /* Player vs pickups — exploration only, all pickups are star gems
+           that count for Lila's quest. */
         for (var pk = 0; pk < pickups.length; pk++) {
           var pick = pickups[pk];
           if (!pick.active) continue;
           if (aabb(player, pick)) {
-            /* Try heal first (StarGem heart behavior) */
-            var consumed = false;
-            if (pick.kind === 'cheese') {
-              pick.active = false;
-              consumed = true;
-              if (Game.quests && Game.quests.migword === 'inProgress') {
-                Game.quests.progress.cheese = (Game.quests.progress.cheese || 0) + 1;
-                if (Game.quests.progress.cheese >= 3) {
-                  Game.quests.migword = 'done';
-                }
-                savePersistent();
+            pick.active = false;
+            if (Game.quests && Game.quests.lila === 'inProgress') {
+              Game.quests.progress.gems = (Game.quests.progress.gems || 0) + 1;
+              if (Game.quests.progress.gems >= 5) {
+                Game.quests.lila = 'done';
               }
-            } else {
-              /* Star gem – heals AND counts for Lila's quest */
-              if (player.heal()) {
-                pick.active = false;
-                consumed = true;
-              } else {
-                /* If full HP, still allow collection for quest progress. */
-                if (Game.quests && Game.quests.lila === 'inProgress') {
-                  pick.active = false;
-                  consumed = true;
-                }
-              }
-              if (consumed && Game.quests && Game.quests.lila === 'inProgress') {
-                Game.quests.progress.gems = (Game.quests.progress.gems || 0) + 1;
-                if (Game.quests.progress.gems >= 5) {
-                  Game.quests.lila = 'done';
-                }
-                savePersistent();
-              }
+              savePersistent();
             }
-            if (consumed) {
-              var hColors = pick.kind === 'cheese'
-                ? ['#ffd24a', '#ffe88a', '#fff3cc']
-                : ['#44ffff', '#ff66cc', '#ffd24a'];
-              particles = particles.concat(
-                Game.entities.spawnBurst(pick.x + 8, pick.y + 8, 8, hColors)
-              );
-              Game.audio.play('pickup');
-              /* Victory: both quests done. */
-              if (Game.quests &&
-                  Game.quests.lila === 'done' &&
-                  Game.quests.migword === 'done' &&
-                  state === State.PLAYING) {
-                setTimeout(function () {
-                  if (state === State.PLAYING) {
-                    state = State.VICTORY;
-                    Game.audio.stopMusic();
-                    Game.audio.play('victory');
-                  }
-                }, 800);
-              }
-            }
+            var hColors = ['#44ffff', '#ff66cc', '#ffd24a'];
+            particles = particles.concat(
+              Game.entities.spawnBurst(pick.x + 8, pick.y + 8, 8, hColors)
+            );
+            Game.audio.play('pickup');
+            checkVictory();
           }
         }
 
@@ -470,9 +495,28 @@
               if (Game.quests && Game.quests.migword === 'notStarted') {
                 Game.quests.migword = 'inProgress';
                 Game.quests.progress.cheese = Game.quests.progress.cheese || 0;
+                Game.quests.progress.miceMet = Game.quests.progress.miceMet || {};
                 savePersistent();
               }
               npcCooldowns[npcType] = 300;
+            } else if (npcType === 'moonMouse') {
+              if (npc.interact) npc.interact();
+              /* Greeting a moon mouse advances MigWord's quest, but only
+                 once per unique mouse. */
+              var mid = npcData.mouseId;
+              if (mid && Game.quests && Game.quests.migword === 'inProgress') {
+                Game.quests.progress.miceMet = Game.quests.progress.miceMet || {};
+                if (!Game.quests.progress.miceMet[mid]) {
+                  Game.quests.progress.miceMet[mid] = true;
+                  Game.quests.progress.cheese = (Game.quests.progress.cheese || 0) + 1;
+                  if (Game.quests.progress.cheese >= 3) {
+                    Game.quests.migword = 'done';
+                  }
+                  savePersistent();
+                  checkVictory();
+                }
+              }
+              npcCooldowns[npcType] = 240;
             } else {
               if (npc.interact) npc.interact();
               npcCooldowns[npcType] = 300;
@@ -566,7 +610,6 @@
 
       case State.PLAYING:
         renderGame();
-        Game.ui.drawHUD(ctx, player);
         if (Game.ui.drawQuestHUD) Game.ui.drawQuestHUD(ctx);
         /* Dialogue is deferred to canvas-space after the restore so it
            can live in the bottom bezel instead of covering gameplay. */
@@ -582,6 +625,7 @@
             else if (name === 'crab') speakerName = Game.i18n.t('crabName');
             else if (name === 'lila') speakerName = 'Lila';
             else if (name === 'migword') speakerName = 'MigWord';
+            else if (name === 'moonMouse') speakerName = Game.i18n.t('mouseName');
             else speakerName = name;
             var text = npc.currentJoke || npc.currentText || '';
             pendingDialogue = { speaker: speakerName, text: text };
@@ -604,7 +648,6 @@
 
       case State.PAUSED:
         renderGame();
-        Game.ui.drawHUD(ctx, player);
         Game.ui.drawPauseMenu(ctx);
         break;
 
@@ -728,6 +771,18 @@
       ctx.restore();
     }
 
+    /* Background drifting UFO — large hero-friendly one floating across the sky */
+    if (level.bgUfo) {
+      var bgU = level.bgUfo;
+      bgUfoX += bgU.speed * (bgU.dir || 1);
+      var ufoSpan = level.width + 240;
+      if (bgUfoX > ufoSpan) bgUfoX = -120;
+      if (bgUfoX < -120) bgUfoX = ufoSpan;
+      var ufoSx = bgUfoX - camera.x * 0.35;
+      var ufoSy = bgU.y + Math.sin(Date.now() * 0.001) * 6;
+      drawBgUfo(ctx, ufoSx, ufoSy);
+    }
+
     /* Distant UFO trails (tiny running lights in formation) */
     ctx.save();
     ctx.globalAlpha = 0.55;
@@ -818,20 +873,7 @@
     }
     ctx.restore();
 
-    /* Platforms – weathered asteroid rocks rendered with the same stone
-       detailing we inherited from the original reef theme.
-       Each block is a weathered stone outcrop: dark base, a weathered
-       top face, faint crack lines, scattered barnacle clusters, and a
-       crown of algae / anemones up top so it reads as part of a reef. */
-    for (var pl = 0; pl < level.platforms.length; pl++) {
-      var pf = level.platforms[pl];
-      var px = pf.x - camera.x;
-      var py = pf.y - camera.y;
-      if (px + pf.w < 0 || px > W) continue;
-      drawRockPlatform(ctx, px, py, pf.w, pf.h, pf.x);
-    }
-
-    /* (Water surface removed — we are in space.) */
+    /* (No collision platforms — Momoko floats freely through open space.) */
 
     /* Pickups */
     for (var pk = 0; pk < pickups.length; pk++) {
@@ -918,335 +960,6 @@
     ctx.fillRect(0, 0, W, H);
   }
 
-  /* Barnacle-crusted rock outcrop used as a collision platform. Looks
-     like a weathered reef boulder rather than an orange blob: stone
-     gradient body, a lighter weathered top, hairline cracks, barnacle
-     clusters, and a crown of algae / anemone tufts. `seed` (world-x)
-     deterministically shuffles the details so each rock looks distinct
-     without flickering as the camera scrolls. */
-  function drawRockPlatform(c, px, py, pw, ph, seed) {
-    var cx = px + pw / 2;
-    var cy = py + ph / 2;
-    var hw = pw / 2;
-    var hh = ph / 2;
-
-    /* Deterministic pseudo-random so rocks stay stable as the camera
-       scrolls (don't use Math.random here). */
-    function rand(n) {
-      var v = Math.sin((seed + n * 12.9898) * 78.233) * 43758.5453;
-      return v - Math.floor(v);
-    }
-
-    /* Drop-shadow under the rock so it feels seated on the reef */
-    c.save();
-    c.globalAlpha = 0.35;
-    c.fillStyle = '#05101c';
-    c.beginPath();
-    c.ellipse(cx, py + ph - 1, hw * 0.95, 4, 0, 0, Math.PI * 2);
-    c.fill();
-    c.restore();
-
-    /* Main rock body – knobbly ellipse traced with a few bumps so it
-       doesn't look like a perfect oval. Darker at the base. */
-    var bumps = 8;
-    c.fillStyle = '#3a4350';
-    c.beginPath();
-    for (var i = 0; i <= bumps; i++) {
-      var t = i / bumps;
-      var ang = Math.PI + Math.PI * t; /* top half, left to right */
-      var jitter = (rand(i + 1) - 0.5) * Math.min(6, hh * 0.35);
-      var ex = cx + Math.cos(ang) * (hw + jitter * 0.2);
-      var ey = cy + Math.sin(ang) * (hh + jitter);
-      if (i === 0) c.moveTo(ex, ey);
-      else c.lineTo(ex, ey);
-    }
-    /* Bottom edge flat-ish so it reads as rooted to the seafloor */
-    c.lineTo(px + pw, py + ph);
-    c.lineTo(px, py + ph);
-    c.closePath();
-    c.fill();
-
-    /* Mid-tone weathered fill on top so there's directional lighting */
-    var grad = c.createLinearGradient(0, py, 0, py + ph);
-    grad.addColorStop(0, '#6c7784');
-    grad.addColorStop(0.55, '#4a5361');
-    grad.addColorStop(1, '#2d333d');
-    c.fillStyle = grad;
-    c.beginPath();
-    for (var j = 0; j <= bumps; j++) {
-      var t2 = j / bumps;
-      var ang2 = Math.PI + Math.PI * t2;
-      var jt = (rand(j + 21) - 0.5) * Math.min(5, hh * 0.3);
-      var ex2 = cx + Math.cos(ang2) * (hw - 1 + jt * 0.2);
-      var ey2 = cy + Math.sin(ang2) * (hh - 1 + jt);
-      if (j === 0) c.moveTo(ex2, ey2);
-      else c.lineTo(ex2, ey2);
-    }
-    c.lineTo(px + pw - 2, py + ph - 1);
-    c.lineTo(px + 2, py + ph - 1);
-    c.closePath();
-    c.fill();
-
-    /* Soft top-face highlight so the rock has a clear sunlit crown */
-    c.fillStyle = 'rgba(200,215,230,0.22)';
-    c.beginPath();
-    c.ellipse(cx, py + 3, hw * 0.75, Math.min(5, hh * 0.25), 0, 0, Math.PI * 2);
-    c.fill();
-
-    /* Hairline cracks – two diagonal strokes, jitter by seed */
-    c.strokeStyle = 'rgba(10,14,22,0.55)';
-    c.lineWidth = 0.8;
-    c.beginPath();
-    var crackX = px + pw * (0.25 + rand(3) * 0.15);
-    c.moveTo(crackX, py + 4);
-    c.lineTo(crackX + 3, cy);
-    c.lineTo(crackX - 1, py + ph - 5);
-    c.stroke();
-    c.beginPath();
-    var crackX2 = px + pw * (0.6 + rand(7) * 0.15);
-    c.moveTo(crackX2, py + 5);
-    c.lineTo(crackX2 + 4, cy + 2);
-    c.stroke();
-
-    /* Barnacle clusters – little off-white cones with a dark ring */
-    var barnacleCount = Math.max(3, Math.floor(pw / 18));
-    for (var bi = 0; bi < barnacleCount; bi++) {
-      var bx = px + 4 + rand(bi + 30) * (pw - 8);
-      var by = py + 6 + rand(bi + 40) * (ph - 14);
-      var br = 1.4 + rand(bi + 50) * 1.2;
-      c.fillStyle = '#e4dcc8';
-      c.beginPath();
-      c.arc(bx, by, br, 0, Math.PI * 2);
-      c.fill();
-      c.fillStyle = '#6d6456';
-      c.beginPath();
-      c.arc(bx, by, br * 0.4, 0, Math.PI * 2);
-      c.fill();
-    }
-
-    /* Crown of algae / tube-anemone tufts on the top face */
-    var tufts = Math.max(2, Math.floor(pw / 22));
-    for (var ti = 0; ti < tufts; ti++) {
-      var tx = px + 6 + (ti + 0.5) * ((pw - 12) / tufts) + (rand(ti + 60) - 0.5) * 4;
-      var kind = rand(ti + 70);
-      if (kind < 0.55) {
-        /* Algae tuft – green fronds */
-        c.strokeStyle = '#2d7a3a';
-        c.lineWidth = 1.4;
-        c.lineCap = 'round';
-        var sway = Math.sin(Date.now() * 0.0012 + seed * 0.01 + ti) * 1.5;
-        for (var fr = -1; fr <= 1; fr++) {
-          c.beginPath();
-          c.moveTo(tx + fr * 1.4, py + 3);
-          c.quadraticCurveTo(tx + fr * 1.4 + sway, py - 2, tx + fr * 2 + sway * 1.3, py - 6);
-          c.stroke();
-        }
-        c.fillStyle = '#3ea054';
-        c.beginPath();
-        c.arc(tx, py + 3, 1.6, 0, Math.PI * 2);
-        c.fill();
-      } else if (kind < 0.85) {
-        /* Anemone – purple stalk with waving tentacles */
-        c.fillStyle = '#6a3b8a';
-        c.beginPath();
-        c.ellipse(tx, py + 2, 2.4, 2, 0, 0, Math.PI * 2);
-        c.fill();
-        c.strokeStyle = '#b07bcf';
-        c.lineWidth = 0.9;
-        c.lineCap = 'round';
-        for (var tc = 0; tc < 5; tc++) {
-          var ta = -Math.PI / 2 + (tc - 2) * 0.35;
-          var wg = Math.sin(Date.now() * 0.002 + seed * 0.05 + tc) * 1;
-          c.beginPath();
-          c.moveTo(tx, py + 1);
-          c.lineTo(tx + Math.cos(ta) * 4 + wg, py + 1 + Math.sin(ta) * 4);
-          c.stroke();
-        }
-      } else {
-        /* Sea urchin – spiny black dome */
-        c.fillStyle = '#1c1620';
-        c.beginPath();
-        c.arc(tx, py + 2, 2.2, 0, Math.PI * 2);
-        c.fill();
-        c.strokeStyle = '#1c1620';
-        c.lineWidth = 0.7;
-        for (var sp2 = 0; sp2 < 8; sp2++) {
-          var sa = -Math.PI + (sp2 / 8) * Math.PI;
-          c.beginPath();
-          c.moveTo(tx, py + 2);
-          c.lineTo(tx + Math.cos(sa) * 4, py + 2 + Math.sin(sa) * 4);
-          c.stroke();
-        }
-      }
-    }
-  }
-
-  /* Reef coral – three styles selected by variant 0/1/2 so the level
-     reads as a varied reef rather than a row of identical orange blobs.
-     `seed` (the world-x of the decoration) is used to deterministically
-     vary heights / branch counts so each instance still looks distinct.
-     0 – branching staghorn (vertical fingers tipped with pale knobs)
-     1 – brain coral (rounded mound with meandering grooves)
-     2 – sea fan (broad ribbed fan)
-   */
-  /* Alien flora — re-themed from coral. Keeps the 3 variant shapes but uses
-     a cosmic palette: plasma-pink, cyan-glow, cosmic-gold. */
-  function drawCoral(c, dx, dy, variant, seed) {
-    var palette = [
-      { base: '#aa44ff', mid: '#cc77ff', tip: '#eeccff', accent: '#4a1a70' },
-      { base: '#44ccdd', mid: '#66eeff', tip: '#ccffff', accent: '#1a4a5a' },
-      { base: '#ffaa33', mid: '#ffcc55', tip: '#fff0a0', accent: '#7a4a10' },
-    ];
-    var pal = palette[variant % palette.length];
-    var sway = Math.sin(Date.now() * 0.0009 + seed * 0.013) * 1.4;
-
-    if (variant === 1) {
-      drawBrainCoral(c, dx, dy, pal);
-    } else if (variant === 2) {
-      drawFanCoral(c, dx, dy, pal, sway);
-    } else {
-      drawStaghornCoral(c, dx, dy, pal, sway, seed);
-    }
-  }
-
-  function drawStaghornCoral(c, dx, dy, pal, sway, seed) {
-    /* Stable base lump so it looks rooted to the seafloor */
-    c.fillStyle = pal.accent;
-    c.beginPath();
-    c.ellipse(dx, dy + 6, 16, 4, 0, 0, Math.PI * 2);
-    c.fill();
-    c.fillStyle = pal.base;
-    c.beginPath();
-    c.ellipse(dx, dy + 4, 13, 5, 0, 0, Math.PI * 2);
-    c.fill();
-    /* 3 branching fingers leaning outward */
-    var branches = [
-      { rootX: dx - 7, leanX: -6, h: 18 },
-      { rootX: dx,     leanX: 0,  h: 24 },
-      { rootX: dx + 7, leanX: 6,  h: 20 },
-    ];
-    for (var i = 0; i < branches.length; i++) {
-      var b = branches[i];
-      var hVar = ((seed * (i + 1)) % 7) - 3; /* deterministic ±3 jitter */
-      var h = b.h + hVar;
-      var sw = sway * (0.4 + i * 0.3);
-      var topX = b.rootX + b.leanX + sw;
-      var topY = dy + 2 - h;
-      /* Trunk */
-      c.strokeStyle = pal.base;
-      c.lineWidth = 5;
-      c.lineCap = 'round';
-      c.beginPath();
-      c.moveTo(b.rootX, dy + 2);
-      c.bezierCurveTo(
-        b.rootX + b.leanX * 0.3, dy - h * 0.4,
-        topX - b.leanX * 0.2, dy + 2 - h * 0.7,
-        topX, topY
-      );
-      c.stroke();
-      /* Mid-tone highlight stripe */
-      c.strokeStyle = pal.mid;
-      c.lineWidth = 2;
-      c.beginPath();
-      c.moveTo(b.rootX - 1, dy + 1);
-      c.bezierCurveTo(
-        b.rootX + b.leanX * 0.25 - 1, dy - h * 0.4,
-        topX - b.leanX * 0.2 - 1, dy + 2 - h * 0.7,
-        topX - 1, topY + 1
-      );
-      c.stroke();
-      /* Polyp tip */
-      c.fillStyle = pal.tip;
-      c.beginPath();
-      c.arc(topX, topY, 3, 0, Math.PI * 2);
-      c.fill();
-      /* Smaller side knob halfway up the trunk */
-      var midX = b.rootX + b.leanX * 0.5 + sw * 0.5;
-      var midY = dy + 2 - h * 0.55;
-      c.fillStyle = pal.mid;
-      c.beginPath();
-      c.arc(midX + (i % 2 === 0 ? -3 : 3), midY, 2.2, 0, Math.PI * 2);
-      c.fill();
-    }
-  }
-
-  function drawBrainCoral(c, dx, dy, pal) {
-    /* Mound */
-    c.fillStyle = pal.accent;
-    c.beginPath();
-    c.ellipse(dx, dy + 4, 18, 5, 0, 0, Math.PI * 2);
-    c.fill();
-    c.fillStyle = pal.base;
-    c.beginPath();
-    c.ellipse(dx, dy - 2, 16, 11, 0, 0, Math.PI * 2);
-    c.fill();
-    /* Highlight cap */
-    c.fillStyle = pal.mid;
-    c.beginPath();
-    c.ellipse(dx - 2, dy - 5, 12, 5, 0, 0, Math.PI * 2);
-    c.fill();
-    /* Meandering grooves – the "brain" texture */
-    c.strokeStyle = pal.accent;
-    c.lineWidth = 1;
-    c.lineCap = 'round';
-    for (var g = 0; g < 4; g++) {
-      var gy = dy - 6 + g * 3;
-      c.beginPath();
-      c.moveTo(dx - 13, gy);
-      c.bezierCurveTo(dx - 6, gy + 2, dx - 2, gy - 2, dx + 4, gy + 1);
-      c.bezierCurveTo(dx + 8, gy + 2, dx + 11, gy - 1, dx + 13, gy);
-      c.stroke();
-    }
-  }
-
-  function drawFanCoral(c, dx, dy, pal, sway) {
-    /* Short trunk */
-    c.fillStyle = pal.accent;
-    c.fillRect(dx - 2, dy - 2, 4, 8);
-    /* Fan body – broad triangle with rounded top */
-    c.fillStyle = pal.base;
-    c.beginPath();
-    c.moveTo(dx - 1, dy - 2);
-    c.bezierCurveTo(dx - 18 + sway, dy - 14, dx - 14 + sway, dy - 22, dx + sway, dy - 24);
-    c.bezierCurveTo(dx + 14 + sway, dy - 22, dx + 18 + sway, dy - 14, dx + 1, dy - 2);
-    c.closePath();
-    c.fill();
-    /* Mid-tone inner fan */
-    c.fillStyle = pal.mid;
-    c.beginPath();
-    c.moveTo(dx, dy - 4);
-    c.bezierCurveTo(dx - 12 + sway * 0.7, dy - 13, dx - 9 + sway * 0.7, dy - 19, dx + sway * 0.7, dy - 21);
-    c.bezierCurveTo(dx + 9 + sway * 0.7, dy - 19, dx + 12 + sway * 0.7, dy - 13, dx, dy - 4);
-    c.closePath();
-    c.fill();
-    /* Radial veins – fine ribs from base to tips */
-    c.strokeStyle = pal.accent;
-    c.lineWidth = 0.8;
-    var spread = Math.PI * 0.55;
-    for (var v = 0; v < 9; v++) {
-      var t = v / 8;
-      var ang = -Math.PI / 2 - spread / 2 + spread * t;
-      var len = 18 + Math.sin(t * Math.PI) * 4;
-      var endX = dx + sway + Math.cos(ang) * len;
-      var endY = dy - 2 + Math.sin(ang) * len;
-      c.beginPath();
-      c.moveTo(dx, dy - 2);
-      c.lineTo(endX, endY);
-      c.stroke();
-    }
-    /* Bright tip beads along the rim */
-    c.fillStyle = pal.tip;
-    for (var b = 0; b < 5; b++) {
-      var bt = b / 4;
-      var bAng = -Math.PI / 2 - spread / 2 + spread * bt;
-      var bx = dx + sway + Math.cos(bAng) * 22;
-      var by = dy - 2 + Math.sin(bAng) * 22;
-      c.beginPath();
-      c.arc(bx, by, 1.4, 0, Math.PI * 2);
-      c.fill();
-    }
-  }
-
   function renderDecorations() {
     if (!level) return;
     for (var i = 0; i < level.decorations.length; i++) {
@@ -1280,27 +993,6 @@
         ctx.beginPath();
         ctx.arc(dx, dy - th - 2, 2, 0, Math.PI * 2);
         ctx.fill();
-      } else if (d.type === 'spaceVine') {
-        /* Bioluminescent stalk — glowing pods */
-        var vh = d.h || 90;
-        var vSway = Math.sin(Date.now() * 0.0015 + d.x * 0.01) * 6;
-        ctx.strokeStyle = '#44ccaa';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(dx, dy);
-        ctx.bezierCurveTo(dx + vSway * 0.3, dy - vh * 0.4, dx + vSway * 0.6, dy - vh * 0.7, dx + vSway, dy - vh);
-        ctx.stroke();
-        /* Glowing pods along the vine */
-        var podColors = ['#88ffdd', '#44ffcc', '#aaffee'];
-        for (var pv = 0; pv < 4; pv++) {
-          var t = (pv + 1) / 5;
-          var px = dx + vSway * t;
-          var py = dy - vh * t;
-          ctx.fillStyle = podColors[pv % podColors.length];
-          ctx.beginPath();
-          ctx.arc(px + (pv % 2 === 0 ? 4 : -4), py, 2.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
       } else if (d.type === 'satellite') {
         /* Satellite dish on a tripod */
         ctx.fillStyle = '#556677';
@@ -1365,24 +1057,168 @@
           ctx.fillRect(dx - 26 + rsv * 14, dy - 4, 6, 1.5);
         }
       } else if (d.type === 'houseDecor') {
-        /* Decorative house silhouette behind the door */
+        /* Big sci-fi house silhouette behind the door */
         var hc = d.color || '#8866aa';
+        var rc = d.roofColor || '#cc4488';
+        /* Body */
         ctx.fillStyle = hc;
-        ctx.fillRect(dx - 30, dy - 50, 60, 50);
-        /* Roof */
-        ctx.fillStyle = d.roofColor || '#cc4488';
+        ctx.fillRect(dx - 50, dy - 90, 100, 90);
+        /* Side trim shading */
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        ctx.fillRect(dx + 35, dy - 90, 15, 90);
+        /* Roof — dome plus trim ring */
+        ctx.fillStyle = rc;
         ctx.beginPath();
-        ctx.moveTo(dx - 34, dy - 50);
-        ctx.lineTo(dx, dy - 72);
-        ctx.lineTo(dx + 34, dy - 50);
-        ctx.closePath();
+        ctx.ellipse(dx, dy - 90, 56, 26, 0, Math.PI, 0);
         ctx.fill();
-        /* Window */
+        /* Roof antenna */
+        ctx.strokeStyle = '#ddddee';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(dx, dy - 116);
+        ctx.lineTo(dx, dy - 134);
+        ctx.stroke();
+        ctx.fillStyle = '#44ffff';
+        ctx.beginPath();
+        ctx.arc(dx, dy - 136, 3, 0, Math.PI * 2);
+        ctx.fill();
+        /* Glowing windows — three across */
+        var winColors = ['#ffd24a', '#44ffff', '#ff88cc'];
+        for (var hwn = 0; hwn < 3; hwn++) {
+          ctx.fillStyle = winColors[hwn];
+          ctx.fillRect(dx - 38 + hwn * 28, dy - 70, 18, 18);
+          /* Cross frames */
+          ctx.fillStyle = '#221133';
+          ctx.fillRect(dx - 38 + hwn * 28 + 8, dy - 70, 2, 18);
+          ctx.fillRect(dx - 38 + hwn * 28, dy - 62, 18, 2);
+        }
+        /* Glowing trim along the base */
+        ctx.fillStyle = '#44ffff';
+        ctx.fillRect(dx - 50, dy - 6, 100, 2);
+        /* Door arch outline above the actual door entity */
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(dx - 26, dy - 50, 52, 50);
+      } else if (d.type === 'lampPost') {
+        /* Tall thin pole with a glowing neon lamp on top */
+        var lpC = d.color || '#44ffff';
+        ctx.fillStyle = '#7d8896';
+        ctx.fillRect(dx - 1.5, dy - 80, 3, 80);
+        /* Lamp head */
+        ctx.fillStyle = '#3a3a4a';
+        ctx.beginPath();
+        ctx.ellipse(dx, dy - 84, 8, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        /* Glow */
+        ctx.save();
+        ctx.globalAlpha = 0.4 + Math.sin(Date.now() * 0.003 + d.x * 0.01) * 0.1;
+        var lpGrd = ctx.createRadialGradient(dx, dy - 80, 2, dx, dy - 80, 28);
+        lpGrd.addColorStop(0, lpC);
+        lpGrd.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = lpGrd;
+        ctx.beginPath();
+        ctx.arc(dx, dy - 80, 28, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        /* Bulb */
+        ctx.fillStyle = lpC;
+        ctx.beginPath();
+        ctx.arc(dx, dy - 80, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(dx - 0.8, dy - 81, 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (d.type === 'neonSign') {
+        /* Holographic billboard on a stand */
+        var nsC = d.color || '#44ffff';
+        var nsTxt = d.text || 'SHOP';
+        /* Pole */
+        ctx.fillStyle = '#556677';
+        ctx.fillRect(dx - 1.2, dy - 60, 2.4, 60);
+        /* Frame */
+        ctx.fillStyle = '#1a1a2a';
+        ctx.fillRect(dx - 36, dy - 96, 72, 36);
+        ctx.strokeStyle = nsC;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(dx - 36, dy - 96, 72, 36);
+        /* Flicker */
+        ctx.save();
+        ctx.globalAlpha = 0.85 + Math.sin(Date.now() * 0.012 + d.x * 0.03) * 0.15;
+        ctx.fillStyle = nsC;
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(nsTxt, dx, dy - 78);
+        ctx.restore();
+        ctx.textBaseline = 'alphabetic';
+      } else if (d.type === 'techPanel') {
+        /* Embedded ground panel with pulsing lights */
+        ctx.fillStyle = '#1a1a2a';
+        ctx.fillRect(dx - 18, dy - 4, 36, 6);
+        ctx.fillStyle = '#3a3a4a';
+        ctx.fillRect(dx - 17, dy - 3, 34, 4);
+        /* Pulse lights */
+        var pulse = (Math.sin(Date.now() * 0.005 + d.x * 0.02) + 1) * 0.5;
+        var lightCols = ['#44ff88', '#44ffff', '#ff66cc'];
+        for (var tpl = 0; tpl < 3; tpl++) {
+          ctx.fillStyle = lightCols[tpl];
+          ctx.globalAlpha = 0.5 + pulse * 0.5;
+          ctx.beginPath();
+          ctx.arc(dx - 12 + tpl * 12, dy - 1, 1.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      } else if (d.type === 'robotStatue') {
+        /* Cute mascot robot statue on a small pedestal */
+        /* Pedestal */
+        ctx.fillStyle = '#445566';
+        ctx.fillRect(dx - 12, dy - 8, 24, 8);
+        ctx.fillStyle = '#5a6a78';
+        ctx.fillRect(dx - 14, dy - 10, 28, 3);
+        /* Body */
+        ctx.fillStyle = '#aabbcc';
+        ctx.fillRect(dx - 8, dy - 26, 16, 18);
+        /* Head */
+        ctx.fillStyle = '#ccdde8';
+        ctx.fillRect(dx - 7, dy - 38, 14, 12);
+        /* Antenna */
+        ctx.strokeStyle = '#ccdde8';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(dx, dy - 38);
+        ctx.lineTo(dx, dy - 44);
+        ctx.stroke();
+        ctx.fillStyle = '#ff66cc';
+        ctx.beginPath();
+        ctx.arc(dx, dy - 45, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        /* Eyes */
+        ctx.fillStyle = '#44ffff';
+        ctx.fillRect(dx - 4, dy - 34, 2.5, 2.5);
+        ctx.fillRect(dx + 1.5, dy - 34, 2.5, 2.5);
+        /* Mouth speaker grill */
+        ctx.fillStyle = '#222';
+        ctx.fillRect(dx - 3, dy - 30, 6, 1.5);
+        /* Chest light */
         ctx.fillStyle = '#ffd24a';
-        ctx.fillRect(dx + 8, dy - 38, 10, 10);
-        ctx.fillStyle = '#221133';
-        ctx.fillRect(dx + 12, dy - 38, 1.5, 10);
-        ctx.fillRect(dx + 8, dy - 33, 10, 1.5);
+        ctx.beginPath();
+        ctx.arc(dx, dy - 18, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (d.type === 'mouseHole') {
+        /* Little mound + dark hole entrance — visual hint near a moon mouse */
+        ctx.fillStyle = '#7a5418';
+        ctx.beginPath();
+        ctx.ellipse(dx, dy + 4, 18, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1a0a08';
+        ctx.beginPath();
+        ctx.ellipse(dx, dy + 1, 6, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        /* Cheese crumbs around */
+        ctx.fillStyle = '#ffcc44';
+        ctx.beginPath(); ctx.arc(dx - 9, dy + 6, 0.8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(dx + 11, dy + 5, 0.7, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(dx + 5, dy + 8, 0.6, 0, Math.PI * 2); ctx.fill();
       } else if (d.type === 'cheeseCrater') {
         /* Cheese-hole crater — yellow pocked moon surface */
         ctx.fillStyle = '#b98a28';
@@ -1393,49 +1229,6 @@
         ctx.beginPath();
         ctx.arc(dx - 2, dy - 2, (d.r || 14) * 0.6, 0, Math.PI * 2);
         ctx.fill();
-      } else if (d.type === 'alienFlora' || d.type === 'coral') {
-        drawCoral(ctx, dx, dy, d.variant || 0, d.x);
-      } else if (d.type === 'coral_legacy') {
-        drawCoral(ctx, dx, dy, d.variant || 0, d.x);
-      } else if (d.type === 'shell') {
-        ctx.fillStyle = '#ffddaa';
-        ctx.beginPath();
-        ctx.arc(dx, dy, 6, Math.PI, 0);
-        ctx.fill();
-        ctx.strokeStyle = '#ccaa77';
-        ctx.lineWidth = 0.5;
-        ctx.beginPath();
-        ctx.moveTo(dx - 4, dy); ctx.lineTo(dx, dy - 5);
-        ctx.moveTo(dx, dy); ctx.lineTo(dx, dy - 6);
-        ctx.moveTo(dx + 4, dy); ctx.lineTo(dx, dy - 5);
-        ctx.stroke();
-      } else if (d.type === 'kelp') {
-        var kTime = Date.now() * 0.001;
-        var kh = d.h || 120;
-        /* Main stalk */
-        var kSway = Math.sin(kTime + d.x * 0.005) * 12;
-        ctx.strokeStyle = '#1a6633';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(dx, dy);
-        ctx.bezierCurveTo(dx + kSway * 0.3, dy - kh * 0.33, dx + kSway * 0.7, dy - kh * 0.66, dx + kSway, dy - kh);
-        ctx.stroke();
-        /* Leaf blades */
-        var leafColors = ['#228844', '#1a7738', '#20994a'];
-        for (var lf = 0; lf < 5; lf++) {
-          var lt = (lf + 1) / 6;
-          var lx = dx + kSway * lt;
-          var ly = dy - kh * lt;
-          var leafSway = Math.sin(kTime * 1.2 + lf * 1.5 + d.x * 0.01) * 8;
-          var leafDir = lf % 2 === 0 ? 1 : -1;
-          ctx.fillStyle = leafColors[lf % leafColors.length];
-          ctx.beginPath();
-          ctx.moveTo(lx, ly);
-          ctx.quadraticCurveTo(lx + leafDir * (12 + leafSway), ly - 6, lx + leafDir * (18 + leafSway), ly - 2);
-          ctx.quadraticCurveTo(lx + leafDir * (12 + leafSway), ly + 2, lx, ly);
-          ctx.closePath();
-          ctx.fill();
-        }
       }
     }
   }

@@ -26,7 +26,6 @@
       paused: 'Paused',
       resume: 'Resume',
       quit: 'Quit',
-      hearts: 'Hearts',
 
       /* ---- Game over / victory ---- */
       gameOver: 'Game Over',
@@ -73,9 +72,9 @@
       varFrillyDress: 'Frilly',
       varSailorDress: 'Sailor',
       varStarDress: 'Star',
-      varSailorSwimsuit: 'Cadet',
-      varOnePiece: 'Jumpsuit',
-      varFrillyBikini: 'Sparkle Suit',
+      varSailorSwimsuit: 'Cadet Astro',
+      varOnePiece: 'Sleek Jumpsuit',
+      varFrillyBikini: 'Sparkle Astro',
       varMaryJane: 'Mary-Jane',
       varSneaker: 'Sneaker',
       varFlipper: 'Moon Boot',
@@ -100,8 +99,14 @@
       crabName: 'Pet Dog',
       lilaGreet: "Hi Momoko! I lost my 5 starry gems somewhere in town. Can you help me find them?",
       lilaThanks: "You found them ALL! You're the best neighbor ever!",
-      migwordGreet: 'Mmm! I\'m MigWord! My rocket is out of cheese fuel. Can you bring me 3 cheese wheels?',
-      migwordThanks: 'Perfect cheese! Now my rocket purrs like a kitten. Thank you!',
+      migwordGreet: 'Mmm! I\'m MigWord! My 3 mouse pals — Pip, Sprout and Tilly — are hiding around the moon. Can you go say hi to all 3 for me?',
+      migwordThanks: 'You met all my mouse pals?! They told me you were the kindest visitor ever. Thank you!',
+      mouseName: 'Moon Mouse',
+      mouseGreet: 'Squeak! Hello there! Tell MigWord I said hi!',
+      mouseGreet_pip: "I'm Pip! I was nibbling moon cheese — squeak hi to MigWord for me!",
+      mouseGreet_sprout: "I'm Sprout! I love hiding by craters. Tell MigWord I'm safe!",
+      mouseGreet_tilly: "I'm Tilly! Are you Momoko? MigWord talks about you all the time!",
+      mouseAgain: 'Squeak squeak! Nice to see you again!',
       rocketPrompt: 'Press UP or tap to enter the rocket!',
       houseDoorPrompt: 'Press UP or tap to go inside!',
 
@@ -132,8 +137,8 @@
       /* ---- Quests ---- */
       questLilaTitle: "Lila's Lost Gems",
       questLilaProgress: "Lila's Gems:",
-      questMigwordTitle: "MigWord's Cheese Delivery",
-      questMigwordProgress: "Cheese Wheels:",
+      questMigwordTitle: "MigWord's Mouse Pals",
+      questMigwordProgress: "Mice Met:",
 
       /* ---- Overlay link ---- */
       backToGameCenter: '← Back to Game Center',
@@ -201,7 +206,6 @@
       paused: 'ポーズ',
       resume: 'つづける',
       quit: 'やめる',
-      hearts: 'ハート',
 
       /* ---- ゲームオーバー / 勝利 ---- */
       gameOver: 'ゲームオーバー',
@@ -248,8 +252,8 @@
       varFrillyDress: 'フリル',
       varSailorDress: 'セーラー',
       varStarDress: 'スター',
-      varSailorSwimsuit: 'カデット',
-      varOnePiece: 'ジャンプスーツ',
+      varSailorSwimsuit: 'カデットスーツ',
+      varOnePiece: 'うちゅうじゃんぱー',
       varFrillyBikini: 'キラキラスーツ',
       varMaryJane: 'ストラップ',
       varSneaker: 'スニーカー',
@@ -275,8 +279,14 @@
       crabName: 'ワンちゃん',
       lilaGreet: 'モモコ！キラキラほうせきを 5こ まちのなかで なくしちゃったの。いっしょに さがしてくれる？',
       lilaThanks: 'ぜんぶ みつけてくれた！モモコは さいこうの おとなりさんだよ！',
-      migwordGreet: 'やあ！ミグワードだよ！ロケットの チーズねんりょうが きれちゃった。チーズのホイールを 3こ もってきてくれる？',
-      migwordThanks: 'ばっちりの チーズ！ロケットが ごきげんに なったよ。ありがとう！',
+      migwordGreet: 'やあ！ミグワードだよ！ともだちの ねずみが 3びき つきの どこかに かくれちゃった。ピップと スプラウトと ティリーに 「やあ」って いってきてくれる？',
+      migwordThanks: '3びき みんなに あえたの！？モモコの ことを やさしいって いってたよ。ありがとう！',
+      mouseName: 'つきねずみ',
+      mouseGreet: 'チューッ！こんにちは！ミグワードに よろしくね！',
+      mouseGreet_pip: 'ぼくは ピップ！つきチーズを かじってたよ。ミグワードに げんきって つたえてね！',
+      mouseGreet_sprout: 'わたしは スプラウト！クレーターの そばが だいすき！ぶじだよって おしえて！',
+      mouseGreet_tilly: 'わたしは ティリー！モモコだよね？ミグワードが いつも はなしてるよ！',
+      mouseAgain: 'チューチュー！また あえて うれしいな！',
       rocketPrompt: 'うえキー か タップで ロケットに のろう！',
       houseDoorPrompt: 'うえキー か タップで なかに はいろう！',
 
@@ -307,8 +317,8 @@
       /* ---- クエスト ---- */
       questLilaTitle: 'ライラの ほうせきさがし',
       questLilaProgress: 'ライラのほうせき:',
-      questMigwordTitle: 'ミグワードのチーズおとどけ',
-      questMigwordProgress: 'チーズホイール:',
+      questMigwordTitle: 'ミグワードのねずみさがし',
+      questMigwordProgress: 'あえたねずみ:',
 
       /* ---- オーバーレイリンク ---- */
       backToGameCenter: '← ゲームセンターへ',

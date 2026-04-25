@@ -198,33 +198,7 @@
     return null;
   }
 
-  /* ---- HUD ---- */
-  function drawHUD(c, player) {
-    /* Hearts */
-    for (var i = 0; i < player.maxHealth; i++) {
-      var hx = 16 + i * 28;
-      var hy = 20;
-      if (i < player.health) {
-        /* Full heart */
-        c.fillStyle = '#ff3355';
-        drawHeart(c, hx, hy, 10);
-      } else {
-        /* Empty heart */
-        c.fillStyle = '#443344';
-        drawHeart(c, hx, hy, 10);
-      }
-    }
-  }
-
-  function drawHeart(c, cx, cy, size) {
-    c.save();
-    c.beginPath();
-    c.moveTo(cx, cy + size * 0.3);
-    c.bezierCurveTo(cx - size, cy - size * 0.4, cx - size, cy - size * 0.9, cx, cy - size * 0.4);
-    c.bezierCurveTo(cx + size, cy - size * 0.9, cx + size, cy - size * 0.4, cx, cy + size * 0.3);
-    c.fill();
-    c.restore();
-  }
+  /* (No HUD — exploration game; quest progress lives in drawQuestHUD.) */
 
   /* ---- Pause Menu ---- */
   var pauseFlossTimer = 0;
@@ -723,71 +697,93 @@
         }
       }
     } else if (id === 'frillyBikini') {
-      /* Bandeau top */
+      /* Sparkle Astro Suit */
+      /* Backpack tanks */
+      c.fillStyle = '#444444';
+      c.fillRect(-12, -10, 2, 18);
+      c.fillRect(10, -10, 2, 18);
+      /* Suit torso */
       c.fillStyle = color;
-      c.fillRect(-10, -12, 20, 5);
-      c.fillStyle = '#ffffff';
-      for (var fbk = 0; fbk < 5; fbk++) {
-        c.beginPath();
-        c.arc(-8 + fbk * 4, -7, 1.8, Math.PI, 0);
-        c.fill();
-      }
-      /* Center bow */
+      c.fillRect(-10, -10, 20, 20);
+      /* Glitter chest panel */
+      c.fillStyle = '#ffe0f0';
+      c.fillRect(-6, -6, 12, 8);
       c.fillStyle = '#ffd24a';
-      c.beginPath(); c.ellipse(-1.8, -10, 1.5, 1.2, -0.3, 0, Math.PI * 2); c.fill();
-      c.beginPath(); c.ellipse( 1.8, -10, 1.5, 1.2,  0.3, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#c88a1a';
-      c.beginPath(); c.arc(0, -10, 0.6, 0, Math.PI * 2); c.fill();
-      /* Bikini bottom */
-      c.fillStyle = color;
-      c.beginPath();
-      c.moveTo(-10, 2);
-      c.quadraticCurveTo(0, 5, 10, 2);
-      c.lineTo(8, 10);
-      c.lineTo(-8, 10);
-      c.closePath();
-      c.fill();
-      /* Side bow */
+      c.beginPath(); c.arc(-3, -2, 0.9, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(3, -2, 0.9, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(0, 1, 0.9, 0, Math.PI * 2); c.fill();
+      /* Gold collar */
       c.fillStyle = '#ffd24a';
-      c.beginPath(); c.ellipse(8, 5, 1.6, 1.1, -0.4, 0, Math.PI * 2); c.fill();
-      c.beginPath(); c.ellipse(10, 6, 1.6, 1.1,  0.4, 0, Math.PI * 2); c.fill();
+      c.fillRect(-9, -12, 18, 2.4);
+      /* Belt */
+      c.fillStyle = '#222';
+      c.fillRect(-10, 5, 20, 2);
     } else if (id === 'sailorSwimsuit') {
+      /* Cadet Astro */
+      /* Backpack tanks */
+      c.fillStyle = '#444444';
+      c.fillRect(-12, -12, 2, 22);
+      c.fillRect(10, -12, 2, 22);
       /* Torso */
       c.fillStyle = color;
-      c.fillRect(-10, -12, 20, 20);
+      c.fillRect(-10, -12, 20, 22);
       /* Sailor collar */
       c.fillStyle = '#ffffff';
       c.beginPath();
       c.moveTo(-9, -12);
-      c.lineTo(0, -2);
+      c.lineTo(0, -4);
       c.lineTo(9, -12);
       c.closePath();
       c.fill();
-      /* Bow */
+      /* Chest control panel */
+      c.fillStyle = '#222238';
+      c.fillRect(-5, -1, 10, 5);
+      c.fillStyle = '#44ff88';
+      c.fillRect(-3.5, 0.2, 1.5, 1.5);
       c.fillStyle = '#ff4466';
-      c.beginPath(); c.arc(0, -2, 1.8, 0, Math.PI * 2); c.fill();
+      c.fillRect(-0.7, 0.2, 1.5, 1.5);
+      c.fillStyle = '#ffd24a';
+      c.fillRect(2, 0.2, 1.5, 1.5);
+      /* Belt buckle */
+      c.fillStyle = '#ffd24a';
+      c.fillRect(-2, 6, 4, 3);
     } else if (id === 'onePiece') {
+      /* Sleek Jumpsuit */
       c.fillStyle = color;
       c.beginPath();
       c.moveTo(-9, -12);
       c.quadraticCurveTo(0, -14, 9, -12);
       c.lineTo(9, 10);
-      c.quadraticCurveTo(0, 12, -9, 10);
+      c.lineTo(-9, 10);
       c.closePath();
       c.fill();
-      /* Star */
+      /* Shoulder reflective stripes */
+      c.fillStyle = '#cce4ff';
+      c.fillRect(-9, -10, 18, 1.2);
+      c.fillRect(-9, -7.5, 18, 1);
+      /* Center zipper */
+      c.strokeStyle = 'rgba(0,0,0,0.4)';
+      c.lineWidth = 0.6;
+      c.beginPath(); c.moveTo(0, -12); c.lineTo(0, 10); c.stroke();
+      /* Mission badge */
+      c.fillStyle = '#ffd24a';
+      c.beginPath(); c.arc(-4, -2, 2.6, 0, Math.PI * 2); c.fill();
       c.fillStyle = '#fff4a8';
-      var ss = 3;
+      var ss = 2;
       c.beginPath();
       for (var i = 0; i < 10; i++) {
         var ang = -Math.PI / 2 + i * Math.PI / 5;
         var rr = i % 2 === 0 ? ss : ss * 0.4;
-        var px = Math.cos(ang) * rr;
-        var py = Math.sin(ang) * rr;
+        var px = -4 + Math.cos(ang) * rr;
+        var py = -2 + Math.sin(ang) * rr;
         if (i === 0) c.moveTo(px, py); else c.lineTo(px, py);
       }
       c.closePath();
       c.fill();
+      /* White glove cuffs */
+      c.fillStyle = '#ffffff';
+      c.fillRect(-9, 7, 2, 2);
+      c.fillRect(7, 7, 2, 2);
     }
   }
 
@@ -2314,6 +2310,18 @@
   /* ============================================================ */
   var FURNITURE_TYPES = ['bed', 'table', 'chair', 'lamp', 'rug', 'plant', 'painting', 'bookshelf'];
   var selectedFurniture = null;
+  /* Each house keeps its own walked-around Momoko position so re-entering
+     a house drops her where she was. */
+  var housePlayerPos = {};
+  /* Anim timer for the in-house Momoko sprite. */
+  var housePlayerFrame = 0;
+  var housePlayerFacing = 1;
+  /* Bounds where Momoko is allowed to walk (matches the floor area, leaves
+     room for the palette strip up top and the exit-door at the right). */
+  var HOUSE_FLOOR_TOP = 150;
+  var HOUSE_FLOOR_BOTTOM = H - 30;
+  var HOUSE_FLOOR_LEFT = 20;
+  var HOUSE_FLOOR_RIGHT = W - 110;
 
   function loadFurnitureState() {
     try {
@@ -2329,26 +2337,33 @@
     } catch (e) { /* storage disabled */ }
   }
 
+  function getHousePlayerPos(houseId) {
+    if (!housePlayerPos[houseId]) {
+      housePlayerPos[houseId] = { x: 100, y: H - 80 };
+    }
+    return housePlayerPos[houseId];
+  }
+
   function drawHouseInterior(c, houseId) {
     /* Room background */
     c.fillStyle = '#2a1458';
     c.fillRect(0, 0, W, H);
     /* Back wall gradient */
-    var wallGrad = c.createLinearGradient(0, 0, 0, H - 120);
+    var wallGrad = c.createLinearGradient(0, 0, 0, H - 140);
     wallGrad.addColorStop(0, '#3d2468');
     wallGrad.addColorStop(1, '#5a3888');
     c.fillStyle = wallGrad;
-    c.fillRect(0, 0, W, H - 120);
+    c.fillRect(0, 0, W, H - 140);
     /* Floor */
     c.fillStyle = '#6a4aa0';
-    c.fillRect(0, H - 120, W, 120);
-    /* Wooden planks */
+    c.fillRect(0, H - 140, W, 140);
+    /* Floor planks */
     c.strokeStyle = '#4a2a70';
     c.lineWidth = 1;
-    for (var pl = 0; pl < 8; pl++) {
+    for (var pl = 0; pl < 9; pl++) {
       c.beginPath();
-      c.moveTo(0, H - 120 + pl * 15);
-      c.lineTo(W, H - 120 + pl * 15);
+      c.moveTo(0, H - 140 + pl * 16);
+      c.lineTo(W, H - 140 + pl * 16);
       c.stroke();
     }
     /* Window with stars */
@@ -2357,11 +2372,14 @@
     c.strokeStyle = '#ff66cc';
     c.lineWidth = 3;
     c.strokeRect(540, 60, 160, 100);
+    /* Pre-baked twinkle dots so they don't reflow each frame */
     c.fillStyle = '#ffffff';
     for (var ws = 0; ws < 12; ws++) {
-      c.globalAlpha = 0.5 + Math.random() * 0.5;
+      var sxw = 550 + ((ws * 13) % 140);
+      var syw = 70 + ((ws * 27) % 80);
+      c.globalAlpha = 0.4 + ((ws * 17) % 60) / 100;
       c.beginPath();
-      c.arc(550 + Math.random() * 140, 70 + Math.random() * 80, 0.8 + Math.random() * 1.2, 0, Math.PI * 2);
+      c.arc(sxw, syw, 0.8 + (ws % 3) * 0.5, 0, Math.PI * 2);
       c.fill();
     }
     c.globalAlpha = 1;
@@ -2375,55 +2393,76 @@
                 : 'houseMigword';
     c.fillText(Game.i18n.t(nameKey), 20, 40);
 
-    /* Placed furniture */
+    /* Furniture palette strip along the top */
+    c.fillStyle = 'rgba(10, 4, 32, 0.7)';
+    c.fillRect(0, 50, W, 90);
+    c.fillStyle = '#ffd24a';
+    c.font = '12px monospace';
+    c.textAlign = 'left';
+    c.fillText(Game.i18n.t('furnitureTabTitle'), 10, 64);
+    for (var fi = 0; fi < FURNITURE_TYPES.length; fi++) {
+      var ft = FURNITURE_TYPES[fi];
+      var fx = 20 + fi * 78;
+      var fy = 72;
+      var hover = selectedFurniture === ft;
+      c.fillStyle = hover ? '#7744cc' : '#2a1458';
+      c.strokeStyle = '#44ffff';
+      c.lineWidth = hover ? 3 : 1;
+      roundRect(c, fx, fy, 68, 60, 8);
+      c.fill();
+      c.stroke();
+      /* Bigger icon than before */
+      drawFurniture(c, ft, fx + 34, fy + 36, 'palette');
+    }
+
+    /* Placed furniture (drawn before the player so they layer below) */
     var state = loadFurnitureState();
     var items = state[houseId] || [];
     for (var pi = 0; pi < items.length; pi++) {
       drawFurniture(c, items[pi].type, items[pi].x, items[pi].y);
     }
 
-    /* Furniture palette strip along the top */
-    c.fillStyle = 'rgba(10, 4, 32, 0.7)';
-    c.fillRect(0, 50, W, 60);
-    c.fillStyle = '#ffd24a';
-    c.font = '12px monospace';
-    c.textAlign = 'left';
-    c.fillText(Game.i18n.t('furnitureTabTitle'), 10, 62);
-    for (var fi = 0; fi < FURNITURE_TYPES.length; fi++) {
-      var ft = FURNITURE_TYPES[fi];
-      var fx = 20 + fi * 70;
-      var fy = 70;
-      var hover = selectedFurniture === ft;
-      c.fillStyle = hover ? '#7744cc' : '#2a1458';
-      c.strokeStyle = '#44ffff';
-      c.lineWidth = hover ? 3 : 1;
-      roundRect(c, fx, fy, 60, 34, 6);
-      c.fill();
-      c.stroke();
-      /* Small icon */
-      drawFurniture(c, ft, fx + 30, fy + 22, true);
+    /* Momoko walking inside — she can mingle with the placed furniture. */
+    var pp = getHousePlayerPos(houseId);
+    if (Game.entities && Game.entities.drawMomokoSprite) {
+      c.save();
+      var psx = pp.x - 14, psy = pp.y - 30;
+      if (housePlayerFacing === -1) {
+        c.translate(psx + 14, 0);
+        c.scale(-1, 1);
+        psx = -14;
+      }
+      Game.entities.drawMomokoSprite(c, psx, psy, Game.customization, housePlayerFrame);
+      c.restore();
     }
 
-    /* Exit door */
-    c.fillStyle = '#ff66cc';
-    c.fillRect(W - 90, H - 130, 4, 70);
-    c.fillStyle = '#5a3a22';
-    c.fillRect(W - 86, H - 130, 50, 70);
+    /* Exit door (right side, bigger so it reads as an actual exit) */
+    c.fillStyle = '#3a2412';
+    c.fillRect(W - 84, H - 140, 64, 110);
     c.fillStyle = '#8a5a32';
-    c.fillRect(W - 84, H - 128, 46, 66);
+    c.fillRect(W - 80, H - 136, 56, 102);
+    c.strokeStyle = '#5a3a22';
+    c.lineWidth = 1;
+    c.beginPath(); c.moveTo(W - 52, H - 132); c.lineTo(W - 52, H - 36); c.stroke();
     c.fillStyle = '#ffd24a';
     c.beginPath();
-    c.arc(W - 50, H - 95, 2, 0, Math.PI * 2);
+    c.arc(W - 36, H - 86, 3, 0, Math.PI * 2);
     c.fill();
-    c.fillStyle = '#ffffff';
+    /* "Outside" sign */
+    c.fillStyle = '#44ffff';
+    c.fillRect(W - 92, H - 152, 80, 16);
+    c.fillStyle = '#0a0420';
     c.font = 'bold 11px monospace';
     c.textAlign = 'center';
-    c.fillText(Game.i18n.t('furnitureExit'), W - 61, H - 30);
+    c.fillText(Game.i18n.t('furnitureExit'), W - 52, H - 141);
   }
 
-  function drawFurniture(c, type, x, y, small) {
+  function drawFurniture(c, type, x, y, mode) {
+    /* mode: undefined | 'palette' (medium icon) — placed furniture is now
+       1.6× the old size so it reads at a glance, and palette icons get a
+       slightly larger 0.85× scale so they're readable. */
     c.save();
-    var scale = small ? 0.6 : 1;
+    var scale = mode === 'palette' ? 0.85 : 1.6;
     c.translate(x, y);
     c.scale(scale, scale);
     switch (type) {
@@ -2521,30 +2560,30 @@
 
   function handleHouseInteriorClick(mx, my, houseId) {
     /* Exit door */
-    if (hitButton(mx, my, W - 90, H - 130, 60, 70)) {
+    if (hitButton(mx, my, W - 92, H - 152, 80, 122)) {
       Game.audio.play('select');
       selectedFurniture = null;
       return 'exit';
     }
     /* Palette clicks */
     for (var fi = 0; fi < FURNITURE_TYPES.length; fi++) {
-      var fx = 20 + fi * 70;
-      var fy = 70;
-      if (hitButton(mx, my, fx, fy, 60, 34)) {
+      var fx = 20 + fi * 78;
+      var fy = 72;
+      if (hitButton(mx, my, fx, fy, 68, 60)) {
         selectedFurniture = FURNITURE_TYPES[fi];
         Game.audio.play('pickup');
         return null;
       }
     }
     /* Place or remove furniture on the floor area */
-    if (my > 130 && my < H - 20) {
+    if (my > HOUSE_FLOOR_TOP && my < HOUSE_FLOOR_BOTTOM) {
       var state = loadFurnitureState();
       if (!state[houseId]) state[houseId] = [];
-      /* Click on existing item (small radius) → remove */
+      /* Click on existing item → remove (radius scales with the new size) */
       for (var ei = state[houseId].length - 1; ei >= 0; ei--) {
         var it = state[houseId][ei];
         var d = Math.sqrt((mx - it.x) * (mx - it.x) + (my - it.y) * (my - it.y));
-        if (d < 28) {
+        if (d < 36) {
           state[houseId].splice(ei, 1);
           saveFurnitureState(state);
           Game.audio.play('pickup');
@@ -2552,7 +2591,7 @@
         }
       }
       /* Place if furniture selected */
-      if (selectedFurniture) {
+      if (selectedFurniture && mx < HOUSE_FLOOR_RIGHT) {
         state[houseId].push({ type: selectedFurniture, x: mx, y: my });
         saveFurnitureState(state);
         Game.audio.play('pickup');
@@ -2562,7 +2601,19 @@
   }
 
   function updateHouseInterior(keys, jp, houseId) {
-    /* no-op; clicks handle everything */
+    /* Walk Momoko around the room with arrow keys / D-pad. */
+    var pp = getHousePlayerPos(houseId);
+    var sp = 2.4;
+    var moved = false;
+    if (keys.left)  { pp.x -= sp; housePlayerFacing = -1; moved = true; }
+    if (keys.right) { pp.x += sp; housePlayerFacing = 1;  moved = true; }
+    if (keys.up)    { pp.y -= sp; moved = true; }
+    if (keys.down)  { pp.y += sp; moved = true; }
+    if (pp.x < HOUSE_FLOOR_LEFT)  pp.x = HOUSE_FLOOR_LEFT;
+    if (pp.x > HOUSE_FLOOR_RIGHT) pp.x = HOUSE_FLOOR_RIGHT;
+    if (pp.y < HOUSE_FLOOR_TOP)   pp.y = HOUSE_FLOOR_TOP;
+    if (pp.y > HOUSE_FLOOR_BOTTOM) pp.y = HOUSE_FLOOR_BOTTOM;
+    if (moved) housePlayerFrame = (housePlayerFrame + 1) % 24;
   }
 
   /* ============================================================ */
@@ -2598,7 +2649,6 @@
       drawTitleScreen(c);
       if (showInstructions) drawInstructionsOverlay(c);
     },
-    drawHUD: drawHUD,
     drawPauseMenu: drawPauseMenu,
     drawDialogue: drawDialogue,
     drawQRCode: drawQRCode,

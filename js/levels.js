@@ -9,13 +9,13 @@
    *   width / height    – world dimensions in pixels
    *   waterSurface      – legacy upper-sky y coord (kept for field parity)
    *   floorY            – y coord of planet/moon surface
-   *   platforms[]       – solid blocks { x, y, w, h, color? }
    *   decorations[]     – visual-only elements { type, x, y, ... }
    *   spawns.player     – { x, y }
    *   spawns.enemies[]  – { type: 'alien' | 'ufo', x, y, pattern?, dir?, species? }
    *   spawns.npcs[]     – { type: 'oliver' | 'kittycorn' | 'bob' | 'crab'
-   *                              | 'lila' | 'migword' | 'rocket' | 'houseDoor', x, y, houseId? }
-   *   spawns.pickups[]  – { type: 'heart' (star gem) | 'cheese', x, y }
+   *                              | 'lila' | 'migword' | 'rocket' | 'houseDoor'
+   *                              | 'moonMouse', x, y, houseId?, mouseId? }
+   *   spawns.pickups[]  – { type: 'heart' (star gem), x, y }
    *   bgTop/Mid/Bottom  – background gradient stops
    *   showRings         – true on hero's ringed home planet
    */
@@ -42,41 +42,8 @@
 
     showRings: true,
 
-    platforms: [
-      /* Starting area — floating rock platforms */
-      { x: 180, y: 360, w: 80, h: 80 },
-      { x: 320, y: 300, w: 48, h: 140 },
-      { x: 440, y: 340, w: 64, h: 100 },
-
-      /* Section 2 */
-      { x: 750, y: 200, w: 48, h: 80 },
-      { x: 750, y: 360, w: 100, h: 80 },
-      { x: 900, y: 280, w: 48, h: 160 },
-      { x: 1050, y: 320, w: 80, h: 120 },
-      { x: 1150, y: 180, w: 48, h: 100 },
-
-      /* Section 3 — denser */
-      { x: 1500, y: 160, w: 64, h: 48 },
-      { x: 1600, y: 260, w: 48, h: 180 },
-      { x: 1700, y: 350, w: 100, h: 90 },
-      { x: 1850, y: 200, w: 48, h: 80 },
-      { x: 1950, y: 300, w: 64, h: 48 },
-      { x: 2050, y: 160, w: 80, h: 48 },
-
-      /* Section 4 — passage */
-      { x: 2500, y: 140, w: 200, h: 32 },
-      { x: 2500, y: 340, w: 200, h: 32 },
-      { x: 2800, y: 200, w: 48, h: 64 },
-      { x: 2900, y: 320, w: 80, h: 120 },
-      { x: 3050, y: 240, w: 48, h: 48 },
-      { x: 3150, y: 360, w: 64, h: 80 },
-
-      /* Section 5 — open sky approach to the rocket pad */
-      { x: 3500, y: 350, w: 120, h: 90 },
-      { x: 3700, y: 180, w: 48, h: 48 },
-      { x: 4200, y: 390, w: 400, h: 50 },
-      { x: 4700, y: 390, w: 400, h: 50 },
-    ],
+    /* Background UFO that drifts across the sky. */
+    bgUfo: { y: 110, speed: 0.4, dir: 1 },
 
     decorations: [
       /* Antennas dotting the town skyline */
@@ -89,30 +56,39 @@
       { type: 'antenna', x: 3000, y: 440, h: 80 },
       { type: 'antenna', x: 3600, y: 440, h: 70 },
 
-      /* Alien flora (re-themed coral) */
-      { type: 'alienFlora', x: 250, y: 425, variant: 0 },
-      { type: 'alienFlora', x: 620, y: 420, variant: 1 },
-      { type: 'alienFlora', x: 980, y: 430, variant: 2 },
-      { type: 'alienFlora', x: 1400, y: 425, variant: 0 },
-      { type: 'alienFlora', x: 1750, y: 420, variant: 1 },
-      { type: 'alienFlora', x: 2200, y: 430, variant: 2 },
-      { type: 'alienFlora', x: 2600, y: 425, variant: 0 },
-      { type: 'alienFlora', x: 3100, y: 420, variant: 1 },
-      { type: 'alienFlora', x: 3800, y: 430, variant: 2 },
+      /* Neon street lamps lining the path */
+      { type: 'lampPost', x: 200, y: 440, color: '#44ffff' },
+      { type: 'lampPost', x: 600, y: 440, color: '#ff66cc' },
+      { type: 'lampPost', x: 1100, y: 440, color: '#44ffff' },
+      { type: 'lampPost', x: 1700, y: 440, color: '#ffd24a' },
+      { type: 'lampPost', x: 2300, y: 440, color: '#ff66cc' },
+      { type: 'lampPost', x: 2900, y: 440, color: '#44ffff' },
+      { type: 'lampPost', x: 3500, y: 440, color: '#ffd24a' },
+      { type: 'lampPost', x: 4100, y: 440, color: '#44ffff' },
+
+      /* Holographic neon signs */
+      { type: 'neonSign', x: 480, y: 440, text: 'WELCOME', color: '#44ffff' },
+      { type: 'neonSign', x: 1500, y: 440, text: 'CAFE', color: '#ff66cc' },
+      { type: 'neonSign', x: 2700, y: 440, text: 'SHOP', color: '#ffd24a' },
+      { type: 'neonSign', x: 3800, y: 440, text: 'LAUNCH', color: '#44ff88' },
+
+      /* Tech panels embedded in the surface */
+      { type: 'techPanel', x: 350, y: 440 },
+      { type: 'techPanel', x: 1200, y: 440 },
+      { type: 'techPanel', x: 2100, y: 440 },
+      { type: 'techPanel', x: 3300, y: 440 },
+      { type: 'techPanel', x: 4400, y: 440 },
+
+      /* Robot statues — mascots dotted around town */
+      { type: 'robotStatue', x: 750, y: 440 },
+      { type: 'robotStatue', x: 2500, y: 440 },
+      { type: 'robotStatue', x: 4000, y: 440 },
 
       /* Crystals glinting on the surface */
       { type: 'crystal', x: 350, y: 432, variant: 0 },
       { type: 'crystal', x: 1200, y: 432, variant: 1 },
       { type: 'crystal', x: 2300, y: 432, variant: 2 },
       { type: 'crystal', x: 3400, y: 432, variant: 0 },
-
-      /* Bioluminescent space vines */
-      { type: 'spaceVine', x: 120, y: 440, h: 130 },
-      { type: 'spaceVine', x: 500, y: 440, h: 110 },
-      { type: 'spaceVine', x: 950, y: 440, h: 120 },
-      { type: 'spaceVine', x: 1350, y: 440, h: 150 },
-      { type: 'spaceVine', x: 2050, y: 440, h: 130 },
-      { type: 'spaceVine', x: 2650, y: 440, h: 140 },
 
       /* Satellites */
       { type: 'satellite', x: 900, y: 200 },
@@ -123,9 +99,9 @@
       { type: 'planetRing', x: 1600, y: 90, r: 14, color: '#ff99cc' },
       { type: 'planetRing', x: 3000, y: 80, r: 18, color: '#66ddff' },
 
-      /* House silhouettes (painted behind the house doors) */
-      { type: 'houseDecor', x: 260, y: 440, color: '#cc66aa', roofColor: '#ff88cc' }, /* Momoko's house */
-      { type: 'houseDecor', x: 1000, y: 440, color: '#6688cc', roofColor: '#88aaff' }, /* Lila's house */
+      /* Big house silhouettes (painted behind the house doors) */
+      { type: 'houseDecor', x: 280, y: 440, color: '#cc66aa', roofColor: '#ff88cc' }, /* Momoko's house */
+      { type: 'houseDecor', x: 1020, y: 440, color: '#6688cc', roofColor: '#88aaff' }, /* Lila's house */
 
       /* Rocket pad base (ship is drawn by the RocketShip NPC) */
       { type: 'rocketPad', x: 4500, y: 440 },
@@ -156,27 +132,26 @@
       ],
 
       npcs: [
-        { type: 'oliver', x: 700, y: 240 },
+        { type: 'oliver', x: 700, y: 380 },
         /* Lila — Momoko's next-door neighbor with the star-gem quest */
-        { type: 'lila', x: 1050, y: 380 },
-        { type: 'kittycorn', x: 2150, y: 220 },
-        { type: 'bob', x: 3200, y: 300 },
-        /* Star gem hunter crabs become friendly space puppies — keep as 'crab' type
-           for joke dispensers but visual is the re-skinned pet-dog sprite */
+        { type: 'lila', x: 1080, y: 400 },
+        { type: 'kittycorn', x: 2150, y: 380 },
+        { type: 'bob', x: 3200, y: 380 },
+        /* Star gem hunter crabs become friendly space puppies */
         { type: 'crab', x: 380, y: 426 },
         { type: 'crab', x: 1280, y: 426 },
         { type: 'crab', x: 2380, y: 426 },
         { type: 'crab', x: 3380, y: 426 },
         /* Momoko's house door (home) */
-        { type: 'houseDoor', x: 280, y: 410, houseId: 'heroHome' },
+        { type: 'houseDoor', x: 256, y: 388, houseId: 'heroHome' },
         /* Lila's house door */
-        { type: 'houseDoor', x: 1020, y: 410, houseId: 'lilaHouse' },
+        { type: 'houseDoor', x: 996, y: 388, houseId: 'lilaHouse' },
         /* Rocket pad */
-        { type: 'rocket', x: 4500, y: 390 },
+        { type: 'rocket', x: 4470, y: 290 },
       ],
 
       pickups: [
-        /* Star gems — Lila's quest collectibles, also heal 1 HP */
+        /* Star gems — Lila's quest collectibles, scattered around the town */
         { type: 'heart', x: 700, y: 180 },
         { type: 'heart', x: 1450, y: 280 },
         { type: 'heart', x: 2250, y: 200 },
@@ -208,20 +183,8 @@
 
     showRings: false,
 
-    platforms: [
-      /* Floating cheese chunks */
-      { x: 200, y: 360, w: 90, h: 80 },
-      { x: 400, y: 300, w: 60, h: 140 },
-      { x: 600, y: 340, w: 80, h: 100 },
-      { x: 900, y: 260, w: 60, h: 180 },
-      { x: 1100, y: 320, w: 90, h: 120 },
-      { x: 1350, y: 200, w: 60, h: 80 },
-      { x: 1550, y: 340, w: 100, h: 100 },
-      { x: 1800, y: 280, w: 60, h: 160 },
-      { x: 2050, y: 360, w: 80, h: 80 },
-      { x: 2300, y: 320, w: 90, h: 120 },
-      { x: 2700, y: 390, w: 400, h: 50 },
-    ],
+    /* Background UFO that drifts across the sky. */
+    bgUfo: { y: 80, speed: 0.5, dir: -1 },
 
     decorations: [
       /* Cheese-hole craters on the surface */
@@ -239,6 +202,11 @@
 
       /* MigWord's cheese cottage silhouette */
       { type: 'houseDecor', x: 1650, y: 440, color: '#ddbb44', roofColor: '#ff9933' },
+
+      /* Mouse hidey-holes (small mound markers near each mouse) */
+      { type: 'mouseHole', x: 320, y: 432 },
+      { type: 'mouseHole', x: 1080, y: 432 },
+      { type: 'mouseHole', x: 2280, y: 432 },
 
       /* A couple antennas for signal from home */
       { type: 'antenna', x: 500, y: 440, h: 60 },
@@ -267,19 +235,20 @@
       ],
 
       npcs: [
-        /* MigWord lives in the cheese cottage and gives the cheese quest */
+        /* MigWord lives in the cheese cottage and gives the find-the-friends quest */
         { type: 'migword', x: 1680, y: 380 },
-        { type: 'houseDoor', x: 1660, y: 410, houseId: 'migwordCottage' },
+        { type: 'houseDoor', x: 1632, y: 388, houseId: 'migwordCottage' },
+        /* Three moon mice scattered around — must be greeted to count for the quest */
+        { type: 'moonMouse', x: 320, y: 410, mouseId: 'pip', color: '#dddddd' },
+        { type: 'moonMouse', x: 1080, y: 410, mouseId: 'sprout', color: '#ffcc88' },
+        { type: 'moonMouse', x: 2280, y: 410, mouseId: 'tilly', color: '#bbaaff' },
         /* Return rocket */
-        { type: 'rocket', x: 2900, y: 390 },
+        { type: 'rocket', x: 2870, y: 290 },
       ],
 
       pickups: [
-        /* Cheese wheels — MigWord's quest collectibles */
-        { type: 'cheese', x: 450, y: 280 },
-        { type: 'cheese', x: 1150, y: 280 },
-        { type: 'cheese', x: 2350, y: 280 },
-        /* A heal-only star gem for good measure */
+        /* A couple of star gems on the moon for the home-quest */
+        { type: 'heart', x: 600, y: 220 },
         { type: 'heart', x: 1800, y: 200 },
       ],
     },

@@ -39,25 +39,18 @@
     this.vx = 0;
     this.vy = 0;
     this.facing = 1; /* 1=right, -1=left */
-    this.health = 5;
-    this.maxHealth = 5;
-    this.invincible = 0;
     this.animFrame = 0;
     this.animTimer = 0;
     this.shootCooldown = 0;
-    this.alive = true;
   }
 
   Momoko.SWIM_FORCE = 0.45;
   Momoko.MAX_VEL = 3.2;
   Momoko.GRAVITY = 0.12;
   Momoko.FRICTION = 0.94;
-  Momoko.INVINCIBLE_TIME = 90; /* frames (~1.5s) */
   Momoko.SHOOT_CD = 12;
 
   Momoko.prototype.update = function (keys, level) {
-    if (!this.alive) return;
-
     /* Swimming */
     if (keys.left) { this.vx -= Momoko.SWIM_FORCE; this.facing = -1; }
     if (keys.right) { this.vx += Momoko.SWIM_FORCE; this.facing = 1; }
@@ -87,27 +80,6 @@
     if (this.x + this.w > level.width) { this.x = level.width - this.w; this.vx = 0; }
     if (this.y + this.h > level.floorY) { this.y = level.floorY - this.h; this.vy = 0; }
 
-    /* Platform collision */
-    for (var i = 0; i < level.platforms.length; i++) {
-      var p = level.platforms[i];
-      if (this.x + this.w > p.x && this.x < p.x + p.w &&
-          this.y + this.h > p.y && this.y < p.y + p.h) {
-        /* Push out from smallest overlap side */
-        var overlapL = (this.x + this.w) - p.x;
-        var overlapR = (p.x + p.w) - this.x;
-        var overlapT = (this.y + this.h) - p.y;
-        var overlapB = (p.y + p.h) - this.y;
-        var min = Math.min(overlapL, overlapR, overlapT, overlapB);
-        if (min === overlapL) { this.x = p.x - this.w; this.vx = 0; }
-        else if (min === overlapR) { this.x = p.x + p.w; this.vx = 0; }
-        else if (min === overlapT) { this.y = p.y - this.h; this.vy = 0; }
-        else { this.y = p.y + p.h; this.vy = 0; }
-      }
-    }
-
-    /* Invincibility countdown */
-    if (this.invincible > 0) this.invincible--;
-
     /* Shoot cooldown */
     if (this.shootCooldown > 0) this.shootCooldown--;
 
@@ -117,7 +89,7 @@
   };
 
   Momoko.prototype.shoot = function () {
-    if (this.shootCooldown > 0 || !this.alive) return null;
+    if (this.shootCooldown > 0) return null;
     this.shootCooldown = Momoko.SHOOT_CD;
     Game.audio.play('bubble');
     return new Bubble(
@@ -125,33 +97,6 @@
       this.y + this.h / 2 - 4,
       this.facing
     );
-  };
-
-  Momoko.prototype.takeDamage = function () {
-    if (this.invincible > 0 || !this.alive) return false;
-    this.health--;
-    this.invincible = Momoko.INVINCIBLE_TIME;
-    Game.audio.play('damage');
-    if (this.health <= 0) {
-      this.alive = false;
-    }
-    return true;
-  };
-
-  Momoko.prototype.heal = function () {
-    if (this.health < this.maxHealth) {
-      this.health++;
-      Game.audio.play('pickup');
-      return true;
-    }
-    return false;
-  };
-
-  Momoko.prototype.respawn = function (x, y) {
-    this.x = x; this.y = y;
-    this.vx = 0; this.vy = 0;
-    this.invincible = Momoko.INVINCIBLE_TIME;
-    this.alive = true;
   };
 
   /* ---- Shared color helpers (hoisted so sub-painters can share) ---- */
@@ -367,38 +312,7 @@
     c.beginPath(); c.ellipse(sx + 6, sy + 14, 2.2, 5, 0.15, 0, Math.PI * 2); c.fill();
     c.beginPath(); c.ellipse(sx + 22, sy + 14, 2.2, 5, -0.15, 0, Math.PI * 2); c.fill();
 
-    /* ---------- Peach tiara ---------- */
-    /* Gold band */
-    c.strokeStyle = '#ffd24a';
-    c.lineWidth = 1.3;
-    c.beginPath();
-    c.arc(sx + 14, sy + 8, 6.5, Math.PI + 0.55, -0.55);
-    c.stroke();
-    /* Sparkle dots on band */
-    c.fillStyle = '#fff4a8';
-    c.beginPath(); c.arc(sx + 9.2, sy + 4.6, 0.7, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 18.8, sy + 4.6, 0.7, 0, Math.PI * 2); c.fill();
-    /* Peach gem (two lobes + cleft) */
-    var pcx = sx + 14, pcy = sy + 2.9;
-    c.fillStyle = '#ffb8a0';
-    c.beginPath(); c.arc(pcx - 0.6, pcy, 1.9, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(pcx + 0.6, pcy, 1.9, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#ff9a82';
-    c.beginPath(); c.arc(pcx + 0.5, pcy + 0.6, 1.2, 0, Math.PI * 2); c.fill();
-    /* Tiny green leaf + stem */
-    c.fillStyle = '#5cbd5c';
-    c.beginPath();
-    c.ellipse(pcx - 1.5, pcy - 2.1, 1.1, 0.55, -0.6, 0, Math.PI * 2);
-    c.fill();
-    c.strokeStyle = '#3a7a3a';
-    c.lineWidth = 0.4;
-    c.beginPath();
-    c.moveTo(pcx - 0.4, pcy - 1.7);
-    c.lineTo(pcx - 1.1, pcy - 2.0);
-    c.stroke();
-    /* Peach highlight */
-    c.fillStyle = 'rgba(255,255,255,0.75)';
-    c.beginPath(); c.arc(pcx - 0.9, pcy - 0.6, 0.55, 0, Math.PI * 2); c.fill();
+    /* (Peach tiara removed — Momoko now wears just her bubble helmet.) */
 
     /* ---------- Eyes ---------- */
     /* White sclera */
@@ -557,95 +471,95 @@
       c.closePath();
       c.fill();
     } else if (outfit === 'frillyBikini') {
-      /* Bandeau top with a frilly bottom edge */
+      /* "Sparkle Astro Suit" — bulky pink space suit with a glittering chest panel. */
+      /* Oxygen tank backpack */
+      c.fillStyle = hexShade(suitC, 50);
+      c.fillRect(sx + 6, sy + 20.5, 1.8, 9);
+      c.fillRect(sx + 20.2, sy + 20.5, 1.8, 9);
+      /* Suit torso */
       c.fillStyle = suitC;
-      c.fillRect(sx + 8, sy + 20.8, 12, 3.4);
-      c.fillStyle = '#ffffff';
-      for (var fb = 0; fb < 5; fb++) {
-        var fbx = sx + 9 + fb * 2.5;
-        c.beginPath();
-        c.arc(fbx, sy + 24.2, 1.1, Math.PI, 0);
-        c.fill();
-      }
-      /* Center bow between the cups */
+      c.fillRect(sx + 7, sy + 20.5, 14, 10);
+      /* Belt */
+      c.fillStyle = hexShade(suitC, 60);
+      c.fillRect(sx + 7, sy + 26.5, 14, 1.6);
+      /* Glittery chest panel */
+      c.fillStyle = suitLight;
+      c.fillRect(sx + 10, sy + 21.5, 8, 4.5);
+      c.fillStyle = '#fff4a8';
+      fillStar(c, sx + 12, sy + 23.5, 1);
+      fillStar(c, sx + 16, sy + 23.5, 1);
+      fillStar(c, sx + 14, sy + 25.5, 0.9);
+      /* Gold collar ring */
       c.fillStyle = '#ffd24a';
-      c.beginPath(); c.ellipse(sx + 13, sy + 22.2, 0.9, 0.7, -0.3, 0, Math.PI * 2); c.fill();
-      c.beginPath(); c.ellipse(sx + 15, sy + 22.2, 0.9, 0.7, 0.3, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#c88a1a';
-      c.beginPath(); c.arc(sx + 14, sy + 22.2, 0.4, 0, Math.PI * 2); c.fill();
-      /* Midriff skin shows through */
-      c.fillStyle = skinC;
-      c.fillRect(sx + 9, sy + 24.5, 10, 2.5);
-      /* Bikini bottom with a side bow */
-      c.fillStyle = suitC;
-      c.beginPath();
-      c.moveTo(sx + 8, sy + 27);
-      c.quadraticCurveTo(sx + 14, sy + 28.5, sx + 20, sy + 27);
-      c.lineTo(sx + 19, sy + 30);
-      c.lineTo(sx + 9, sy + 30);
-      c.closePath();
-      c.fill();
-      /* Side-tie bow on the right hip */
-      c.fillStyle = '#ffd24a';
-      c.beginPath(); c.ellipse(sx + 19.5, sy + 28, 1.2, 0.9, -0.4, 0, Math.PI * 2); c.fill();
-      c.beginPath(); c.ellipse(sx + 20.5, sy + 28.5, 1.2, 0.9, 0.4, 0, Math.PI * 2); c.fill();
+      c.fillRect(sx + 9, sy + 19.8, 10, 1.2);
+      /* Suit shoulder seams */
+      c.strokeStyle = hexShade(suitC, 60);
+      c.lineWidth = 0.6;
+      c.beginPath(); c.moveTo(sx + 9, sy + 20.5); c.lineTo(sx + 9, sy + 30); c.stroke();
+      c.beginPath(); c.moveTo(sx + 19, sy + 20.5); c.lineTo(sx + 19, sy + 30); c.stroke();
     } else if (outfit === 'sailorSwimsuit') {
+      /* "Cadet Astro" — boxy cadet space suit with a chest control panel. */
+      /* Backpack */
+      c.fillStyle = hexShade(suitC, 50);
+      c.fillRect(sx + 6, sy + 20.5, 2, 10);
+      c.fillRect(sx + 20, sy + 20.5, 2, 10);
+      /* Torso */
       c.fillStyle = suitC;
-      c.fillRect(sx + 8, sy + 20.5, 12, 7);
+      c.fillRect(sx + 8, sy + 20.5, 12, 10);
       /* Sailor collar */
       c.fillStyle = '#ffffff';
       c.beginPath();
       c.moveTo(sx + 9, sy + 20.5);
-      c.lineTo(sx + 14, sy + 24);
-      c.lineTo(sx + 19, sy + 20.5);
-      c.lineTo(sx + 17, sy + 20.5);
-      c.lineTo(sx + 14, sy + 22.5);
-      c.lineTo(sx + 11, sy + 20.5);
-      c.closePath();
-      c.fill();
-      c.strokeStyle = suitShade;
-      c.lineWidth = 0.6;
-      c.beginPath();
-      c.moveTo(sx + 9.5, sy + 21);
       c.lineTo(sx + 14, sy + 23.5);
-      c.lineTo(sx + 18.5, sy + 21);
-      c.stroke();
-      /* Neck bow */
+      c.lineTo(sx + 19, sy + 20.5);
+      c.closePath();
+      c.fill();
+      /* Chest control panel */
+      c.fillStyle = '#222238';
+      c.fillRect(sx + 11, sy + 24, 6, 3.5);
+      /* Indicator lights */
+      c.fillStyle = '#44ff88';
+      c.fillRect(sx + 12, sy + 24.7, 1.2, 1.2);
       c.fillStyle = '#ff4466';
-      c.beginPath(); c.ellipse(sx + 13, sy + 23.5, 1.3, 1, -0.3, 0, Math.PI * 2); c.fill();
-      c.beginPath(); c.ellipse(sx + 15, sy + 23.5, 1.3, 1, 0.3, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#cc3344';
-      c.beginPath(); c.arc(sx + 14, sy + 23.5, 0.5, 0, Math.PI * 2); c.fill();
-      /* Swim-bottom (high-leg) */
-      c.fillStyle = suitC;
-      c.beginPath();
-      c.moveTo(sx + 8, sy + 27);
-      c.lineTo(sx + 10, sy + 30);
-      c.lineTo(sx + 18, sy + 30);
-      c.lineTo(sx + 20, sy + 27);
-      c.closePath();
-      c.fill();
+      c.fillRect(sx + 14, sy + 24.7, 1.2, 1.2);
+      c.fillStyle = '#ffd24a';
+      c.fillRect(sx + 16, sy + 24.7, 1.2, 1.2);
+      /* Belt */
+      c.fillStyle = hexShade(suitC, 60);
+      c.fillRect(sx + 8, sy + 28.2, 12, 1.4);
+      /* Belt buckle */
+      c.fillStyle = '#ffd24a';
+      c.fillRect(sx + 13, sy + 28, 2, 1.8);
     } else if (outfit === 'onePiece') {
+      /* "Sleek Jumpsuit" — fitted astronaut jumpsuit with reflective stripes. */
       c.fillStyle = suitC;
       c.beginPath();
-      c.moveTo(sx + 9, sy + 20.5);
-      c.quadraticCurveTo(sx + 14, sy + 19, sx + 19, sy + 20.5);
-      c.lineTo(sx + 19, sy + 29);
-      c.quadraticCurveTo(sx + 14, sy + 30.5, sx + 9, sy + 29);
+      c.moveTo(sx + 8.5, sy + 20.2);
+      c.quadraticCurveTo(sx + 14, sy + 19, sx + 19.5, sy + 20.2);
+      c.lineTo(sx + 19.5, sy + 30);
+      c.lineTo(sx + 8.5, sy + 30);
       c.closePath();
       c.fill();
-      /* Ruffle trim across the top */
-      c.fillStyle = suitLight;
-      c.beginPath();
-      c.moveTo(sx + 9, sy + 20.5);
-      c.quadraticCurveTo(sx + 14, sy + 19.2, sx + 19, sy + 20.5);
-      c.lineTo(sx + 19, sy + 21.3);
-      c.quadraticCurveTo(sx + 14, sy + 20, sx + 9, sy + 21.3);
-      c.closePath();
-      c.fill();
-      /* Star motif on belly */
+      /* Reflective shoulder stripes */
+      c.fillStyle = '#cce4ff';
+      c.fillRect(sx + 9, sy + 20.4, 10, 0.7);
+      c.fillRect(sx + 9, sy + 22.0, 10, 0.5);
+      /* Center zipper */
+      c.strokeStyle = hexShade(suitC, 80);
+      c.lineWidth = 0.5;
+      c.beginPath(); c.moveTo(sx + 14, sy + 20); c.lineTo(sx + 14, sy + 30); c.stroke();
+      /* Mission patch on chest — gold star */
+      c.fillStyle = '#ffd24a';
+      c.beginPath(); c.arc(sx + 11.5, sy + 24, 1.6, 0, Math.PI * 2); c.fill();
       c.fillStyle = '#fff4a8';
-      fillStar(c, sx + 14, sy + 24.5, 1.4);
+      fillStar(c, sx + 11.5, sy + 24, 1.2);
+      /* Glove cuffs (white) */
+      c.fillStyle = '#ffffff';
+      c.fillRect(sx + 8.5, sy + 28.5, 2, 1.5);
+      c.fillRect(sx + 17.5, sy + 28.5, 2, 1.5);
+      /* Belt */
+      c.fillStyle = hexShade(suitC, 60);
+      c.fillRect(sx + 8.5, sy + 26.6, 11, 1);
     } else {
       /* Classic t-shirt */
       c.fillStyle = suitC;
@@ -971,9 +885,6 @@
   }
 
   Momoko.prototype.draw = function (c, camX, camY) {
-    if (!this.alive) return;
-    if (this.invincible > 0 && Math.floor(this.invincible / 4) % 2 === 0) return;
-
     var sx = Math.round(this.x - camX);
     var sy = Math.round(this.y - camY);
     var cust = window.Game.customization || {};
@@ -1307,18 +1218,6 @@
     }
   };
 
-  Fish.prototype.hit = function () {
-    this.hp--;
-    this.flash = 6;
-    if (this.hp <= 0) {
-      this.active = false;
-      Game.audio.play('enemyDefeat');
-      return true;
-    }
-    Game.audio.play('enemyHit');
-    return false;
-  };
-
   /* Comfortable RPG — aliens are friendly. Sparkle makes them twirl. */
   Fish.prototype.delight = function () {
     this.flash = 6;
@@ -1350,194 +1249,184 @@
     c.restore();
   };
 
+  /* ---- Friendly space creatures (replaced fish renderings) ---- */
+
+  /* Tropical → "Starlet": a smiling 5-point star with eyes. */
   function drawTropicalFish(c, sx, sy, color) {
+    var cx = sx + 12, cy = sy + 8;
+    /* Glow halo */
+    c.fillStyle = 'rgba(255,255,255,0.15)';
+    c.beginPath(); c.arc(cx, cy, 14, 0, Math.PI * 2); c.fill();
+    /* Star body */
     c.fillStyle = color;
-    c.beginPath();
-    c.ellipse(sx + 12, sy + 8, 12, 7, 0, 0, Math.PI * 2);
-    c.fill();
-    c.beginPath();
-    c.moveTo(sx + 22, sy + 8);
-    c.lineTo(sx + 28, sy + 2);
-    c.lineTo(sx + 28, sy + 14);
-    c.closePath();
-    c.fill();
+    fillStar(c, cx, cy, 10);
+    /* Lighter inner star */
+    c.fillStyle = hexTint(color, 50);
+    fillStar(c, cx, cy, 5.5);
+    /* Eyes */
     c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(sx + 6, sy + 6, 3, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#000000';
-    c.beginPath(); c.arc(sx + 5, sy + 6, 1.5, 0, Math.PI * 2); c.fill();
-    c.fillStyle = color;
-    c.globalAlpha = 0.7;
+    c.beginPath(); c.arc(cx - 2.5, cy, 1.6, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + 2.5, cy, 1.6, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#1a0c14';
+    c.beginPath(); c.arc(cx - 2.3, cy + 0.3, 0.8, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + 2.7, cy + 0.3, 0.8, 0, Math.PI * 2); c.fill();
+    /* Smile */
+    c.strokeStyle = '#1a0c14';
+    c.lineWidth = 0.8;
     c.beginPath();
-    c.moveTo(sx + 10, sy + 3);
-    c.lineTo(sx + 14, sy - 3);
-    c.lineTo(sx + 18, sy + 3);
-    c.closePath();
-    c.fill();
-  }
-
-  function drawSwordfish(c, sx, sy, color, timer) {
-    /* Long slender body */
-    c.fillStyle = color;
-    c.beginPath();
-    c.ellipse(sx + 18, sy + 7, 16, 5, 0, 0, Math.PI * 2);
-    c.fill();
-    /* Silver belly stripe */
-    c.fillStyle = '#b9cddf';
-    c.beginPath();
-    c.ellipse(sx + 18, sy + 9, 14, 2.4, 0, 0, Math.PI * 2);
-    c.fill();
-    /* Bill (long pointed snout) */
-    c.strokeStyle = '#2a3f55';
-    c.lineWidth = 2;
-    c.beginPath();
-    c.moveTo(sx + 2, sy + 7);
-    c.lineTo(sx - 10, sy + 7);
+    c.arc(cx, cy + 2, 1.6, 0.2, Math.PI - 0.2);
     c.stroke();
-    /* Dorsal fin */
-    c.fillStyle = '#2f4a63';
-    c.beginPath();
-    c.moveTo(sx + 12, sy + 3);
-    c.lineTo(sx + 18, sy - 4);
-    c.lineTo(sx + 22, sy + 3);
-    c.closePath();
-    c.fill();
-    /* Tail – crescent */
-    c.beginPath();
-    c.moveTo(sx + 32, sy + 7);
-    c.lineTo(sx + 38, sy - 1);
-    c.lineTo(sx + 35, sy + 7);
-    c.lineTo(sx + 38, sy + 15);
-    c.closePath();
-    c.fill();
-    /* Eye */
-    c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(sx + 5, sy + 6, 2, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#000000';
-    c.beginPath(); c.arc(sx + 4.5, sy + 6, 1, 0, Math.PI * 2); c.fill();
   }
 
+  /* Swordfish → "Comet": a glowing rock with a long sparkly tail. */
+  function drawSwordfish(c, sx, sy, color, timer) {
+    var hx = sx + 26, hy = sy + 7;
+    /* Tail flames trailing behind */
+    c.save();
+    var tailFlick = Math.sin(timer * 0.18) * 0.6;
+    var grd = c.createLinearGradient(sx - 12, hy, hx, hy);
+    grd.addColorStop(0, 'rgba(120,200,255,0)');
+    grd.addColorStop(0.4, 'rgba(120,200,255,0.55)');
+    grd.addColorStop(1, 'rgba(255,255,255,0.9)');
+    c.fillStyle = grd;
+    c.beginPath();
+    c.moveTo(hx, hy - 5);
+    c.quadraticCurveTo(sx + 5, hy - 3 + tailFlick, sx - 12, hy);
+    c.quadraticCurveTo(sx + 5, hy + 3 + tailFlick, hx, hy + 5);
+    c.closePath();
+    c.fill();
+    /* Spark dots in trail */
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.arc(sx + 6, hy - 1 + tailFlick, 0.9, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 16, hy + 1, 0.7, 0, Math.PI * 2); c.fill();
+    c.restore();
+    /* Comet head */
+    c.fillStyle = '#cccccc';
+    c.beginPath(); c.arc(hx, hy, 6.5, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#ffe4a0';
+    c.beginPath(); c.arc(hx - 1.5, hy - 1.5, 4.5, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.arc(hx - 2, hy - 2, 1.8, 0, Math.PI * 2); c.fill();
+    /* Smile + tiny eyes */
+    c.fillStyle = '#1a0c14';
+    c.beginPath(); c.arc(hx - 1, hy, 0.7, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(hx + 2, hy, 0.7, 0, Math.PI * 2); c.fill();
+  }
+
+  /* Blowfish → "Pufflon": round purple alien with bouncing antenna spikes. */
   function drawBlowfish(c, sx, sy, color, timer) {
-    /* Puff up and down so it feels alive */
     var puff = 1 + Math.sin(timer * 0.06) * 0.08;
     var cx = sx + 13, cy = sy + 12;
-    var r = 11 * puff;
-    /* Spikes first (behind body) */
-    c.strokeStyle = '#8a6a20';
-    c.lineWidth = 1.5;
-    for (var i = 0; i < 12; i++) {
-      var a = (i / 12) * Math.PI * 2;
-      c.beginPath();
-      c.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-      c.lineTo(cx + Math.cos(a) * (r + 4), cy + Math.sin(a) * (r + 4));
-      c.stroke();
+    var r = 10 * puff;
+    /* Antenna spokes with glowing tips */
+    c.strokeStyle = '#bb88ff';
+    c.lineWidth = 1.2;
+    for (var i = 0; i < 8; i++) {
+      var a = (i / 8) * Math.PI * 2 + timer * 0.01;
+      var x1 = cx + Math.cos(a) * r;
+      var y1 = cy + Math.sin(a) * r;
+      var x2 = cx + Math.cos(a) * (r + 5);
+      var y2 = cy + Math.sin(a) * (r + 5);
+      c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+      c.fillStyle = '#fff4a8';
+      c.beginPath(); c.arc(x2, y2, 1.1, 0, Math.PI * 2); c.fill();
     }
     /* Body */
-    c.fillStyle = color;
-    c.beginPath();
-    c.arc(cx, cy, r, 0, Math.PI * 2);
-    c.fill();
-    /* Spots */
-    c.fillStyle = '#8a6a20';
-    c.beginPath(); c.arc(cx - 3, cy - 3, 1.4, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(cx + 4, cy + 1, 1.2, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(cx - 1, cy + 4, 1.2, 0, Math.PI * 2); c.fill();
-    /* Tiny tail */
-    c.fillStyle = color;
-    c.beginPath();
-    c.moveTo(cx + r - 1, cy);
-    c.lineTo(cx + r + 5, cy - 3);
-    c.lineTo(cx + r + 5, cy + 3);
-    c.closePath();
-    c.fill();
-    /* Eye */
+    c.fillStyle = '#9966dd';
+    c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#bb88ee';
+    c.beginPath(); c.arc(cx - 2, cy - 2, r * 0.7, 0, Math.PI * 2); c.fill();
+    /* Big alien eyes */
     c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(cx - 5, cy - 2, 2.4, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#000000';
-    c.beginPath(); c.arc(cx - 5.5, cy - 2, 1.2, 0, Math.PI * 2); c.fill();
-    /* Pouty mouth */
-    c.strokeStyle = '#663311';
+    c.beginPath(); c.arc(cx - 3, cy - 1, 2.6, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + 3, cy - 1, 2.6, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#220033';
+    c.beginPath(); c.arc(cx - 3, cy - 0.5, 1.3, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + 3, cy - 0.5, 1.3, 0, Math.PI * 2); c.fill();
+    /* Smile */
+    c.strokeStyle = '#3a1a4f';
     c.lineWidth = 1;
     c.beginPath();
-    c.arc(cx - 9, cy + 2, 1.5, -0.4, 0.4);
+    c.arc(cx, cy + 3, 2.2, 0.2, Math.PI - 0.2);
     c.stroke();
   }
 
+  /* Clownfish → "Sparklette": glowing teardrop alien sprite. */
   function drawClownfish(c, sx, sy, timer) {
-    /* Orange body */
-    c.fillStyle = '#ff7a22';
+    var cx = sx + 12, cy = sy + 8;
+    var bob = Math.sin(timer * 0.08) * 1.2;
+    /* Glow halo */
+    c.fillStyle = 'rgba(120,255,220,0.25)';
+    c.beginPath(); c.arc(cx, cy + bob, 11, 0, Math.PI * 2); c.fill();
+    /* Body — teardrop */
+    c.fillStyle = '#44ddcc';
     c.beginPath();
-    c.ellipse(sx + 12, sy + 8, 12, 7, 0, 0, Math.PI * 2);
-    c.fill();
-    /* Three white stripes */
-    c.fillStyle = '#ffffff';
-    c.beginPath(); c.ellipse(sx + 6,  sy + 8, 1.8, 6.2, 0, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.ellipse(sx + 13, sy + 8, 1.8, 6.6, 0, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.ellipse(sx + 19, sy + 8, 1.4, 5.8, 0, 0, Math.PI * 2); c.fill();
-    /* Black stripe outlines for pop */
-    c.strokeStyle = '#1a1a1a';
-    c.lineWidth = 0.8;
-    c.beginPath(); c.ellipse(sx + 6,  sy + 8, 1.8, 6.2, 0, 0, Math.PI * 2); c.stroke();
-    c.beginPath(); c.ellipse(sx + 13, sy + 8, 1.8, 6.6, 0, 0, Math.PI * 2); c.stroke();
-    c.beginPath(); c.ellipse(sx + 19, sy + 8, 1.4, 5.8, 0, 0, Math.PI * 2); c.stroke();
-    /* Tail */
-    c.fillStyle = '#ff7a22';
-    c.beginPath();
-    c.moveTo(sx + 22, sy + 8);
-    c.lineTo(sx + 28, sy + 2);
-    c.lineTo(sx + 28, sy + 14);
+    c.moveTo(cx, cy - 9 + bob);
+    c.bezierCurveTo(cx + 9, cy - 4 + bob, cx + 9, cy + 7 + bob, cx, cy + 8 + bob);
+    c.bezierCurveTo(cx - 9, cy + 7 + bob, cx - 9, cy - 4 + bob, cx, cy - 9 + bob);
     c.closePath();
     c.fill();
-    /* Fin */
-    c.globalAlpha = 0.85;
-    c.beginPath();
-    c.moveTo(sx + 10, sy + 3);
-    c.lineTo(sx + 14, sy - 3);
-    c.lineTo(sx + 18, sy + 3);
-    c.closePath();
-    c.fill();
-    c.globalAlpha = 1;
-    /* Eye */
+    /* Light core */
+    c.fillStyle = '#aaffee';
+    c.beginPath(); c.ellipse(cx, cy + bob, 5, 7, 0, 0, Math.PI * 2); c.fill();
+    /* Sparkle ring */
     c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(sx + 4, sy + 6, 2.2, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#000000';
-    c.beginPath(); c.arc(sx + 3.5, sy + 6, 1.1, 0, Math.PI * 2); c.fill();
+    fillStar(c, cx + 5, cy - 4 + bob, 1.5);
+    fillStar(c, cx - 5, cy + 3 + bob, 1.2);
+    /* Eyes */
+    c.fillStyle = '#003344';
+    c.beginPath(); c.arc(cx - 1.6, cy - 1 + bob, 0.9, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + 1.6, cy - 1 + bob, 0.9, 0, Math.PI * 2); c.fill();
+    /* Smile */
+    c.strokeStyle = '#003344';
+    c.lineWidth = 0.6;
+    c.beginPath();
+    c.arc(cx, cy + 1 + bob, 1.4, 0.2, Math.PI - 0.2);
+    c.stroke();
   }
 
+  /* Angelfish → "Jellybot": jellyfish-style space alien with glowing tendrils. */
   function drawAngelfish(c, sx, sy, color, timer) {
-    /* Tall disc-shaped body */
-    c.fillStyle = color;
+    var cx = sx + 11, cy = sy + 9;
+    var sway = Math.sin(timer * 0.07);
+    /* Tendrils */
+    c.strokeStyle = '#ff88ee';
+    c.lineCap = 'round';
+    for (var t = 0; t < 5; t++) {
+      var tx = cx - 6 + t * 3;
+      c.lineWidth = 1.4;
+      c.beginPath();
+      c.moveTo(tx, cy + 4);
+      c.bezierCurveTo(
+        tx + sway * 1.5, cy + 10,
+        tx - sway * 1.5, cy + 16,
+        tx + sway * 2, cy + 22
+      );
+      c.stroke();
+    }
+    /* Bell — domed top */
+    c.fillStyle = '#cc66ff';
     c.beginPath();
-    c.ellipse(sx + 11, sy + 11, 9, 10, 0, 0, Math.PI * 2);
+    c.ellipse(cx, cy, 11, 8, 0, Math.PI, 0);
     c.fill();
-    /* Vertical dark stripes */
-    c.fillStyle = 'rgba(80, 50, 20, 0.7)';
-    c.fillRect(sx + 7, sy + 2, 1.5, 18);
-    c.fillRect(sx + 12, sy + 2, 1.5, 18);
-    /* Top trailing fin */
-    c.fillStyle = color;
+    c.fillRect(cx - 11, cy, 22, 3);
+    /* Bell highlights */
+    c.fillStyle = '#ee99ff';
     c.beginPath();
-    c.moveTo(sx + 10, sy + 2);
-    c.quadraticCurveTo(sx + 6, sy - 8, sx + 14, sy - 6);
-    c.closePath();
+    c.ellipse(cx - 3, cy - 3, 5, 3, 0, Math.PI, 0);
     c.fill();
-    /* Bottom trailing fin */
-    c.beginPath();
-    c.moveTo(sx + 10, sy + 20);
-    c.quadraticCurveTo(sx + 6, sy + 30, sx + 14, sy + 28);
-    c.closePath();
-    c.fill();
-    /* Tail */
-    c.beginPath();
-    c.moveTo(sx + 19, sy + 11);
-    c.lineTo(sx + 26, sy + 5);
-    c.lineTo(sx + 26, sy + 17);
-    c.closePath();
-    c.fill();
-    /* Eye */
+    /* Glow dots along the rim */
     c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(sx + 5, sy + 9, 2, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#000000';
-    c.beginPath(); c.arc(sx + 4.5, sy + 9, 1, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx - 8, cy + 2, 0.9, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx,     cy + 3, 0.9, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + 8, cy + 2, 0.9, 0, Math.PI * 2); c.fill();
+    /* Eyes */
+    c.fillStyle = '#220044';
+    c.beginPath(); c.arc(cx - 3, cy - 3, 1, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + 3, cy - 3, 1, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.arc(cx - 2.6, cy - 3.4, 0.4, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + 3.4, cy - 3.4, 0.4, 0, Math.PI * 2); c.fill();
   }
 
   /* ========== OCTOPUS (Enemy) ========== */
@@ -1566,18 +1455,6 @@
     /* Hover movement */
     this.x = this.spawnX + Math.sin(this.timer * 0.02) * 30;
     this.y = this.spawnY + Math.cos(this.timer * 0.025) * 20;
-  };
-
-  Octopus.prototype.hit = function () {
-    this.hp--;
-    this.flash = 8;
-    if (this.hp <= 0) {
-      this.active = false;
-      Game.audio.play('enemyDefeat');
-      return true;
-    }
-    Game.audio.play('enemyHit');
-    return false;
   };
 
   /* Floating UFO — comfortable RPG behavior, sparkle makes it twinkle. */
@@ -2394,11 +2271,14 @@
   };
 
   /* ========== ROCKET SHIP (interactable — opens travel menu) ========== */
+  /* Towering rocket — much taller than Momoko (her sprite is 34px high; the
+     rocket is 150px so the player can stand at its base and see the cone
+     filling the sky). */
   function RocketShip(x, y) {
     this.x = x;
     this.y = y;
-    this.w = 32;
-    this.h = 50;
+    this.w = 90;
+    this.h = 150;
     this.talking = false;
     this.timer = 0;
   }
@@ -2415,57 +2295,221 @@
   RocketShip.prototype.draw = function (c, camX, camY) {
     var sx = Math.round(this.x - camX);
     var sy = Math.round(this.y - camY);
-    /* Body */
-    c.fillStyle = '#dddddd';
+    var cx = sx + 45; /* horizontal centerline */
+    /* Outer drop shadow on the pad */
+    c.save();
+    c.globalAlpha = 0.35;
+    c.fillStyle = '#000';
     c.beginPath();
-    c.moveTo(sx + 16, sy);           /* tip */
-    c.lineTo(sx + 26, sy + 20);
-    c.lineTo(sx + 26, sy + 40);
-    c.lineTo(sx + 6, sy + 40);
-    c.lineTo(sx + 6, sy + 20);
+    c.ellipse(cx, sy + 150, 50, 6, 0, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+
+    /* ----- Boosters (left & right strap-on tanks) ----- */
+    var bGrad = c.createLinearGradient(sx, sy, sx + this.w, sy);
+    bGrad.addColorStop(0, '#7a8896');
+    bGrad.addColorStop(0.5, '#cdd8e2');
+    bGrad.addColorStop(1, '#7a8896');
+    c.fillStyle = bGrad;
+    /* Left booster */
+    c.beginPath();
+    c.moveTo(sx + 8, sy + 60);
+    c.lineTo(sx + 4, sy + 70);
+    c.lineTo(sx + 4, sy + 130);
+    c.lineTo(sx + 16, sy + 130);
+    c.lineTo(sx + 16, sy + 60);
     c.closePath();
     c.fill();
-    /* Window */
-    c.fillStyle = '#44ccff';
+    /* Right booster */
     c.beginPath();
-    c.arc(sx + 16, sy + 20, 5, 0, Math.PI * 2);
+    c.moveTo(sx + 74, sy + 60);
+    c.lineTo(sx + 74, sy + 130);
+    c.lineTo(sx + 86, sy + 130);
+    c.lineTo(sx + 86, sy + 70);
+    c.lineTo(sx + 82, sy + 60);
+    c.closePath();
     c.fill();
-    c.fillStyle = '#ffffff';
-    c.beginPath();
-    c.arc(sx + 14, sy + 18, 1.5, 0, Math.PI * 2);
-    c.fill();
-    /* Fins */
+    /* Booster nose cones */
     c.fillStyle = '#ff66cc';
     c.beginPath();
-    c.moveTo(sx + 6, sy + 30);
-    c.lineTo(sx + 0, sy + 44);
-    c.lineTo(sx + 6, sy + 44);
-    c.closePath();
-    c.fill();
+    c.moveTo(sx + 4, sy + 70); c.lineTo(sx + 10, sy + 50); c.lineTo(sx + 16, sy + 70);
+    c.closePath(); c.fill();
     c.beginPath();
-    c.moveTo(sx + 26, sy + 30);
-    c.lineTo(sx + 32, sy + 44);
-    c.lineTo(sx + 26, sy + 44);
+    c.moveTo(sx + 74, sy + 70); c.lineTo(sx + 80, sy + 50); c.lineTo(sx + 86, sy + 70);
+    c.closePath(); c.fill();
+
+    /* ----- Main body ----- */
+    var mGrad = c.createLinearGradient(sx + 24, sy, sx + 66, sy);
+    mGrad.addColorStop(0, '#aab5c2');
+    mGrad.addColorStop(0.5, '#ffffff');
+    mGrad.addColorStop(1, '#aab5c2');
+    c.fillStyle = mGrad;
+    c.beginPath();
+    c.moveTo(cx, sy + 0);                 /* tip */
+    c.lineTo(sx + 66, sy + 40);
+    c.lineTo(sx + 66, sy + 130);
+    c.lineTo(sx + 24, sy + 130);
+    c.lineTo(sx + 24, sy + 40);
     c.closePath();
     c.fill();
-    /* Exhaust flicker */
-    var flick = Math.sin(this.timer * 0.3) * 2 + 4;
+
+    /* Nose cone — pink with stripes */
+    c.fillStyle = '#ff4488';
+    c.beginPath();
+    c.moveTo(cx, sy + 0);
+    c.lineTo(sx + 66, sy + 40);
+    c.lineTo(sx + 24, sy + 40);
+    c.closePath();
+    c.fill();
+    /* Cone stripe */
     c.fillStyle = '#ffd24a';
     c.beginPath();
-    c.arc(sx + 16, sy + 44 + flick, 3, 0, Math.PI * 2);
+    c.moveTo(sx + 30, sy + 26);
+    c.lineTo(sx + 60, sy + 26);
+    c.lineTo(sx + 58, sy + 32);
+    c.lineTo(sx + 32, sy + 32);
+    c.closePath();
     c.fill();
-    c.fillStyle = '#ff6644';
+    /* Tip beacon */
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.arc(cx, sy + 4, 3, 0, Math.PI * 2); c.fill();
+    var beacon = (Math.sin(this.timer * 0.18) + 1) * 0.5;
+    c.globalAlpha = 0.6 + beacon * 0.4;
+    c.fillStyle = '#ff4466';
+    c.beginPath(); c.arc(cx, sy + 4, 2, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1;
+
+    /* Body horizontal bands (riveted plates) */
+    c.strokeStyle = 'rgba(0,0,0,0.18)';
+    c.lineWidth = 1;
+    var bandYs = [55, 80, 105];
+    for (var ib = 0; ib < bandYs.length; ib++) {
+      c.beginPath();
+      c.moveTo(sx + 24, sy + bandYs[ib]);
+      c.lineTo(sx + 66, sy + bandYs[ib]);
+      c.stroke();
+    }
+    /* Rivets */
+    c.fillStyle = '#7a8896';
+    for (var ir = 0; ir < bandYs.length; ir++) {
+      for (var jr = 0; jr < 5; jr++) {
+        c.beginPath();
+        c.arc(sx + 28 + jr * 9, sy + bandYs[ir], 0.7, 0, Math.PI * 2);
+        c.fill();
+      }
+    }
+
+    /* Big circular cockpit window */
+    c.fillStyle = '#001a33';
+    c.beginPath(); c.arc(cx, sy + 64, 14, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#44ccff';
+    c.beginPath(); c.arc(cx, sy + 64, 11, 0, Math.PI * 2); c.fill();
+    /* Window cross frame */
+    c.strokeStyle = '#001a33';
+    c.lineWidth = 1.6;
+    c.beginPath(); c.moveTo(cx - 11, sy + 64); c.lineTo(cx + 11, sy + 64); c.stroke();
+    c.beginPath(); c.moveTo(cx, sy + 53); c.lineTo(cx, sy + 75); c.stroke();
+    /* Reflection */
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.arc(cx - 4, sy + 60, 3, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 0.6;
+    c.beginPath(); c.arc(cx + 5, sy + 68, 1.6, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1;
+
+    /* Smaller portholes below the cockpit */
+    for (var ph = 0; ph < 3; ph++) {
+      var phy = sy + 92 + ph * 12;
+      c.fillStyle = '#001a33';
+      c.beginPath(); c.arc(cx, phy, 4, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#44ccff';
+      c.beginPath(); c.arc(cx, phy, 3, 0, Math.PI * 2); c.fill();
+    }
+
+    /* "MOMOKO" mission badge below the window */
+    c.fillStyle = '#ffd24a';
+    c.fillRect(sx + 32, sy + 84, 26, 4);
+    c.fillStyle = '#ff66cc';
+    c.font = 'bold 4.5px monospace';
+    c.textAlign = 'center';
+    c.fillText('MOMOKO', cx, sy + 87.5);
+
+    /* Side antennae sweeping out */
+    c.strokeStyle = '#ddddee';
+    c.lineWidth = 1.2;
     c.beginPath();
-    c.arc(sx + 16, sy + 44 + flick, 1.5, 0, Math.PI * 2);
+    c.moveTo(sx + 24, sy + 50);
+    c.lineTo(sx + 14, sy + 36);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(sx + 66, sy + 50);
+    c.lineTo(sx + 76, sy + 36);
+    c.stroke();
+    c.fillStyle = '#44ffff';
+    c.beginPath(); c.arc(sx + 14, sy + 36, 1.6, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 76, sy + 36, 1.6, 0, Math.PI * 2); c.fill();
+
+    /* Big fins at the base */
+    c.fillStyle = '#ff66cc';
+    c.beginPath();
+    c.moveTo(sx + 24, sy + 110);
+    c.lineTo(sx + 6, sy + 144);
+    c.lineTo(sx + 24, sy + 144);
+    c.closePath();
     c.fill();
+    c.beginPath();
+    c.moveTo(sx + 66, sy + 110);
+    c.lineTo(sx + 84, sy + 144);
+    c.lineTo(sx + 66, sy + 144);
+    c.closePath();
+    c.fill();
+    /* Fin highlights */
+    c.fillStyle = '#ff99dd';
+    c.beginPath();
+    c.moveTo(sx + 24, sy + 116);
+    c.lineTo(sx + 14, sy + 140);
+    c.lineTo(sx + 22, sy + 140);
+    c.closePath();
+    c.fill();
+    c.beginPath();
+    c.moveTo(sx + 66, sy + 116);
+    c.lineTo(sx + 76, sy + 140);
+    c.lineTo(sx + 68, sy + 140);
+    c.closePath();
+    c.fill();
+
+    /* ----- Triple thrusters at the very base ----- */
+    c.fillStyle = '#3a3a4a';
+    c.fillRect(sx + 28, sy + 134, 8, 16);
+    c.fillRect(sx + 41, sy + 134, 8, 16);
+    c.fillRect(sx + 54, sy + 134, 8, 16);
+    /* Booster thrusters */
+    c.fillRect(sx + 6, sy + 130, 8, 14);
+    c.fillRect(sx + 76, sy + 130, 8, 14);
+
+    /* Exhaust flicker — animated yellow/red puffs from each thruster */
+    var flick = Math.sin(this.timer * 0.3) * 2 + 4;
+    var flick2 = Math.cos(this.timer * 0.27) * 2 + 4;
+    function plume(thx, thy, sz, alt) {
+      c.fillStyle = '#fff4a8';
+      c.beginPath(); c.arc(thx, thy + sz, sz, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffd24a';
+      c.beginPath(); c.arc(thx, thy + sz, sz * 0.7, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ff6644';
+      c.beginPath(); c.arc(thx, thy + sz - 1, sz * 0.4, 0, Math.PI * 2); c.fill();
+    }
+    plume(sx + 32, sy + 150, flick * 0.7);
+    plume(sx + 45, sy + 150, flick);
+    plume(sx + 58, sy + 150, flick2 * 0.7);
+    plume(sx + 10, sy + 144, flick2 * 0.6);
+    plume(sx + 80, sy + 144, flick * 0.6);
   };
 
   /* ========== HOUSE DOOR (interactable — enters house interior) ========== */
   function HouseDoor(x, y, houseId) {
     this.x = x;
     this.y = y;
-    this.w = 24;
-    this.h = 30;
+    this.w = 48;
+    this.h = 52;
     this.houseId = houseId || 'heroHome';
     this.talking = false;
     this.timer = 0;
@@ -2478,20 +2522,31 @@
     var sx = Math.round(this.x - camX);
     var sy = Math.round(this.y - camY);
     /* Door frame */
-    c.fillStyle = '#5a3a22';
-    c.fillRect(sx, sy, 24, 30);
+    c.fillStyle = '#3a2412';
+    c.fillRect(sx, sy, 48, 52);
     /* Door panel */
     c.fillStyle = '#8a5a32';
-    c.fillRect(sx + 2, sy + 2, 20, 26);
+    c.fillRect(sx + 4, sy + 4, 40, 46);
+    /* Door grain */
+    c.strokeStyle = '#5a3a22';
+    c.lineWidth = 0.8;
+    c.beginPath(); c.moveTo(sx + 24, sy + 6); c.lineTo(sx + 24, sy + 48); c.stroke();
+    c.beginPath(); c.moveTo(sx + 8, sy + 26); c.lineTo(sx + 40, sy + 26); c.stroke();
     /* Handle */
     c.fillStyle = '#ffd24a';
     c.beginPath();
-    c.arc(sx + 18, sy + 16, 1.5, 0, Math.PI * 2);
+    c.arc(sx + 38, sy + 28, 2.6, 0, Math.PI * 2);
     c.fill();
-    /* Welcome dot above */
+    /* Welcome heart sign above */
     c.fillStyle = '#ff66cc';
+    var hcx = sx + 24, hcy = sy - 8;
     c.beginPath();
-    c.arc(sx + 12, sy - 3, 1.8, 0, Math.PI * 2);
+    c.arc(hcx - 2, hcy - 1, 2, 0, Math.PI * 2);
+    c.arc(hcx + 2, hcy - 1, 2, 0, Math.PI * 2);
+    c.moveTo(hcx - 3.6, hcy);
+    c.lineTo(hcx, hcy + 3.5);
+    c.lineTo(hcx + 3.6, hcy);
+    c.closePath();
     c.fill();
   };
 
@@ -2638,58 +2693,111 @@
     c.fill();
   };
 
-  /* ========== CHEESE WHEEL (pickup for MigWord's quest) ========== */
-  function CheeseWheel(x, y) {
+  /* ========== MOON MOUSE (greet-the-friend NPC for MigWord's quest) ========== */
+  /* `mouseId` and `color` are passed in so each spawn is visually distinct
+     and the engine can dedupe quest progress per-mouse. */
+  function MoonMouse(x, y, mouseId, color) {
     this.x = x;
     this.y = y;
-    this.w = 16;
-    this.h = 16;
-    this.active = true;
-    this.kind = 'cheese';
+    this.w = 22;
+    this.h = 18;
+    this.spawnX = x;
+    this.spawnY = y;
+    this.mouseId = mouseId || 'pip';
+    this.color = color || '#dddddd';
     this.timer = Math.random() * 100;
+    this.talking = false;
+    this.talkTimer = 0;
+    this.currentText = '';
+    this.greeted = false;
   }
 
-  CheeseWheel.prototype.update = function () {
+  MoonMouse.prototype.update = function () {
     this.timer++;
+    /* Tiny scurry — drift left/right around spawn */
+    this.x = this.spawnX + Math.sin(this.timer * 0.04) * 12;
+    if (this.talkTimer > 0) {
+      this.talkTimer--;
+      if (this.talkTimer <= 0) this.talking = false;
+    }
   };
 
-  CheeseWheel.prototype.draw = function (c, camX, camY) {
-    if (!this.active) return;
+  MoonMouse.prototype.interact = function () {
+    this.talking = true;
+    this.talkTimer = 240;
+    var key = this.greeted ? 'mouseAgain' : 'mouseGreet_' + this.mouseId;
+    this.currentText = Game.i18n.t(key);
+    /* Fall back to a generic line if the mouse-specific key isn't defined. */
+    if (this.currentText === key) this.currentText = Game.i18n.t('mouseGreet');
+    this.greeted = true;
+    Game.audio.play('pickup');
+  };
+
+  MoonMouse.prototype.draw = function (c, camX, camY) {
     var sx = Math.round(this.x - camX);
-    var sy = Math.round(this.y - camY + Math.sin(this.timer * 0.07) * 2);
-    /* Rim */
-    c.fillStyle = '#aa6a18';
+    var sy = Math.round(this.y - camY);
+    var bob = Math.sin(this.timer * 0.06) * 1;
+    /* Body */
+    c.fillStyle = this.color;
     c.beginPath();
-    c.arc(sx + 8, sy + 8, 8, 0, Math.PI * 2);
+    c.ellipse(sx + 11, sy + 12 + bob, 9, 6, 0, 0, Math.PI * 2);
     c.fill();
-    /* Cheese body */
-    c.fillStyle = '#ffcc44';
+    /* Head */
     c.beginPath();
-    c.arc(sx + 8, sy + 8, 6.5, 0, Math.PI * 2);
+    c.arc(sx + 4, sy + 9 + bob, 5, 0, Math.PI * 2);
     c.fill();
-    /* Holes */
-    c.fillStyle = '#cc8820';
-    c.beginPath(); c.arc(sx + 5, sy + 6, 1, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 10, sy + 9, 1.2, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 7, sy + 11, 0.7, 0, Math.PI * 2); c.fill();
-    /* Sparkle */
+    /* Big round ears */
+    c.fillStyle = hexShade(this.color, 30);
+    c.beginPath(); c.arc(sx + 1, sy + 4 + bob, 3, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 7, sy + 4 + bob, 3, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#ffaacc';
+    c.beginPath(); c.arc(sx + 1, sy + 4 + bob, 1.6, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 7, sy + 4 + bob, 1.6, 0, Math.PI * 2); c.fill();
+    /* Eye */
+    c.fillStyle = '#1a0c14';
+    c.beginPath(); c.arc(sx + 3, sy + 9 + bob, 1, 0, Math.PI * 2); c.fill();
     c.fillStyle = '#ffffff';
-    c.globalAlpha = 0.8;
+    c.beginPath(); c.arc(sx + 2.6, sy + 8.6 + bob, 0.4, 0, Math.PI * 2); c.fill();
+    /* Pink nose */
+    c.fillStyle = '#ff66aa';
+    c.beginPath(); c.arc(sx - 1, sy + 10 + bob, 0.7, 0, Math.PI * 2); c.fill();
+    /* Whiskers */
+    c.strokeStyle = '#888';
+    c.lineWidth = 0.4;
     c.beginPath();
-    c.arc(sx + 11, sy + 4, 0.8, 0, Math.PI * 2);
-    c.fill();
-    c.globalAlpha = 1;
+    c.moveTo(sx - 1, sy + 11 + bob); c.lineTo(sx - 5, sy + 10 + bob);
+    c.moveTo(sx - 1, sy + 11.5 + bob); c.lineTo(sx - 5, sy + 12 + bob);
+    c.stroke();
+    /* Tail */
+    c.strokeStyle = hexShade(this.color, 40);
+    c.lineWidth = 1.4;
+    c.lineCap = 'round';
+    var wag = Math.sin(this.timer * 0.12) * 2;
+    c.beginPath();
+    c.moveTo(sx + 19, sy + 12 + bob);
+    c.quadraticCurveTo(sx + 24, sy + 10 + wag + bob, sx + 26, sy + 6 + wag + bob);
+    c.stroke();
+    /* If greeted, show a little heart over their head */
+    if (this.greeted) {
+      var hcx = sx + 10, hcy = sy - 3 + bob + Math.sin(this.timer * 0.1) * 0.6;
+      c.fillStyle = '#ff4488';
+      c.beginPath();
+      c.arc(hcx - 1.4, hcy - 0.6, 1.4, 0, Math.PI * 2);
+      c.arc(hcx + 1.4, hcy - 0.6, 1.4, 0, Math.PI * 2);
+      c.moveTo(hcx - 2.6, hcy);
+      c.lineTo(hcx, hcy + 2.4);
+      c.lineTo(hcx + 2.6, hcy);
+      c.closePath();
+      c.fill();
+    }
   };
 
   /* ========== EXPORTS ========== */
   window.Game.entities = {
     Momoko: Momoko,
     Bubble: Bubble,
-    Sparkle: Bubble,               /* alias — same class, re-themed visual */
     Fish: Fish,
-    Alien: Fish,                   /* alias */
     Octopus: Octopus,
-    FloatingUfo: Octopus,          /* alias */
     Oliver: Oliver,
     KittyCorn: KittyCorn,
     Bob: Bob,
@@ -2697,18 +2805,15 @@
     Wolfe: Wolfe,
     Lila: Lila,
     MigWord: MigWord,
+    MoonMouse: MoonMouse,
     RocketShip: RocketShip,
     HouseDoor: HouseDoor,
-    CheeseWheel: CheeseWheel,
     HeartPickup: HeartPickup,
-    StarGem: HeartPickup,          /* alias — same class, re-themed visual */
     Particle: Particle,
     AmbientBubble: AmbientBubble,
-    AmbientSparkle: AmbientBubble, /* alias */
     spawnBurst: spawnBurst,
     drawMomokoSprite: drawMomokoSprite,
     drawMomokoFloss: drawMomokoFloss,
     drawCrabPet: drawCrabPet,
-    drawPetDog: drawCrabPet,       /* alias */
   };
 })();
