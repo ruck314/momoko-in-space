@@ -1098,6 +1098,336 @@
         /* Door arch outline above the actual door entity */
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(dx - 26, dy - 50, 52, 50);
+      } else if (d.type === 'cafeBuilding') {
+        /* COSMIC CAFÉ — pink storefront, striped awning, big window with
+           espresso machine + tiny patron, drifting steam. */
+        var cbT = Date.now() * 0.003;
+        /* Building body — deep magenta with vertical wall gradient */
+        var cbBody = ctx.createLinearGradient(dx, dy - 130, dx, dy);
+        cbBody.addColorStop(0, '#d8438a');
+        cbBody.addColorStop(0.55, '#a82c6e');
+        cbBody.addColorStop(1, '#5a1842');
+        ctx.fillStyle = cbBody;
+        ctx.fillRect(dx - 70, dy - 130, 140, 130);
+        /* Outer trim */
+        ctx.strokeStyle = '#ffe9f4';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(dx - 70, dy - 130, 140, 130);
+        /* Tile-band trim along the bottom */
+        ctx.fillStyle = '#2a0a1a';
+        ctx.fillRect(dx - 70, dy - 14, 140, 14);
+        for (var cbi = 0; cbi < 7; cbi++) {
+          ctx.fillStyle = (cbi % 2) ? '#ffd24a' : '#44ffff';
+          ctx.fillRect(dx - 68 + cbi * 20, dy - 11, 16, 8);
+        }
+        /* Striped awning — pink + cream stripes, scalloped bottom */
+        var awY = dy - 100;
+        for (var aw = 0; aw < 7; aw++) {
+          ctx.fillStyle = (aw % 2) ? '#ffe9f4' : '#ff66aa';
+          ctx.fillRect(dx - 70 + aw * 20, awY, 20, 18);
+        }
+        ctx.fillStyle = '#ff4488';
+        ctx.fillRect(dx - 72, awY - 4, 144, 6);
+        /* Scalloped fringe */
+        ctx.fillStyle = '#ff66aa';
+        for (var sc = 0; sc < 7; sc++) {
+          ctx.beginPath();
+          ctx.arc(dx - 60 + sc * 20, awY + 18, 6, 0, Math.PI);
+          ctx.fill();
+        }
+        /* Cursive "Café" label across the awning */
+        ctx.save();
+        ctx.fillStyle = '#3a0a22';
+        ctx.font = 'bold italic 16px "Brush Script MT", cursive';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Café', dx, awY + 9);
+        ctx.restore();
+        /* Big front window — warm interior glow */
+        var winX = dx - 55, winY = dy - 78, winW = 70, winH = 50;
+        var winGrad = ctx.createLinearGradient(winX, winY, winX, winY + winH);
+        winGrad.addColorStop(0, '#ffd28a');
+        winGrad.addColorStop(1, '#d97a3a');
+        ctx.fillStyle = winGrad;
+        ctx.fillRect(winX, winY, winW, winH);
+        /* Window frame */
+        ctx.strokeStyle = '#3a1a2a';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(winX, winY, winW, winH);
+        ctx.beginPath();
+        ctx.moveTo(winX + winW / 2, winY); ctx.lineTo(winX + winW / 2, winY + winH);
+        ctx.moveTo(winX, winY + winH / 2); ctx.lineTo(winX + winW, winY + winH / 2);
+        ctx.stroke();
+        /* Espresso machine on the counter inside (left pane) */
+        ctx.fillStyle = '#d8d8e0';
+        ctx.fillRect(winX + 6, winY + 22, 22, 16);
+        ctx.fillStyle = '#7a8896';
+        ctx.fillRect(winX + 8, winY + 36, 18, 4);
+        ctx.fillStyle = '#3a2a44';
+        ctx.fillRect(winX + 12, winY + 40, 10, 5);
+        /* Tiny patron silhouette in the right pane */
+        ctx.fillStyle = '#3a1a2a';
+        ctx.beginPath(); ctx.arc(winX + 52, winY + 28, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillRect(winX + 48, winY + 32, 8, 12);
+        /* Steam puff — drifts up animated */
+        ctx.save();
+        ctx.globalAlpha = 0.5 + Math.sin(cbT) * 0.2;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(winX + 19, winY + 14 - (cbT * 6 % 16), 3, 0, Math.PI * 2);
+        ctx.arc(winX + 22, winY + 10 - (cbT * 6 % 16), 2.4, 0, Math.PI * 2);
+        ctx.arc(winX + 17, winY + 9 - (cbT * 6 % 16), 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        /* Cafe door (right side) — heart cutout window */
+        ctx.fillStyle = '#7a2454';
+        ctx.fillRect(dx + 22, dy - 56, 28, 56);
+        ctx.strokeStyle = '#ffd24a';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(dx + 22, dy - 56, 28, 56);
+        ctx.fillStyle = '#ffd24a';
+        var hX = dx + 36, hY = dy - 38;
+        ctx.beginPath();
+        ctx.arc(hX - 2.5, hY - 2, 2.5, 0, Math.PI * 2);
+        ctx.arc(hX + 2.5, hY - 2, 2.5, 0, Math.PI * 2);
+        ctx.moveTo(hX - 4.5, hY); ctx.lineTo(hX, hY + 5); ctx.lineTo(hX + 4.5, hY);
+        ctx.closePath();
+        ctx.fill();
+        /* Door knob */
+        ctx.fillStyle = '#ffe9a8';
+        ctx.beginPath(); ctx.arc(dx + 27, dy - 28, 1.6, 0, Math.PI * 2); ctx.fill();
+        /* Outdoor table + chair on the patio */
+        var tbx = dx - 90;
+        ctx.fillStyle = '#3a2a44';
+        ctx.fillRect(tbx - 1.5, dy - 18, 3, 18);
+        ctx.fillStyle = '#ffe9f4';
+        ctx.beginPath();
+        ctx.ellipse(tbx, dy - 18, 11, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        /* Mug on the table */
+        ctx.fillStyle = '#ffd24a';
+        ctx.fillRect(tbx - 3, dy - 26, 6, 6);
+        ctx.strokeStyle = '#ffd24a';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(tbx + 5, dy - 23, 2.5, -Math.PI / 2, Math.PI / 2);
+        ctx.stroke();
+        /* Steam from the mug */
+        ctx.save();
+        ctx.globalAlpha = 0.6 + Math.sin(cbT * 1.2) * 0.2;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(tbx, dy - 30 - (cbT * 4 % 6), 1.4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(tbx + 2, dy - 33 - (cbT * 4 % 6), 1.1, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        /* Chair next to it */
+        ctx.fillStyle = '#ff66aa';
+        ctx.fillRect(tbx + 12, dy - 14, 7, 14);
+        ctx.fillRect(tbx + 12, dy - 22, 2, 10);
+        /* Chalkboard menu hung beside the door */
+        ctx.fillStyle = '#1a2a1a';
+        ctx.fillRect(dx + 50, dy - 70, 18, 26);
+        ctx.strokeStyle = '#88553a';
+        ctx.lineWidth = 1.4;
+        ctx.strokeRect(dx + 50, dy - 70, 18, 26);
+        ctx.fillStyle = '#ffe9f4';
+        ctx.font = '5px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('MENU', dx + 59, dy - 62);
+        ctx.fillStyle = '#ffd24a';
+        ctx.fillRect(dx + 53, dy - 58, 12, 1);
+        ctx.fillRect(dx + 53, dy - 54, 10, 1);
+        ctx.fillRect(dx + 53, dy - 50, 11, 1);
+        ctx.textAlign = 'left';
+      } else if (d.type === 'shopBuilding') {
+        /* SPACE BAZAAR — gold/teal storefront, big display window with
+           merchandise, glowing OPEN sign, retro double doors. */
+        var sbT = Date.now() * 0.004;
+        /* Body */
+        var sbBody = ctx.createLinearGradient(dx, dy - 130, dx, dy);
+        sbBody.addColorStop(0, '#3aa8c4');
+        sbBody.addColorStop(0.6, '#247088');
+        sbBody.addColorStop(1, '#0e3a4a');
+        ctx.fillStyle = sbBody;
+        ctx.fillRect(dx - 75, dy - 130, 150, 130);
+        ctx.strokeStyle = '#cdeaf4';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(dx - 75, dy - 130, 150, 130);
+        /* Stepped roofline (deco-style) */
+        ctx.fillStyle = '#ffd24a';
+        ctx.fillRect(dx - 75, dy - 130, 150, 8);
+        ctx.fillStyle = '#ffaa22';
+        ctx.fillRect(dx - 60, dy - 138, 120, 8);
+        ctx.fillStyle = '#ffd24a';
+        ctx.fillRect(dx - 35, dy - 146, 70, 8);
+        /* Roof antenna with blinker */
+        ctx.strokeStyle = '#cdeaf4';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(dx, dy - 146); ctx.lineTo(dx, dy - 162);
+        ctx.stroke();
+        ctx.fillStyle = (Math.sin(sbT * 4) > 0) ? '#ff4466' : '#660022';
+        ctx.beginPath(); ctx.arc(dx, dy - 164, 2.6, 0, Math.PI * 2); ctx.fill();
+        /* "BAZAAR" name plate above window */
+        ctx.fillStyle = '#0a1a22';
+        ctx.fillRect(dx - 60, dy - 116, 120, 18);
+        ctx.fillStyle = '#ffd24a';
+        ctx.font = 'bold 13px "Trebuchet MS", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('★ BAZAAR ★', dx, dy - 107);
+        ctx.textBaseline = 'alphabetic';
+        /* Big display window with shelves */
+        var swX = dx - 64, swY = dy - 92, swW = 92, swH = 60;
+        var swGrad = ctx.createLinearGradient(swX, swY, swX, swY + swH);
+        swGrad.addColorStop(0, '#cdeaf4');
+        swGrad.addColorStop(1, '#6aaec0');
+        ctx.fillStyle = swGrad;
+        ctx.fillRect(swX, swY, swW, swH);
+        ctx.strokeStyle = '#0a1a22';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(swX, swY, swW, swH);
+        /* Shelves (3 rows) */
+        ctx.fillStyle = '#a87a3a';
+        ctx.fillRect(swX + 2, swY + 18, swW - 4, 2);
+        ctx.fillRect(swX + 2, swY + 38, swW - 4, 2);
+        /* Merchandise — top shelf: potions */
+        var pot = ['#ff66aa', '#44ff88', '#ffd24a', '#cc88ff'];
+        for (var pp = 0; pp < 4; pp++) {
+          var px = swX + 8 + pp * 21;
+          ctx.fillStyle = pot[pp];
+          ctx.fillRect(px, swY + 8, 6, 10);
+          ctx.fillStyle = '#3a2a44';
+          ctx.fillRect(px + 1, swY + 6, 4, 3);
+        }
+        /* Middle shelf: hat, helmet, ring, gem */
+        ctx.fillStyle = '#5a3a8a';
+        ctx.beginPath();
+        ctx.moveTo(swX + 8, swY + 38);
+        ctx.lineTo(swX + 14, swY + 24);
+        ctx.lineTo(swX + 20, swY + 38);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#ffd24a';
+        ctx.fillRect(swX + 6, swY + 36, 16, 2);
+        /* Helmet */
+        ctx.fillStyle = '#aabbcc';
+        ctx.beginPath();
+        ctx.arc(swX + 32, swY + 33, 6, Math.PI, 0);
+        ctx.fill();
+        ctx.fillStyle = '#44ffff';
+        ctx.fillRect(swX + 28, swY + 30, 8, 2);
+        /* Ring */
+        ctx.strokeStyle = '#ffd24a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(swX + 50, swY + 32, 4, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = '#ff66cc';
+        ctx.beginPath();
+        ctx.arc(swX + 50, swY + 28, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+        /* Gem (shimmery) */
+        var gemA = 0.6 + Math.sin(sbT * 2) * 0.4;
+        ctx.save();
+        ctx.globalAlpha = gemA;
+        ctx.fillStyle = '#44ffff';
+        ctx.beginPath();
+        ctx.moveTo(swX + 70, swY + 28);
+        ctx.lineTo(swX + 75, swY + 32);
+        ctx.lineTo(swX + 70, swY + 38);
+        ctx.lineTo(swX + 65, swY + 32);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        /* Bottom shelf: stack of books, scroll, boots */
+        ctx.fillStyle = '#cc4466';
+        ctx.fillRect(swX + 6, swY + 46, 14, 4);
+        ctx.fillStyle = '#4488cc';
+        ctx.fillRect(swX + 6, swY + 50, 14, 4);
+        ctx.fillStyle = '#44aa66';
+        ctx.fillRect(swX + 6, swY + 54, 14, 4);
+        /* Scroll */
+        ctx.fillStyle = '#ffe9c8';
+        ctx.fillRect(swX + 28, swY + 50, 14, 8);
+        ctx.fillStyle = '#aa6622';
+        ctx.fillRect(swX + 28, swY + 50, 2, 8);
+        ctx.fillRect(swX + 40, swY + 50, 2, 8);
+        /* Boots */
+        ctx.fillStyle = '#5a3a22';
+        ctx.fillRect(swX + 56, swY + 50, 6, 8);
+        ctx.fillRect(swX + 64, swY + 50, 6, 8);
+        ctx.fillRect(swX + 60, swY + 56, 14, 2);
+        /* Window mullion cross */
+        ctx.strokeStyle = '#0a1a22';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(swX + swW / 2, swY); ctx.lineTo(swX + swW / 2, swY + swH);
+        ctx.stroke();
+        /* OPEN sign — flickers */
+        var openOn = (Math.sin(sbT * 3 + d.x * 0.01) > -0.6);
+        ctx.save();
+        ctx.globalAlpha = openOn ? 1 : 0.35;
+        ctx.fillStyle = '#1a0a14';
+        ctx.fillRect(swX + 8, swY - 12, 28, 12);
+        ctx.fillStyle = '#ff4466';
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('OPEN', swX + 22, swY - 6);
+        ctx.restore();
+        ctx.textBaseline = 'alphabetic';
+        /* Display-window glow halo */
+        ctx.save();
+        ctx.globalAlpha = 0.18 + Math.sin(sbT) * 0.04;
+        var halo = ctx.createRadialGradient(dx, swY + swH / 2, 4, dx, swY + swH / 2, 90);
+        halo.addColorStop(0, '#ffd24a');
+        halo.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = halo;
+        ctx.fillRect(swX - 20, swY - 20, swW + 40, swH + 40);
+        ctx.restore();
+        /* Double doors on the right */
+        var sdX = dx + 30;
+        ctx.fillStyle = '#1a0a14';
+        ctx.fillRect(sdX, dy - 56, 38, 56);
+        ctx.fillStyle = '#7a3344';
+        ctx.fillRect(sdX + 1, dy - 55, 17, 54);
+        ctx.fillRect(sdX + 20, dy - 55, 17, 54);
+        ctx.strokeStyle = '#ffd24a';
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(sdX + 1, dy - 55, 17, 54);
+        ctx.strokeRect(sdX + 20, dy - 55, 17, 54);
+        /* Door porthole windows */
+        ctx.fillStyle = '#cdeaf4';
+        ctx.beginPath(); ctx.arc(sdX + 9.5, dy - 42, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sdX + 28.5, dy - 42, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#0a1a22';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(sdX + 9.5, dy - 42, 3.5, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(sdX + 28.5, dy - 42, 3.5, 0, Math.PI * 2); ctx.stroke();
+        /* Door knobs (center pull-handles) */
+        ctx.fillStyle = '#ffd24a';
+        ctx.beginPath(); ctx.arc(sdX + 16, dy - 26, 1.4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sdX + 22, dy - 26, 1.4, 0, Math.PI * 2); ctx.fill();
+        /* Welcome mat */
+        ctx.fillStyle = '#ff66aa';
+        ctx.fillRect(sdX - 2, dy - 4, 42, 4);
+        ctx.fillStyle = '#ffe9f4';
+        ctx.fillRect(sdX, dy - 3, 38, 1);
+        /* Sandwich-board sign on the sidewalk */
+        ctx.fillStyle = '#3a2a44';
+        ctx.fillRect(dx - 92, dy - 24, 12, 24);
+        ctx.fillStyle = '#ffd24a';
+        ctx.fillRect(dx - 90, dy - 22, 8, 2);
+        ctx.fillRect(dx - 90, dy - 18, 8, 2);
+        ctx.fillRect(dx - 90, dy - 14, 8, 2);
+        ctx.fillRect(dx - 90, dy - 10, 6, 2);
+        /* Tiny barrel beside it */
+        ctx.fillStyle = '#7a4a22';
+        ctx.fillRect(dx - 110, dy - 18, 14, 18);
+        ctx.strokeStyle = '#ffd24a';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.moveTo(dx - 110, dy - 14); ctx.lineTo(dx - 96, dy - 14); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(dx - 110, dy - 8); ctx.lineTo(dx - 96, dy - 8); ctx.stroke();
       } else if (d.type === 'lampPost') {
         /* Tall thin pole with a glowing neon lamp on top */
         var lpC = d.color || '#44ffff';

@@ -2271,14 +2271,16 @@
   };
 
   /* ========== ROCKET SHIP (interactable — opens travel menu) ========== */
-  /* Towering rocket — much taller than Momoko (her sprite is 34px high; the
-     rocket is 150px so the player can stand at its base and see the cone
-     filling the sky). */
+  /* Towering rocket — drawn at 4× the original 90×150 sprite (so 360×600).
+     The visual base stays anchored to the original spawn position so the
+     player can still walk up to it; the top now towers off-screen into the
+     sky. Internally the draw routine still uses the original 90×150 layout
+     coordinates and a canvas transform handles the 4× scale. */
   function RocketShip(x, y) {
     this.x = x;
     this.y = y;
-    this.w = 90;
-    this.h = 150;
+    this.w = 360;
+    this.h = 600;
     this.talking = false;
     this.timer = 0;
   }
@@ -2293,8 +2295,17 @@
   };
 
   RocketShip.prototype.draw = function (c, camX, camY) {
-    var sx = Math.round(this.x - camX);
-    var sy = Math.round(this.y - camY);
+    /* Anchor in screen-space matches the original (pre-scale) top-left. */
+    var ax = Math.round(this.x - camX);
+    var ay = Math.round(this.y - camY);
+    c.save();
+    /* Translate so the visual base + horizontal center stay where they were
+       on the original 90×150 sprite, then scale 4×. The shift is
+       (-(4-1)*w/2, -(4-1)*h) = (-135, -450) for w=90, h=150. */
+    c.translate(ax - 135, ay - 450);
+    c.scale(4, 4);
+    var sx = 0;
+    var sy = 0;
     var cx = sx + 45; /* horizontal centerline */
     /* Outer drop shadow on the pad */
     c.save();
@@ -2502,6 +2513,7 @@
     plume(sx + 58, sy + 150, flick2 * 0.7);
     plume(sx + 10, sy + 144, flick2 * 0.6);
     plume(sx + 80, sy + 144, flick * 0.6);
+    c.restore();
   };
 
   /* ========== HOUSE DOOR (interactable — enters house interior) ========== */

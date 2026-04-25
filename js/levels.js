@@ -66,6 +66,11 @@
       { type: 'lampPost', x: 3500, y: 440, color: '#ffd24a' },
       { type: 'lampPost', x: 4100, y: 440, color: '#44ffff' },
 
+      /* Cafe and shop storefronts — drawn before their signs so the holo
+         billboard layers cleanly on top. */
+      { type: 'cafeBuilding', x: 1500, y: 440 },
+      { type: 'shopBuilding', x: 2700, y: 440 },
+
       /* Holographic neon signs */
       { type: 'neonSign', x: 480, y: 440, text: 'WELCOME', color: '#44ffff' },
       { type: 'neonSign', x: 1500, y: 440, text: 'CAFE', color: '#ff66cc' },

@@ -2458,102 +2458,737 @@
   }
 
   function drawFurniture(c, type, x, y, mode) {
-    /* mode: undefined | 'palette' (medium icon) — placed furniture is now
-       1.6× the old size so it reads at a glance, and palette icons get a
-       slightly larger 0.85× scale so they're readable. */
+    /* mode: undefined | 'palette' (medium icon) — placed furniture is 1.6×
+       so it reads at a glance, palette icons are 0.85×. Each piece is
+       rendered with layered shading, gradients, and trim detail rather
+       than flat blocks. */
     c.save();
     var scale = mode === 'palette' ? 0.85 : 1.6;
     c.translate(x, y);
     c.scale(scale, scale);
+    /* Soft contact shadow under most pieces (skip rug/painting). */
+    if (type !== 'rug' && type !== 'painting') {
+      c.save();
+      c.globalAlpha = 0.25;
+      c.fillStyle = '#000';
+      c.beginPath();
+      c.ellipse(0, 16, 26, 4, 0, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
+    }
     switch (type) {
-      case 'bed':
-        c.fillStyle = '#dd5599';
-        c.fillRect(-30, -20, 60, 30);
-        c.fillStyle = '#ffaacc';
-        c.fillRect(-30, -22, 20, 14);
-        c.fillStyle = '#66bbff';
-        c.fillRect(-26, -10, 52, 18);
-        break;
-      case 'table':
-        c.fillStyle = '#aa7744';
-        c.fillRect(-24, -10, 48, 8);
-        c.fillStyle = '#885522';
-        c.fillRect(-22, -2, 4, 14);
-        c.fillRect(18, -2, 4, 14);
-        break;
-      case 'chair':
-        c.fillStyle = '#cc66aa';
-        c.fillRect(-10, -18, 20, 16);
-        c.fillRect(-10, -2, 20, 4);
-        c.fillStyle = '#994488';
-        c.fillRect(-10, 2, 3, 10);
-        c.fillRect(7, 2, 3, 10);
-        break;
-      case 'lamp':
-        c.fillStyle = '#ffd24a';
+      case 'bed': {
+        /* Carved wooden footboard */
+        var foot = c.createLinearGradient(0, 8, 0, 18);
+        foot.addColorStop(0, '#a36a3a');
+        foot.addColorStop(1, '#5a3418');
+        c.fillStyle = foot;
+        c.fillRect(-32, 8, 64, 10);
+        c.fillStyle = '#c98a4e';
+        c.fillRect(-32, 8, 64, 1.5);
+        /* Carved beading along the footboard */
+        c.fillStyle = '#3a1e0a';
+        for (var bf = 0; bf < 7; bf++) {
+          c.beginPath();
+          c.arc(-26 + bf * 9, 13, 0.9, 0, Math.PI * 2);
+          c.fill();
+        }
+        /* Mattress with piped trim */
+        var matt = c.createLinearGradient(0, -6, 0, 10);
+        matt.addColorStop(0, '#fff4f8');
+        matt.addColorStop(1, '#f0c8d8');
+        c.fillStyle = matt;
+        c.fillRect(-30, -6, 60, 16);
+        c.strokeStyle = '#cc77a0';
+        c.lineWidth = 1;
+        c.strokeRect(-30, -6, 60, 16);
+        /* Mattress button tufts */
+        c.fillStyle = '#cc77a0';
+        for (var bm = 0; bm < 5; bm++) {
+          c.beginPath();
+          c.arc(-22 + bm * 11, 0, 0.9, 0, Math.PI * 2);
+          c.fill();
+        }
+        /* Quilted star blanket folded over the foot */
+        var blank = c.createLinearGradient(0, 4, 0, 12);
+        blank.addColorStop(0, '#7ab8ff');
+        blank.addColorStop(1, '#3a78cc');
+        c.fillStyle = blank;
+        c.fillRect(-30, 2, 60, 8);
+        c.fillStyle = '#aad8ff';
+        c.fillRect(-30, 2, 60, 1.2);
+        /* Tiny stars on the blanket */
+        c.fillStyle = '#ffe98a';
+        for (var bs = 0; bs < 6; bs++) {
+          var bsx = -25 + bs * 10, bsy = 6;
+          c.beginPath();
+          c.moveTo(bsx, bsy - 1.6);
+          c.lineTo(bsx + 0.5, bsy - 0.5);
+          c.lineTo(bsx + 1.6, bsy);
+          c.lineTo(bsx + 0.5, bsy + 0.5);
+          c.lineTo(bsx, bsy + 1.6);
+          c.lineTo(bsx - 0.5, bsy + 0.5);
+          c.lineTo(bsx - 1.6, bsy);
+          c.lineTo(bsx - 0.5, bsy - 0.5);
+          c.closePath();
+          c.fill();
+        }
+        /* Pillows — two with lace edges */
+        for (var pi2 = 0; pi2 < 2; pi2++) {
+          var pX = pi2 === 0 ? -25 : -10;
+          var plg = c.createLinearGradient(0, -10, 0, -2);
+          plg.addColorStop(0, '#ffffff');
+          plg.addColorStop(1, '#ffd9e8');
+          c.fillStyle = plg;
+          c.fillRect(pX, -10, 13, 8);
+          c.strokeStyle = '#ff8ab0';
+          c.lineWidth = 0.6;
+          for (var pl = 0; pl < 4; pl++) {
+            c.beginPath();
+            c.arc(pX + 1.5 + pl * 3.3, -10, 0.9, Math.PI, 0);
+            c.stroke();
+          }
+        }
+        /* Tall headboard with heart cutout */
+        var hb = c.createLinearGradient(0, -28, 0, -6);
+        hb.addColorStop(0, '#a36a3a');
+        hb.addColorStop(1, '#7a4a22');
+        c.fillStyle = hb;
         c.beginPath();
-        c.moveTo(-10, -20);
-        c.lineTo(10, -20);
-        c.lineTo(6, -6);
-        c.lineTo(-6, -6);
+        c.moveTo(-32, -6);
+        c.lineTo(-32, -22);
+        c.quadraticCurveTo(-32, -30, -24, -30);
+        c.lineTo(24, -30);
+        c.quadraticCurveTo(32, -30, 32, -22);
+        c.lineTo(32, -6);
         c.closePath();
         c.fill();
-        c.fillStyle = '#666666';
-        c.fillRect(-1, -6, 2, 18);
-        c.fillStyle = '#444444';
-        c.fillRect(-6, 10, 12, 2);
-        break;
-      case 'rug':
-        c.fillStyle = '#44ccff';
+        c.strokeStyle = '#5a3418';
+        c.lineWidth = 0.8;
+        c.stroke();
+        /* Heart cutout */
+        c.fillStyle = '#2a1458';
         c.beginPath();
-        c.ellipse(0, 0, 30, 10, 0, 0, Math.PI * 2);
+        c.arc(-2, -22, 2, 0, Math.PI * 2);
+        c.arc(2, -22, 2, 0, Math.PI * 2);
+        c.moveTo(-3.6, -21);
+        c.lineTo(0, -16);
+        c.lineTo(3.6, -21);
+        c.closePath();
         c.fill();
-        c.strokeStyle = '#ff66cc';
-        c.lineWidth = 1.5;
+        /* Headboard finials */
+        c.fillStyle = '#c98a4e';
+        c.beginPath(); c.arc(-26, -29, 2.5, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(26, -29, 2.5, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#ff66cc';
+        c.beginPath(); c.arc(-26, -32, 1.4, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(26, -32, 1.4, 0, Math.PI * 2); c.fill();
+        break;
+      }
+      case 'table': {
+        /* Round bistro table — polished wood with pedestal base */
+        /* Cross-base feet */
+        c.fillStyle = '#3a2010';
         c.beginPath();
-        c.ellipse(0, 0, 22, 7, 0, 0, Math.PI * 2);
+        c.moveTo(-16, 14);
+        c.lineTo(16, 14);
+        c.lineTo(12, 17);
+        c.lineTo(-12, 17);
+        c.closePath();
+        c.fill();
+        /* Pedestal with brass rings */
+        var ped = c.createLinearGradient(-3, 0, 3, 0);
+        ped.addColorStop(0, '#5a3418');
+        ped.addColorStop(0.5, '#a36a3a');
+        ped.addColorStop(1, '#5a3418');
+        c.fillStyle = ped;
+        c.fillRect(-3, -4, 6, 18);
+        c.fillStyle = '#ffd24a';
+        c.fillRect(-3, 0, 6, 1.5);
+        c.fillRect(-3, 9, 6, 1.5);
+        /* Tabletop ellipse with rim */
+        c.fillStyle = '#3a2010';
+        c.beginPath();
+        c.ellipse(0, -4, 26, 7, 0, 0, Math.PI * 2);
+        c.fill();
+        var top = c.createRadialGradient(-4, -8, 2, 0, -6, 24);
+        top.addColorStop(0, '#d8a064');
+        top.addColorStop(0.6, '#a36a3a');
+        top.addColorStop(1, '#7a4818');
+        c.fillStyle = top;
+        c.beginPath();
+        c.ellipse(0, -6, 25, 5.5, 0, 0, Math.PI * 2);
+        c.fill();
+        /* Wood grain lines */
+        c.strokeStyle = 'rgba(60,30,12,0.4)';
+        c.lineWidth = 0.4;
+        for (var tg = 0; tg < 4; tg++) {
+          c.beginPath();
+          c.ellipse(0, -6, 18 - tg * 4, 4 - tg, 0, 0, Math.PI * 2);
+          c.stroke();
+        }
+        /* Highlight specular */
+        c.save();
+        c.globalAlpha = 0.5;
+        c.fillStyle = '#ffe9c8';
+        c.beginPath();
+        c.ellipse(-8, -8, 8, 1.4, -0.3, 0, Math.PI * 2);
+        c.fill();
+        c.restore();
+        /* Tiny vase + flower as a centerpiece */
+        c.fillStyle = '#cc88ff';
+        c.beginPath();
+        c.moveTo(-3, -8);
+        c.lineTo(3, -8);
+        c.lineTo(2, -14);
+        c.lineTo(-2, -14);
+        c.closePath();
+        c.fill();
+        c.fillStyle = '#ff66cc';
+        c.beginPath(); c.arc(0, -16, 2.2, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#ffd24a';
+        c.beginPath(); c.arc(0, -16, 0.9, 0, Math.PI * 2); c.fill();
+        /* Stem */
+        c.strokeStyle = '#44aa55';
+        c.lineWidth = 0.6;
+        c.beginPath();
+        c.moveTo(0, -14); c.lineTo(0, -16);
         c.stroke();
         break;
-      case 'plant':
-        c.fillStyle = '#884422';
-        c.fillRect(-8, 4, 16, 12);
-        c.fillStyle = '#44cc66';
+      }
+      case 'chair': {
+        /* Plush armchair — high back with button tufts */
+        /* Wooden legs (peeking out at the bottom) */
+        c.fillStyle = '#3a2010';
+        c.fillRect(-12, 10, 3, 6);
+        c.fillRect(9, 10, 3, 6);
+        c.fillStyle = '#ffd24a';
+        c.fillRect(-12, 14, 3, 1);
+        c.fillRect(9, 14, 3, 1);
+        /* Arms */
+        var armG = c.createLinearGradient(0, -2, 0, 8);
+        armG.addColorStop(0, '#dd5599');
+        armG.addColorStop(1, '#8a2a66');
+        c.fillStyle = armG;
         c.beginPath();
-        c.arc(-6, -2, 8, 0, Math.PI * 2);
-        c.arc(6, -2, 8, 0, Math.PI * 2);
-        c.arc(0, -10, 8, 0, Math.PI * 2);
+        c.moveTo(-15, -4);
+        c.quadraticCurveTo(-17, -6, -15, -8);
+        c.quadraticCurveTo(-13, -10, -11, -8);
+        c.lineTo(-11, 10);
+        c.lineTo(-15, 10);
+        c.closePath();
         c.fill();
-        break;
-      case 'painting':
-        c.fillStyle = '#884422';
-        c.fillRect(-16, -14, 32, 28);
-        c.fillStyle = '#44ffff';
-        c.fillRect(-13, -11, 26, 22);
-        c.fillStyle = '#ff66cc';
         c.beginPath();
-        c.arc(-4, -4, 3, 0, Math.PI * 2);
+        c.moveTo(15, -4);
+        c.quadraticCurveTo(17, -6, 15, -8);
+        c.quadraticCurveTo(13, -10, 11, -8);
+        c.lineTo(11, 10);
+        c.lineTo(15, 10);
+        c.closePath();
+        c.fill();
+        /* High back */
+        var backG = c.createLinearGradient(0, -22, 0, 0);
+        backG.addColorStop(0, '#ffaacc');
+        backG.addColorStop(1, '#cc4488');
+        c.fillStyle = backG;
+        c.beginPath();
+        c.moveTo(-11, 0);
+        c.lineTo(-11, -18);
+        c.quadraticCurveTo(-11, -24, -5, -24);
+        c.lineTo(5, -24);
+        c.quadraticCurveTo(11, -24, 11, -18);
+        c.lineTo(11, 0);
+        c.closePath();
+        c.fill();
+        /* Highlight stripe down the back */
+        c.save();
+        c.globalAlpha = 0.5;
+        c.fillStyle = '#ffd9e8';
+        c.fillRect(-9, -22, 2, 22);
+        c.restore();
+        /* Button tufts */
+        c.fillStyle = '#8a2a66';
+        var tufts = [[-5, -16], [5, -16], [0, -10], [-5, -4], [5, -4]];
+        for (var tt = 0; tt < tufts.length; tt++) {
+          c.beginPath();
+          c.arc(tufts[tt][0], tufts[tt][1], 0.9, 0, Math.PI * 2);
+          c.fill();
+        }
+        /* Cushion (seat) — rounded */
+        var cuG = c.createLinearGradient(0, -2, 0, 10);
+        cuG.addColorStop(0, '#ffe9f4');
+        cuG.addColorStop(1, '#f0a8c8');
+        c.fillStyle = cuG;
+        c.beginPath();
+        c.moveTo(-12, 0);
+        c.quadraticCurveTo(-14, 4, -10, 8);
+        c.lineTo(10, 8);
+        c.quadraticCurveTo(14, 4, 12, 0);
+        c.closePath();
+        c.fill();
+        c.strokeStyle = '#cc6688';
+        c.lineWidth = 0.6;
+        c.stroke();
+        /* Piping along the cushion crease */
+        c.fillStyle = '#cc6688';
+        for (var cp = 0; cp < 4; cp++) {
+          c.beginPath();
+          c.arc(-7 + cp * 4.6, 4, 0.5, 0, Math.PI * 2);
+          c.fill();
+        }
+        break;
+      }
+      case 'lamp': {
+        /* Floor lamp with fringed pleated shade and warm glow */
+        /* Glow halo */
+        c.save();
+        c.globalAlpha = 0.45;
+        var halo = c.createRadialGradient(0, -16, 2, 0, -16, 26);
+        halo.addColorStop(0, 'rgba(255,232,140,0.9)');
+        halo.addColorStop(1, 'rgba(255,232,140,0)');
+        c.fillStyle = halo;
+        c.beginPath(); c.arc(0, -16, 26, 0, Math.PI * 2); c.fill();
+        c.restore();
+        /* Brass base */
+        c.fillStyle = '#3a2a14';
+        c.fillRect(-8, 12, 16, 4);
+        var baseG = c.createLinearGradient(-8, 8, 8, 12);
+        baseG.addColorStop(0, '#7a5a22');
+        baseG.addColorStop(0.5, '#ffd24a');
+        baseG.addColorStop(1, '#7a5a22');
+        c.fillStyle = baseG;
+        c.beginPath();
+        c.ellipse(0, 12, 8, 3, 0, 0, Math.PI * 2);
+        c.fill();
+        /* Pole */
+        var poleG = c.createLinearGradient(-2, 0, 2, 0);
+        poleG.addColorStop(0, '#5a4218');
+        poleG.addColorStop(0.5, '#c89a3a');
+        poleG.addColorStop(1, '#5a4218');
+        c.fillStyle = poleG;
+        c.fillRect(-1, -8, 2, 22);
+        /* Decorative knob midway */
+        c.fillStyle = '#ffd24a';
+        c.beginPath(); c.arc(0, 2, 1.6, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#7a5a22';
+        c.beginPath(); c.arc(0, 2, 0.7, 0, Math.PI * 2); c.fill();
+        /* Pleated shade — drawn as a polygon with vertical fold lines */
+        var sh = c.createLinearGradient(0, -22, 0, -8);
+        sh.addColorStop(0, '#fff2a0');
+        sh.addColorStop(1, '#d8a040');
+        c.fillStyle = sh;
+        c.beginPath();
+        c.moveTo(-8, -22);
+        c.lineTo(8, -22);
+        c.lineTo(13, -8);
+        c.lineTo(-13, -8);
+        c.closePath();
+        c.fill();
+        c.strokeStyle = '#a86820';
+        c.lineWidth = 0.5;
+        for (var pf = 0; pf < 6; pf++) {
+          var px2 = -10 + pf * 4;
+          c.beginPath();
+          c.moveTo(px2, -22 + Math.abs(pf - 2.5) * 0.5);
+          c.lineTo(px2 + (px2 < 0 ? -2 : 2) * 0.5, -8);
+          c.stroke();
+        }
+        /* Top trim band */
+        c.fillStyle = '#a86820';
+        c.fillRect(-8, -23, 16, 1.5);
+        /* Bottom fringe */
+        c.fillStyle = '#ffd24a';
+        for (var fr = 0; fr < 7; fr++) {
+          var frx = -13 + fr * 4.4;
+          c.beginPath();
+          c.moveTo(frx, -8);
+          c.lineTo(frx + 1.5, -5);
+          c.lineTo(frx + 3, -8);
+          c.closePath();
+          c.fill();
+        }
+        /* Glowing bulb tip */
+        c.fillStyle = '#ffffff';
+        c.beginPath(); c.arc(0, -10, 1.4, 0, Math.PI * 2); c.fill();
+        break;
+      }
+      case 'rug': {
+        /* Persian-style oval rug with medallion */
+        /* Outer dark border */
+        c.fillStyle = '#3a1840';
+        c.beginPath();
+        c.ellipse(0, 0, 32, 11, 0, 0, Math.PI * 2);
+        c.fill();
+        /* Main field */
+        var rugG = c.createRadialGradient(0, 0, 2, 0, 0, 30);
+        rugG.addColorStop(0, '#cc4466');
+        rugG.addColorStop(0.7, '#882244');
+        rugG.addColorStop(1, '#5a1830');
+        c.fillStyle = rugG;
+        c.beginPath();
+        c.ellipse(0, 0, 29, 9.5, 0, 0, Math.PI * 2);
+        c.fill();
+        /* Inner border line */
+        c.strokeStyle = '#ffd24a';
+        c.lineWidth = 0.8;
+        c.beginPath();
+        c.ellipse(0, 0, 27, 8.6, 0, 0, Math.PI * 2);
+        c.stroke();
+        c.beginPath();
+        c.ellipse(0, 0, 25, 7.6, 0, 0, Math.PI * 2);
+        c.stroke();
+        /* Central medallion */
+        c.fillStyle = '#3a1840';
+        c.beginPath();
+        c.ellipse(0, 0, 12, 4, 0, 0, Math.PI * 2);
         c.fill();
         c.fillStyle = '#ffd24a';
         c.beginPath();
-        c.arc(6, 2, 2, 0, Math.PI * 2);
+        c.ellipse(0, 0, 9, 2.8, 0, 0, Math.PI * 2);
         c.fill();
-        break;
-      case 'bookshelf':
-        c.fillStyle = '#663322';
-        c.fillRect(-15, -22, 30, 40);
-        c.fillStyle = '#ff4466';
-        c.fillRect(-12, -20, 6, 10);
+        c.fillStyle = '#cc4466';
+        c.beginPath();
+        c.ellipse(0, 0, 4, 1.4, 0, 0, Math.PI * 2);
+        c.fill();
+        /* Diamond motifs at the cardinal points */
         c.fillStyle = '#44ccff';
-        c.fillRect(-4, -20, 6, 10);
-        c.fillStyle = '#ffd24a';
-        c.fillRect(4, -20, 6, 10);
-        c.fillStyle = '#44cc66';
-        c.fillRect(-12, -6, 6, 10);
-        c.fillStyle = '#ff66cc';
-        c.fillRect(-4, -6, 6, 10);
-        c.fillStyle = '#cc44ff';
-        c.fillRect(4, -6, 6, 10);
+        var diamonds = [[-21, 0], [21, 0], [0, -6.5], [0, 6.5]];
+        for (var dm = 0; dm < diamonds.length; dm++) {
+          var dxr = diamonds[dm][0], dyr = diamonds[dm][1];
+          c.beginPath();
+          c.moveTo(dxr, dyr - 1.6);
+          c.lineTo(dxr + 1.6, dyr);
+          c.lineTo(dxr, dyr + 1.6);
+          c.lineTo(dxr - 1.6, dyr);
+          c.closePath();
+          c.fill();
+        }
+        /* Corner flourishes */
+        c.fillStyle = '#ff99cc';
+        var flourish = [[-15, -4], [15, -4], [-15, 4], [15, 4]];
+        for (var ff = 0; ff < flourish.length; ff++) {
+          c.beginPath();
+          c.arc(flourish[ff][0], flourish[ff][1], 1.2, 0, Math.PI * 2);
+          c.fill();
+        }
+        /* End tassels */
+        c.strokeStyle = '#ffe9c8';
+        c.lineWidth = 0.5;
+        for (var ts = 0; ts < 9; ts++) {
+          var tsy2 = -4 + ts * 1;
+          c.beginPath();
+          c.moveTo(-32, tsy2);
+          c.lineTo(-35, tsy2);
+          c.stroke();
+          c.beginPath();
+          c.moveTo(32, tsy2);
+          c.lineTo(35, tsy2);
+          c.stroke();
+        }
         break;
+      }
+      case 'plant': {
+        /* Potted monstera with glossy leaves and decorated terracotta pot */
+        /* Pot body — terracotta with painted band */
+        var potG = c.createLinearGradient(0, 4, 0, 18);
+        potG.addColorStop(0, '#d88848');
+        potG.addColorStop(1, '#7a3a18');
+        c.fillStyle = potG;
+        c.beginPath();
+        c.moveTo(-9, 4);
+        c.lineTo(9, 4);
+        c.lineTo(7, 18);
+        c.lineTo(-7, 18);
+        c.closePath();
+        c.fill();
+        /* Pot rim */
+        c.fillStyle = '#f0a868';
+        c.fillRect(-10, 2, 20, 3);
+        c.fillStyle = '#5a2810';
+        c.fillRect(-10, 5, 20, 0.6);
+        /* Painted geo-pattern band */
+        c.fillStyle = '#ffe9c8';
+        c.fillRect(-8, 9, 16, 3);
+        c.fillStyle = '#7a3a18';
+        for (var pp2 = 0; pp2 < 4; pp2++) {
+          c.beginPath();
+          c.moveTo(-7 + pp2 * 4, 9);
+          c.lineTo(-5 + pp2 * 4, 12);
+          c.lineTo(-3 + pp2 * 4, 9);
+          c.closePath();
+          c.fill();
+        }
+        /* Soil */
+        c.fillStyle = '#3a2010';
+        c.beginPath();
+        c.ellipse(0, 4, 9, 1.6, 0, 0, Math.PI * 2);
+        c.fill();
+        /* Leaf drawing helper — split monstera-style */
+        function leaf(cx2, cy2, w, h, rot, light, dark, slits) {
+          c.save();
+          c.translate(cx2, cy2);
+          c.rotate(rot);
+          var lg = c.createLinearGradient(0, -h, 0, h);
+          lg.addColorStop(0, light);
+          lg.addColorStop(1, dark);
+          c.fillStyle = lg;
+          c.beginPath();
+          c.moveTo(0, h);
+          c.bezierCurveTo(-w, h * 0.4, -w, -h * 0.6, 0, -h);
+          c.bezierCurveTo(w, -h * 0.6, w, h * 0.4, 0, h);
+          c.closePath();
+          c.fill();
+          /* Center vein */
+          c.strokeStyle = dark;
+          c.lineWidth = 0.6;
+          c.beginPath();
+          c.moveTo(0, h);
+          c.lineTo(0, -h);
+          c.stroke();
+          /* Side veins / monstera slits */
+          for (var ll = 0; ll < slits; ll++) {
+            var ly = -h * 0.7 + (ll / (slits - 1)) * h * 1.4;
+            c.lineWidth = 0.4;
+            c.beginPath();
+            c.moveTo(0, ly);
+            c.lineTo(w * 0.7, ly + h * 0.1);
+            c.stroke();
+            c.beginPath();
+            c.moveTo(0, ly);
+            c.lineTo(-w * 0.7, ly + h * 0.1);
+            c.stroke();
+          }
+          c.restore();
+        }
+        leaf(-7, -2, 6, 10, -0.5, '#7ad06a', '#1f5a28', 4);
+        leaf(7, -3, 6, 11, 0.5, '#7ad06a', '#1f5a28', 4);
+        leaf(-3, -10, 5, 12, -0.15, '#a8e088', '#2a6a30', 4);
+        leaf(3, -12, 5, 11, 0.15, '#a8e088', '#2a6a30', 4);
+        leaf(0, -16, 4, 9, 0, '#c8f098', '#2a6a30', 3);
+        /* Highlight glints on a couple of leaves */
+        c.save();
+        c.globalAlpha = 0.5;
+        c.fillStyle = '#fff';
+        c.beginPath(); c.arc(-7, -4, 0.9, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(5, -10, 0.7, 0, Math.PI * 2); c.fill();
+        c.restore();
+        break;
+      }
+      case 'painting': {
+        /* Ornate gilt-framed cosmic landscape */
+        /* Outer dark frame edge */
+        c.fillStyle = '#3a2a14';
+        c.fillRect(-19, -17, 38, 34);
+        /* Gilt frame with gradient */
+        var frG = c.createLinearGradient(-18, -16, 18, 16);
+        frG.addColorStop(0, '#ffe9a8');
+        frG.addColorStop(0.5, '#c89a3a');
+        frG.addColorStop(1, '#7a5a22');
+        c.fillStyle = frG;
+        c.fillRect(-18, -16, 36, 32);
+        /* Inner mat */
+        c.fillStyle = '#1a0a2a';
+        c.fillRect(-15, -13, 30, 26);
+        /* Painted scene — dusk sky gradient */
+        var sky = c.createLinearGradient(0, -12, 0, 12);
+        sky.addColorStop(0, '#4a1858');
+        sky.addColorStop(0.6, '#cc5577');
+        sky.addColorStop(1, '#ffaa66');
+        c.fillStyle = sky;
+        c.fillRect(-14, -12, 28, 24);
+        /* Distant ringed planet */
+        c.fillStyle = '#ffd24a';
+        c.beginPath();
+        c.arc(-5, -6, 4, 0, Math.PI * 2);
+        c.fill();
+        c.strokeStyle = '#ffe9c8';
+        c.lineWidth = 0.8;
+        c.beginPath();
+        c.ellipse(-5, -6, 7, 2, -0.3, 0, Math.PI * 2);
+        c.stroke();
+        /* Tiny moon */
+        c.fillStyle = '#ffe9c8';
+        c.beginPath();
+        c.arc(7, -8, 1.6, 0, Math.PI * 2);
+        c.fill();
+        /* Stars */
+        c.fillStyle = '#ffffff';
+        var stars = [[-10, -10], [10, -4], [-8, -2], [4, -10], [-2, -9]];
+        for (var st = 0; st < stars.length; st++) {
+          c.beginPath();
+          c.arc(stars[st][0], stars[st][1], 0.6, 0, Math.PI * 2);
+          c.fill();
+        }
+        /* Foreground mountains */
+        c.fillStyle = '#1a0a2a';
+        c.beginPath();
+        c.moveTo(-14, 12);
+        c.lineTo(-10, 4);
+        c.lineTo(-5, 9);
+        c.lineTo(0, 2);
+        c.lineTo(6, 7);
+        c.lineTo(11, 3);
+        c.lineTo(14, 12);
+        c.closePath();
+        c.fill();
+        /* Frame corner ornaments */
+        c.fillStyle = '#ffe9a8';
+        var corners = [[-18, -16], [18, -16], [-18, 16], [18, 16]];
+        for (var co = 0; co < corners.length; co++) {
+          c.beginPath();
+          c.arc(corners[co][0], corners[co][1], 2.4, 0, Math.PI * 2);
+          c.fill();
+        }
+        c.fillStyle = '#7a5a22';
+        for (var co2 = 0; co2 < corners.length; co2++) {
+          c.beginPath();
+          c.arc(corners[co2][0], corners[co2][1], 1.1, 0, Math.PI * 2);
+          c.fill();
+        }
+        /* Hanging hook & wire */
+        c.strokeStyle = '#5a4218';
+        c.lineWidth = 0.5;
+        c.beginPath();
+        c.moveTo(-10, -18);
+        c.quadraticCurveTo(0, -22, 10, -18);
+        c.stroke();
+        c.fillStyle = '#3a2a14';
+        c.beginPath();
+        c.arc(0, -21, 1.2, 0, Math.PI * 2);
+        c.fill();
+        break;
+      }
+      case 'bookshelf': {
+        /* Carved bookshelf with varied books, plant, drawer */
+        /* Outer carved frame */
+        var bsG = c.createLinearGradient(-18, 0, 18, 0);
+        bsG.addColorStop(0, '#3a2010');
+        bsG.addColorStop(0.5, '#7a4a22');
+        bsG.addColorStop(1, '#3a2010');
+        c.fillStyle = bsG;
+        c.fillRect(-18, -26, 36, 50);
+        /* Crown molding */
+        c.fillStyle = '#a36a3a';
+        c.fillRect(-19, -28, 38, 4);
+        c.fillStyle = '#5a3418';
+        c.fillRect(-19, -25, 38, 1);
+        /* Decorative pediment */
+        c.fillStyle = '#a36a3a';
+        c.beginPath();
+        c.moveTo(-14, -28);
+        c.lineTo(0, -32);
+        c.lineTo(14, -28);
+        c.closePath();
+        c.fill();
+        c.fillStyle = '#ffd24a';
+        c.beginPath(); c.arc(0, -30, 1.4, 0, Math.PI * 2); c.fill();
+        /* Inset back panel */
+        c.fillStyle = '#2a1408';
+        c.fillRect(-15, -23, 30, 38);
+        /* Shelf horizontals */
+        c.fillStyle = '#5a3418';
+        c.fillRect(-15, -10, 30, 1.5);
+        c.fillRect(-15, 4, 30, 1.5);
+        /* --- TOP SHELF: tall books, leaning */
+        var topBooks = [
+          {x: -13, w: 4, h: 12, c: '#cc4466', t: '#ffd24a'},
+          {x: -8.5, w: 3, h: 11, c: '#4488cc', t: '#ffe9c8'},
+          {x: -4.5, w: 4, h: 12, c: '#44aa66', t: '#ffd24a'},
+          {x: 0, w: 3, h: 10, c: '#ffd24a', t: '#cc4466'},
+          {x: 3.5, w: 3.5, h: 11, c: '#cc88ff', t: '#fff'},
+          {x: 7.5, w: 4, h: 12, c: '#ff7733', t: '#ffe9c8'},
+        ];
+        for (var tb = 0; tb < topBooks.length; tb++) {
+          var bk = topBooks[tb];
+          var bkg = c.createLinearGradient(bk.x, 0, bk.x + bk.w, 0);
+          bkg.addColorStop(0, bk.c);
+          bkg.addColorStop(0.5, bk.t);
+          bkg.addColorStop(1, bk.c);
+          c.fillStyle = bk.c;
+          c.fillRect(bk.x, -10 - bk.h, bk.w, bk.h);
+          c.fillStyle = bk.t;
+          c.fillRect(bk.x, -10 - bk.h, bk.w, 1);
+          c.fillRect(bk.x, -12, bk.w, 0.6);
+          /* Tiny title band */
+          c.fillStyle = bk.t;
+          c.fillRect(bk.x + 0.6, -10 - bk.h * 0.6, bk.w - 1.2, 0.6);
+        }
+        /* Leaning book */
+        c.save();
+        c.translate(12, -10);
+        c.rotate(-0.3);
+        c.fillStyle = '#44ccff';
+        c.fillRect(0, -8, 3, 8);
+        c.fillStyle = '#ffd24a';
+        c.fillRect(0, -8, 3, 0.6);
+        c.restore();
+        /* --- MIDDLE SHELF: shorter books + a tiny plant */
+        var midBooks = [
+          {x: -13, w: 3, h: 9, c: '#6a3aaa'},
+          {x: -9.5, w: 4, h: 8, c: '#aa4466'},
+          {x: -5, w: 3, h: 9, c: '#22aa88'},
+          {x: -1.5, w: 3, h: 8, c: '#ddaa44'},
+        ];
+        for (var mb = 0; mb < midBooks.length; mb++) {
+          var mbk = midBooks[mb];
+          c.fillStyle = mbk.c;
+          c.fillRect(mbk.x, 4 - mbk.h, mbk.w, mbk.h);
+          c.fillStyle = '#ffd24a';
+          c.fillRect(mbk.x, 4 - mbk.h, mbk.w, 0.5);
+        }
+        /* Small plant on the middle shelf */
+        c.fillStyle = '#a36a3a';
+        c.fillRect(4, -2, 5, 5);
+        c.fillStyle = '#44aa66';
+        c.beginPath();
+        c.arc(4, -3, 2.2, 0, Math.PI * 2);
+        c.arc(7.5, -4, 2.2, 0, Math.PI * 2);
+        c.arc(10, -2, 2.2, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#ff66cc';
+        c.beginPath();
+        c.arc(7.5, -5, 0.9, 0, Math.PI * 2);
+        c.fill();
+        /* Tiny clock */
+        c.fillStyle = '#ffd24a';
+        c.beginPath();
+        c.arc(11, 2, 1.6, 0, Math.PI * 2);
+        c.fill();
+        c.strokeStyle = '#3a2010';
+        c.lineWidth = 0.4;
+        c.beginPath(); c.moveTo(11, 2); c.lineTo(11, 0.8);
+        c.moveTo(11, 2); c.lineTo(12, 2);
+        c.stroke();
+        /* --- DRAWER at the bottom */
+        var dwG = c.createLinearGradient(0, 6, 0, 24);
+        dwG.addColorStop(0, '#a36a3a');
+        dwG.addColorStop(1, '#5a3418');
+        c.fillStyle = dwG;
+        c.fillRect(-15, 6, 30, 12);
+        c.strokeStyle = '#3a2010';
+        c.lineWidth = 0.6;
+        c.strokeRect(-15, 6, 30, 12);
+        /* Drawer dividers */
+        c.beginPath();
+        c.moveTo(0, 6); c.lineTo(0, 18);
+        c.stroke();
+        /* Brass knobs */
+        c.fillStyle = '#ffd24a';
+        c.beginPath(); c.arc(-7.5, 12, 1.4, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(7.5, 12, 1.4, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#7a5a22';
+        c.beginPath(); c.arc(-7.5, 12, 0.6, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(7.5, 12, 0.6, 0, Math.PI * 2); c.fill();
+        /* Bottom feet */
+        c.fillStyle = '#3a2010';
+        c.fillRect(-18, 22, 5, 4);
+        c.fillRect(13, 22, 5, 4);
+        /* Side carving accents */
+        c.fillStyle = '#a36a3a';
+        c.fillRect(-18, -22, 1.5, 32);
+        c.fillRect(16.5, -22, 1.5, 32);
+        break;
+      }
     }
     c.restore();
   }
