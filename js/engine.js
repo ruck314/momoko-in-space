@@ -647,6 +647,7 @@
       case State.PLAYING:
         renderGame();
         if (Game.ui.drawQuestHUD) Game.ui.drawQuestHUD(ctx);
+        if (Game.ui.drawVersionStamp) Game.ui.drawVersionStamp(ctx);
         /* Dialogue is deferred to canvas-space after the restore so it
            can live in the bottom bezel instead of covering gameplay. */
         pendingDialogue = null;

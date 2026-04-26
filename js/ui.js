@@ -4449,5 +4449,20 @@
     startShopInterior: startShopInterior,
     drawCarryOverlay: drawCarryOverlay,
     drawQuestHUD: drawQuestHUD,
+    drawVersionStamp: drawVersionStamp,
   };
+
+  /* Reusable version stamp — same position + style as the title screen
+     so you can tell at a glance which build is running during gameplay. */
+  function drawVersionStamp(c) {
+    if (!Game.VERSION) return;
+    c.save();
+    c.fillStyle = '#4a6a8a';
+    c.font = '11px monospace';
+    c.textAlign = 'right';
+    c.textBaseline = 'alphabetic';
+    var stamp = Game.VERSION + (Game.BUILD ? ' (' + Game.BUILD + ')' : '');
+    c.fillText(stamp, W - 8, H - 8);
+    c.restore();
+  }
 })();
