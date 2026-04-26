@@ -590,55 +590,6 @@
     c.ellipse(sx + 23, sy + 23, 2.3, 1.9, -0.2, 0, Math.PI * 2);
     c.fill();
 
-    /* ---------- Magical-girl bubble wand ----------
-       Pink handle with a gold band + heart detail, then a gold shaft
-       tipped with a yellow star gem so it reads as a precure wand at
-       a glance rather than a weapon. Extends past the sprite's 28px
-       footprint which is fine – her hit-box is unchanged. */
-    /* Handle */
-    c.fillStyle = '#ff99cc';
-    c.beginPath();
-    c.ellipse(sx + 26.4, sy + 23, 2.2, 2.6, 0, 0, Math.PI * 2);
-    c.fill();
-    c.fillStyle = hexShade('#ff99cc', 30);
-    c.beginPath();
-    c.ellipse(sx + 26.4, sy + 24.5, 1.6, 0.9, 0, 0, Math.PI * 2);
-    c.fill();
-    /* Gold band around the grip */
-    c.fillStyle = '#ffd24a';
-    c.fillRect(sx + 27.7, sy + 21.8, 1.3, 2.4);
-    /* Tiny heart on handle */
-    c.fillStyle = '#ff3366';
-    var hhx = sx + 26.3, hhy = sy + 23.2;
-    c.beginPath();
-    c.arc(hhx - 0.45, hhy - 0.3, 0.45, 0, Math.PI * 2);
-    c.arc(hhx + 0.45, hhy - 0.3, 0.45, 0, Math.PI * 2);
-    c.moveTo(hhx - 0.85, hhy);
-    c.lineTo(hhx, hhy + 0.9);
-    c.lineTo(hhx + 0.85, hhy);
-    c.closePath();
-    c.fill();
-    /* Gold shaft */
-    c.strokeStyle = '#ffd24a';
-    c.lineWidth = 1.3;
-    c.lineCap = 'round';
-    c.beginPath();
-    c.moveTo(sx + 29, sy + 23);
-    c.lineTo(sx + 33.5, sy + 23);
-    c.stroke();
-    /* Star gem at the tip */
-    c.fillStyle = '#ffffff';
-    fillStar(c, sx + 35, sy + 23, 2.2);
-    c.fillStyle = '#ffe066';
-    fillStar(c, sx + 35, sy + 23, 1.6);
-    c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(sx + 35.4, sy + 22.3, 0.5, 0, Math.PI * 2); c.fill();
-    /* Sparkle dots around the tip */
-    c.fillStyle = 'rgba(255,255,255,0.8)';
-    c.beginPath(); c.arc(sx + 37.2, sy + 21.5, 0.4, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 37.5, sy + 24.4, 0.3, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 33.5, sy + 21.2, 0.3, 0, Math.PI * 2); c.fill();
-
     /* ---------- Held food (left hand) ---------- */
     if (food !== 'none') {
       var fx = sx + 4, fy = sy + 22;
@@ -1154,11 +1105,10 @@
   };
 
   /* ========== FISH (Enemy) ========== */
-  /* species: 'tropical' (default, fast-swimming reef fish), 'swordfish'
-     (long/fast with a bill), 'blowfish' (round/slow, spiky, 2 HP),
-     'clownfish' (orange with white stripes), 'angelfish' (tall/thin with
-     trailing fins). Appearance, size, hp, and speed vary per species so
-     levels can mix them for visual and gameplay variety. */
+  /* species: 'tropical' (default reef-fish-shaped friendly star), 'swordfish'
+     (long/fast variant), 'blowfish' (round/slow, 2 HP), 'clownfish' (orange
+     stripes). Appearance, size, hp, and speed vary per species so levels
+     can mix them for visual and gameplay variety. */
   function Fish(x, y, pattern, dir, species) {
     this.spawnX = x;
     this.spawnY = y;
@@ -1186,11 +1136,6 @@
       this.hp = 1;
       this.speed = 1.4;
       this.color = '#ff7a22';
-    } else if (this.species === 'angelfish') {
-      this.w = 22; this.h = 22;
-      this.hp = 1;
-      this.speed = 1.0;
-      this.color = '#f2d36b';
     } else {
       /* tropical */
       this.w = 24; this.h = 16;
@@ -1243,7 +1188,6 @@
     if (this.species === 'swordfish') drawSwordfish(c, sx, sy, this.color, this.timer);
     else if (this.species === 'blowfish') drawBlowfish(c, sx, sy, this.color, this.timer);
     else if (this.species === 'clownfish') drawClownfish(c, sx, sy, this.timer);
-    else if (this.species === 'angelfish') drawAngelfish(c, sx, sy, this.color, this.timer);
     else drawTropicalFish(c, sx, sy, this.color);
 
     c.restore();
@@ -1385,136 +1329,6 @@
     c.stroke();
   }
 
-  /* Angelfish → "Jellybot": jellyfish-style space alien with glowing tendrils. */
-  function drawAngelfish(c, sx, sy, color, timer) {
-    var cx = sx + 11, cy = sy + 9;
-    var sway = Math.sin(timer * 0.07);
-    /* Tendrils */
-    c.strokeStyle = '#ff88ee';
-    c.lineCap = 'round';
-    for (var t = 0; t < 5; t++) {
-      var tx = cx - 6 + t * 3;
-      c.lineWidth = 1.4;
-      c.beginPath();
-      c.moveTo(tx, cy + 4);
-      c.bezierCurveTo(
-        tx + sway * 1.5, cy + 10,
-        tx - sway * 1.5, cy + 16,
-        tx + sway * 2, cy + 22
-      );
-      c.stroke();
-    }
-    /* Bell — domed top */
-    c.fillStyle = '#cc66ff';
-    c.beginPath();
-    c.ellipse(cx, cy, 11, 8, 0, Math.PI, 0);
-    c.fill();
-    c.fillRect(cx - 11, cy, 22, 3);
-    /* Bell highlights */
-    c.fillStyle = '#ee99ff';
-    c.beginPath();
-    c.ellipse(cx - 3, cy - 3, 5, 3, 0, Math.PI, 0);
-    c.fill();
-    /* Glow dots along the rim */
-    c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(cx - 8, cy + 2, 0.9, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(cx,     cy + 3, 0.9, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(cx + 8, cy + 2, 0.9, 0, Math.PI * 2); c.fill();
-    /* Eyes */
-    c.fillStyle = '#220044';
-    c.beginPath(); c.arc(cx - 3, cy - 3, 1, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(cx + 3, cy - 3, 1, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(cx - 2.6, cy - 3.4, 0.4, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(cx + 3.4, cy - 3.4, 0.4, 0, Math.PI * 2); c.fill();
-  }
-
-  /* ========== OCTOPUS (Enemy) ========== */
-  function Octopus(x, y) {
-    this.spawnX = x;
-    this.spawnY = y;
-    this.x = x;
-    this.y = y;
-    this.w = 30;
-    this.h = 30;
-    this.hp = 2;
-    this.maxHp = 2;
-    this.speed = 0.5;
-    this.timer = Math.random() * 200;
-    this.active = true;
-    this.flash = 0;
-    this.tentaclePhase = 0;
-  }
-
-  Octopus.prototype.update = function () {
-    if (!this.active) return;
-    this.timer++;
-    this.tentaclePhase += 0.08;
-    if (this.flash > 0) this.flash--;
-
-    /* Hover movement */
-    this.x = this.spawnX + Math.sin(this.timer * 0.02) * 30;
-    this.y = this.spawnY + Math.cos(this.timer * 0.025) * 20;
-  };
-
-  /* Floating UFO — comfortable RPG behavior, sparkle makes it twinkle. */
-  Octopus.prototype.delight = function () {
-    this.flash = 8;
-    this.delighted = 60;
-    Game.audio.play('pickup');
-    return false;
-  };
-
-  Octopus.prototype.draw = function (c, camX, camY) {
-    if (!this.active) return;
-    if (this.flash > 0 && this.flash % 2 === 0) return;
-    var sx = Math.round(this.x - camX);
-    var sy = Math.round(this.y - camY);
-    var tp = this.tentaclePhase;
-
-    /* Tentacles – wavy bezier curves */
-    c.strokeStyle = '#9944cc';
-    c.lineCap = 'round';
-    for (var i = 0; i < 8; i++) {
-      var tx = sx + 3 + i * 3.5;
-      var wave1 = Math.sin(tp + i * 0.8) * 6;
-      var wave2 = Math.cos(tp + i * 0.5) * 4;
-      c.lineWidth = 3.5 - i * 0.2;
-      c.beginPath();
-      c.moveTo(tx, sy + 20);
-      c.bezierCurveTo(tx + wave1, sy + 26, tx - wave2, sy + 30, tx + wave1 * 0.5, sy + 34);
-      c.stroke();
-    }
-
-    /* Head */
-    c.fillStyle = '#aa55dd';
-    c.beginPath();
-    c.ellipse(sx + 15, sy + 12, 15, 12, 0, 0, Math.PI * 2);
-    c.fill();
-
-    /* Spots */
-    c.fillStyle = '#cc77ee';
-    c.beginPath(); c.arc(sx + 8, sy + 8, 3, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 20, sy + 10, 2, 0, Math.PI * 2); c.fill();
-
-    /* Eyes – round with pupils */
-    c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(sx + 10, sy + 13, 4, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 20, sy + 13, 4, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#220033';
-    c.beginPath(); c.arc(sx + 10, sy + 14, 2, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 20, sy + 14, 2, 0, Math.PI * 2); c.fill();
-
-    /* Angry eyebrows – arcs */
-    c.strokeStyle = '#220033';
-    c.lineWidth = 2;
-    c.beginPath();
-    c.arc(sx + 10, sy + 11, 5, Math.PI + 0.3, Math.PI * 2 - 0.3);
-    c.stroke();
-    c.beginPath();
-    c.arc(sx + 20, sy + 11, 5, Math.PI + 0.3, Math.PI * 2 - 0.3);
-    c.stroke();
-  };
   /* ========== OLIVER (NPC - Otter) ========== */
   function Oliver(x, y) {
     this.x = x;
@@ -2271,16 +2085,16 @@
   };
 
   /* ========== ROCKET SHIP (interactable — opens travel menu) ========== */
-  /* Towering rocket — drawn at 4× the original 90×150 sprite (so 360×600).
+  /* Towering rocket — drawn at 8× the original 90×150 sprite (so 720×1200).
      The visual base stays anchored to the original spawn position so the
      player can still walk up to it; the top now towers off-screen into the
      sky. Internally the draw routine still uses the original 90×150 layout
-     coordinates and a canvas transform handles the 4× scale. */
+     coordinates and a canvas transform handles the 8× scale. */
   function RocketShip(x, y) {
     this.x = x;
     this.y = y;
-    this.w = 360;
-    this.h = 600;
+    this.w = 720;
+    this.h = 1200;
     this.talking = false;
     this.timer = 0;
   }
@@ -2300,10 +2114,10 @@
     var ay = Math.round(this.y - camY);
     c.save();
     /* Translate so the visual base + horizontal center stay where they were
-       on the original 90×150 sprite, then scale 4×. The shift is
-       (-(4-1)*w/2, -(4-1)*h) = (-135, -450) for w=90, h=150. */
-    c.translate(ax - 135, ay - 450);
-    c.scale(4, 4);
+       on the original 90×150 sprite, then scale 8×. The shift is
+       (-(8-1)*w/2, -(8-1)*h) = (-315, -1050) for w=90, h=150. */
+    c.translate(ax - 315, ay - 1050);
+    c.scale(8, 8);
     var sx = 0;
     var sy = 0;
     var cx = sx + 45; /* horizontal centerline */
@@ -2562,6 +2376,107 @@
     c.fill();
   };
 
+  /* ========== CAFE DOOR (interactable — opens the comfy cafe cutscene) ==========
+     The Cosmic Café storefront is drawn by the cafeBuilding decoration; this
+     entity is a small clickable zone in front of the painted door so the
+     engine can detect player proximity and trigger the cutscene. We draw a
+     soft glow + bobbing heart prompt over the painted door so the player
+     can tell it's interactive. */
+  function CafeDoor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.w = 48;
+    this.h = 52;
+    this.talking = false;
+    this.timer = 0;
+  }
+
+  CafeDoor.prototype.update = function () { this.timer++; };
+  CafeDoor.prototype.interact = function () { /* handled by engine */ };
+
+  CafeDoor.prototype.draw = function (c, camX, camY) {
+    var sx = Math.round(this.x - camX);
+    var sy = Math.round(this.y - camY);
+    /* Soft warm glow at the doorway (subtle, since the building art owns
+       the door visuals). */
+    c.save();
+    c.globalAlpha = 0.4 + Math.sin(this.timer * 0.06) * 0.1;
+    var glow = c.createRadialGradient(sx + 24, sy + 30, 4, sx + 24, sy + 30, 36);
+    glow.addColorStop(0, 'rgba(255,210,138,0.75)');
+    glow.addColorStop(1, 'rgba(255,210,138,0)');
+    c.fillStyle = glow;
+    c.beginPath(); c.arc(sx + 24, sy + 30, 36, 0, Math.PI * 2); c.fill();
+    c.restore();
+    /* Bobbing heart prompt above */
+    var bob = Math.sin(this.timer * 0.08) * 2;
+    c.fillStyle = '#ff66cc';
+    var hcx = sx + 24, hcy = sy - 12 + bob;
+    c.beginPath();
+    c.arc(hcx - 2.4, hcy - 1, 2.4, 0, Math.PI * 2);
+    c.arc(hcx + 2.4, hcy - 1, 2.4, 0, Math.PI * 2);
+    c.moveTo(hcx - 4.4, hcy);
+    c.lineTo(hcx, hcy + 4.4);
+    c.lineTo(hcx + 4.4, hcy);
+    c.closePath();
+    c.fill();
+    /* Tiny "OPEN" tag */
+    c.fillStyle = '#ffd24a';
+    c.font = 'bold 8px monospace';
+    c.textAlign = 'center';
+    c.fillText('OPEN', sx + 24, sy - 22 + bob * 0.5);
+    c.textAlign = 'left';
+  };
+
+  /* ========== SHOP DOOR (Star Bazaar — opens the shop interior) ==========
+     Same pattern as CafeDoor: invisible-but-cued zone in front of the
+     painted shop double-doors. */
+  function ShopDoor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.w = 48;
+    this.h = 52;
+    this.talking = false;
+    this.timer = 0;
+  }
+  ShopDoor.prototype.update = function () { this.timer++; };
+  ShopDoor.prototype.interact = function () { /* handled by engine */ };
+  ShopDoor.prototype.draw = function (c, camX, camY) {
+    var sx = Math.round(this.x - camX);
+    var sy = Math.round(this.y - camY);
+    /* Soft warm glow at the doorway */
+    c.save();
+    c.globalAlpha = 0.4 + Math.sin(this.timer * 0.06) * 0.1;
+    var glow = c.createRadialGradient(sx + 24, sy + 30, 4, sx + 24, sy + 30, 36);
+    glow.addColorStop(0, 'rgba(255,232,140,0.75)');
+    glow.addColorStop(1, 'rgba(255,232,140,0)');
+    c.fillStyle = glow;
+    c.beginPath(); c.arc(sx + 24, sy + 30, 36, 0, Math.PI * 2); c.fill();
+    c.restore();
+    /* Bobbing star prompt above */
+    var bob = Math.sin(this.timer * 0.08) * 2;
+    c.fillStyle = '#ffd24a';
+    var hcx = sx + 24, hcy = sy - 12 + bob;
+    c.beginPath();
+    c.moveTo(hcx, hcy - 4);
+    c.lineTo(hcx + 1.4, hcy - 1.2);
+    c.lineTo(hcx + 4.4, hcy - 0.8);
+    c.lineTo(hcx + 2, hcy + 1.2);
+    c.lineTo(hcx + 3, hcy + 4);
+    c.lineTo(hcx, hcy + 2.4);
+    c.lineTo(hcx - 3, hcy + 4);
+    c.lineTo(hcx - 2, hcy + 1.2);
+    c.lineTo(hcx - 4.4, hcy - 0.8);
+    c.lineTo(hcx - 1.4, hcy - 1.2);
+    c.closePath();
+    c.fill();
+    /* Tiny "SHOP" tag */
+    c.fillStyle = '#44ffff';
+    c.font = 'bold 8px monospace';
+    c.textAlign = 'center';
+    c.fillText('SHOP', sx + 24, sy - 22 + bob * 0.5);
+    c.textAlign = 'left';
+  };
+
   /* ========== LILA (friendly neighbor NPC) ========== */
   function Lila(x, y) {
     this.x = x;
@@ -2809,7 +2724,6 @@
     Momoko: Momoko,
     Bubble: Bubble,
     Fish: Fish,
-    Octopus: Octopus,
     Oliver: Oliver,
     KittyCorn: KittyCorn,
     Bob: Bob,
@@ -2820,6 +2734,8 @@
     MoonMouse: MoonMouse,
     RocketShip: RocketShip,
     HouseDoor: HouseDoor,
+    CafeDoor: CafeDoor,
+    ShopDoor: ShopDoor,
     HeartPickup: HeartPickup,
     Particle: Particle,
     AmbientBubble: AmbientBubble,

@@ -11,10 +11,11 @@
    *   floorY            – y coord of planet/moon surface
    *   decorations[]     – visual-only elements { type, x, y, ... }
    *   spawns.player     – { x, y }
-   *   spawns.enemies[]  – { type: 'alien' | 'ufo', x, y, pattern?, dir?, species? }
+   *   spawns.enemies[]  – { type: 'alien', x, y, pattern?, dir?, species? }
    *   spawns.npcs[]     – { type: 'oliver' | 'kittycorn' | 'bob' | 'crab'
    *                              | 'lila' | 'migword' | 'rocket' | 'houseDoor'
-   *                              | 'moonMouse', x, y, houseId?, mouseId? }
+   *                              | 'cafeDoor' | 'shopDoor' | 'moonMouse',
+   *                              x, y, houseId?, mouseId? }
    *   spawns.pickups[]  – { type: 'heart' (star gem), x, y }
    *   bgTop/Mid/Bottom  – background gradient stops
    *   showRings         – true on hero's ringed home planet
@@ -71,10 +72,12 @@
       { type: 'cafeBuilding', x: 1500, y: 440 },
       { type: 'shopBuilding', x: 2700, y: 440 },
 
-      /* Holographic neon signs */
+      /* Holographic neon signs (cafe/shop signs are mounted on their
+         buildings via the rooftopSign decoration so they don't cover the
+         storefronts). */
       { type: 'neonSign', x: 480, y: 440, text: 'WELCOME', color: '#44ffff' },
-      { type: 'neonSign', x: 1500, y: 440, text: 'CAFE', color: '#ff66cc' },
-      { type: 'neonSign', x: 2700, y: 440, text: 'SHOP', color: '#ffd24a' },
+      { type: 'rooftopSign', x: 1500, y: 440, text: 'CAFE', color: '#ff66cc' },
+      { type: 'rooftopSign', x: 2700, y: 440, text: 'SHOP', color: '#ffd24a' },
       { type: 'neonSign', x: 3800, y: 440, text: 'LAUNCH', color: '#44ff88' },
 
       /* Tech panels embedded in the surface */
@@ -120,20 +123,16 @@
         { type: 'alien', x: 500, y: 200, pattern: 'sine', dir: -1, species: 'tropical' },
         { type: 'alien', x: 600, y: 300, pattern: 'sine', dir: -1, species: 'clownfish' },
         { type: 'alien', x: 820, y: 180, pattern: 'sine', dir: 1, species: 'clownfish' },
-        { type: 'alien', x: 1000, y: 250, pattern: 'linear', dir: -1, species: 'angelfish' },
+        { type: 'alien', x: 1000, y: 250, pattern: 'linear', dir: -1, species: 'tropical' },
         { type: 'alien', x: 1200, y: 150, pattern: 'sine', dir: -1, species: 'tropical' },
-        { type: 'alien', x: 1550, y: 280, pattern: 'sine', dir: 1, species: 'angelfish' },
-        { type: 'ufo',   x: 1680, y: 200, pattern: 'hover' },
+        { type: 'alien', x: 1550, y: 280, pattern: 'sine', dir: 1, species: 'clownfish' },
         { type: 'alien', x: 1900, y: 160, pattern: 'linear', dir: -1, species: 'swordfish' },
-        { type: 'ufo',   x: 2000, y: 320, pattern: 'hover' },
         { type: 'alien', x: 2350, y: 220, pattern: 'sine', dir: -1, species: 'blowfish' },
         { type: 'alien', x: 2550, y: 200, pattern: 'linear', dir: 1, species: 'swordfish' },
-        { type: 'ufo',   x: 2750, y: 240, pattern: 'hover' },
         { type: 'alien', x: 2950, y: 180, pattern: 'sine', dir: -1, species: 'clownfish' },
         { type: 'alien', x: 3100, y: 300, pattern: 'sine', dir: 1, species: 'blowfish' },
-        { type: 'ufo',   x: 3200, y: 200, pattern: 'hover' },
         { type: 'alien', x: 3500, y: 220, pattern: 'linear', dir: -1, species: 'swordfish' },
-        { type: 'alien', x: 3650, y: 280, pattern: 'sine', dir: 1, species: 'angelfish' },
+        { type: 'alien', x: 3650, y: 280, pattern: 'sine', dir: 1, species: 'tropical' },
       ],
 
       npcs: [
@@ -151,6 +150,10 @@
         { type: 'houseDoor', x: 256, y: 388, houseId: 'heroHome' },
         /* Lila's house door */
         { type: 'houseDoor', x: 996, y: 388, houseId: 'lilaHouse' },
+        /* Cosmic Café door — opens the cafe cutscene */
+        { type: 'cafeDoor', x: 1522, y: 388 },
+        /* Star Bazaar (shop) door — buy items + deliver to houses */
+        { type: 'shopDoor', x: 2730, y: 388 },
         /* Rocket pad */
         { type: 'rocket', x: 4470, y: 290 },
       ],
@@ -192,18 +195,66 @@
     bgUfo: { y: 80, speed: 0.5, dir: -1 },
 
     decorations: [
-      /* Cheese-hole craters on the surface */
+      /* Big cheese moon in the parallax sky */
+      { type: 'cheeseMoonBg', x: 800, y: 130, r: 110 },
+      { type: 'cheeseMoonBg', x: 2400, y: 100, r: 70 },
+
+      /* Cheese-hole craters on the surface (denser) */
       { type: 'cheeseCrater', x: 140, y: 432, r: 14 },
+      { type: 'cheeseCrater', x: 220, y: 434, r: 8 },
       { type: 'cheeseCrater', x: 340, y: 432, r: 10 },
+      { type: 'cheeseCrater', x: 440, y: 434, r: 7 },
       { type: 'cheeseCrater', x: 540, y: 432, r: 16 },
+      { type: 'cheeseCrater', x: 660, y: 434, r: 9 },
       { type: 'cheeseCrater', x: 760, y: 432, r: 12 },
+      { type: 'cheeseCrater', x: 870, y: 434, r: 7 },
       { type: 'cheeseCrater', x: 980, y: 432, r: 14 },
+      { type: 'cheeseCrater', x: 1120, y: 434, r: 8 },
       { type: 'cheeseCrater', x: 1240, y: 432, r: 18 },
+      { type: 'cheeseCrater', x: 1380, y: 434, r: 9 },
       { type: 'cheeseCrater', x: 1480, y: 432, r: 10 },
+      { type: 'cheeseCrater', x: 1580, y: 434, r: 6 },
       { type: 'cheeseCrater', x: 1700, y: 432, r: 16 },
+      { type: 'cheeseCrater', x: 1820, y: 434, r: 9 },
       { type: 'cheeseCrater', x: 1920, y: 432, r: 12 },
+      { type: 'cheeseCrater', x: 2080, y: 434, r: 7 },
       { type: 'cheeseCrater', x: 2180, y: 432, r: 14 },
+      { type: 'cheeseCrater', x: 2330, y: 434, r: 10 },
       { type: 'cheeseCrater', x: 2450, y: 432, r: 18 },
+      { type: 'cheeseCrater', x: 2700, y: 434, r: 9 },
+
+      /* Towering cheese wedges scattered around the moon */
+      { type: 'cheeseWedge', x: 240, y: 440, size: 1.0 },
+      { type: 'cheeseWedge', x: 720, y: 440, size: 1.4 },
+      { type: 'cheeseWedge', x: 1180, y: 440, size: 1.0 },
+      { type: 'cheeseWedge', x: 1820, y: 440, size: 1.6 },
+      { type: 'cheeseWedge', x: 2400, y: 440, size: 1.2 },
+      { type: 'cheeseWedge', x: 2780, y: 440, size: 1.0 },
+
+      /* Cheese-fondue palm trees */
+      { type: 'cheeseTree', x: 100, y: 440 },
+      { type: 'cheeseTree', x: 600, y: 440 },
+      { type: 'cheeseTree', x: 1300, y: 440 },
+      { type: 'cheeseTree', x: 2000, y: 440 },
+      { type: 'cheeseTree', x: 2550, y: 440 },
+
+      /* Cheese chunks on the ground */
+      { type: 'cheeseChunk', x: 460, y: 432 },
+      { type: 'cheeseChunk', x: 920, y: 432 },
+      { type: 'cheeseChunk', x: 1530, y: 432 },
+      { type: 'cheeseChunk', x: 2200, y: 432 },
+      { type: 'cheeseChunk', x: 2620, y: 432 },
+
+      /* Melted cheese drips off the surface ledge */
+      { type: 'cheeseDrip', x: 380, y: 440 },
+      { type: 'cheeseDrip', x: 1080, y: 440 },
+      { type: 'cheeseDrip', x: 1700, y: 440 },
+      { type: 'cheeseDrip', x: 2300, y: 440 },
+
+      /* Welcome / cottage signs */
+      { type: 'cheeseSign', x: 200, y: 440, text: 'CHEESE' },
+      { type: 'cheeseSign', x: 1500, y: 440, text: 'COTTAGE' },
+      { type: 'cheeseSign', x: 2750, y: 440, text: 'PAD' },
 
       /* MigWord's cheese cottage silhouette */
       { type: 'houseDecor', x: 1650, y: 440, color: '#ddbb44', roofColor: '#ff9933' },
@@ -232,10 +283,8 @@
       enemies: [
         /* A lighter sprinkling of friendly aliens */
         { type: 'alien', x: 420, y: 200, pattern: 'sine', dir: 1, species: 'tropical' },
-        { type: 'ufo',   x: 700, y: 160, pattern: 'hover' },
-        { type: 'alien', x: 1000, y: 240, pattern: 'linear', dir: -1, species: 'angelfish' },
+        { type: 'alien', x: 1000, y: 240, pattern: 'linear', dir: -1, species: 'tropical' },
         { type: 'alien', x: 1400, y: 180, pattern: 'sine', dir: 1, species: 'clownfish' },
-        { type: 'ufo',   x: 1900, y: 220, pattern: 'hover' },
         { type: 'alien', x: 2300, y: 200, pattern: 'sine', dir: -1, species: 'blowfish' },
       ],
 

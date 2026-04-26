@@ -2308,7 +2308,31 @@
   /* ============================================================ */
   /*                    HOUSE INTERIOR & FURNITURE                  */
   /* ============================================================ */
-  var FURNITURE_TYPES = ['bed', 'table', 'chair', 'lamp', 'rug', 'plant', 'painting', 'bookshelf'];
+  /* Furniture is organised into named categories. Each category has its
+     own row of buyable pieces in the palette so a player who wants only
+     plants doesn't have to scroll through unrelated items. */
+  var FURNITURE_CATEGORIES = [
+    { id: 'sleep',  items: ['bed'] },
+    { id: 'seat',   items: ['chair', 'sofa', 'stool'] },
+    { id: 'tables', items: ['table', 'coffeeTable', 'desk'] },
+    { id: 'light',  items: ['lamp', 'ceilingLight', 'candle'] },
+    { id: 'decor',  items: ['painting', 'rug', 'mirror'] },
+    { id: 'plants', items: ['plant', 'flowers'] },
+    { id: 'tech',   items: ['tv'] },
+    { id: 'store',  items: ['bookshelf', 'dresser'] },
+  ];
+  /* Flat list kept as the source-of-truth for the drawing switch below
+     and for back-compat with previously saved rooms. */
+  var FURNITURE_TYPES = (function () {
+    var t = [];
+    for (var i = 0; i < FURNITURE_CATEGORIES.length; i++) {
+      for (var j = 0; j < FURNITURE_CATEGORIES[i].items.length; j++) {
+        t.push(FURNITURE_CATEGORIES[i].items[j]);
+      }
+    }
+    return t;
+  })();
+  var selectedCategory = 0;
   var selectedFurniture = null;
   /* Each house keeps its own walked-around Momoko position so re-entering
      a house drops her where she was. */
@@ -2317,8 +2341,9 @@
   var housePlayerFrame = 0;
   var housePlayerFacing = 1;
   /* Bounds where Momoko is allowed to walk (matches the floor area, leaves
-     room for the palette strip up top and the exit-door at the right). */
-  var HOUSE_FLOOR_TOP = 150;
+     room for the palette strip up top and the exit-door at the right).
+     The top is pushed below the category tabs + palette row. */
+  var HOUSE_FLOOR_TOP = 196;
   var HOUSE_FLOOR_BOTTOM = H - 30;
   var HOUSE_FLOOR_LEFT = 20;
   var HOUSE_FLOOR_RIGHT = W - 110;
@@ -2393,26 +2418,70 @@
                 : 'houseMigword';
     c.fillText(Game.i18n.t(nameKey), 20, 40);
 
-    /* Furniture palette strip along the top */
-    c.fillStyle = 'rgba(10, 4, 32, 0.7)';
-    c.fillRect(0, 50, W, 90);
+    /* Palette strip (categories on top, items below) */
+    c.fillStyle = 'rgba(10, 4, 32, 0.78)';
+    c.fillRect(0, 50, W, 144);
     c.fillStyle = '#ffd24a';
     c.font = '12px monospace';
     c.textAlign = 'left';
     c.fillText(Game.i18n.t('furnitureTabTitle'), 10, 64);
-    for (var fi = 0; fi < FURNITURE_TYPES.length; fi++) {
-      var ft = FURNITURE_TYPES[fi];
+    /* Clear button (top-right of the palette strip) */
+    var clearW = 84, clearH = 22, clearX = W - clearW - 10, clearY = 54;
+    c.fillStyle = '#cc4466';
+    c.strokeStyle = '#ff99aa';
+    c.lineWidth = 1.5;
+    roundRect(c, clearX, clearY, clearW, clearH, 6);
+    c.fill();
+    c.stroke();
+    c.fillStyle = '#ffffff';
+    c.font = 'bold 11px monospace';
+    c.textAlign = 'center';
+    c.fillText(Game.i18n.t('furnitureClear'), clearX + clearW / 2, clearY + 14);
+    /* Category tabs */
+    var catTabW = Math.min(86, Math.floor((W - 20) / FURNITURE_CATEGORIES.length));
+    for (var ci = 0; ci < FURNITURE_CATEGORIES.length; ci++) {
+      var cat = FURNITURE_CATEGORIES[ci];
+      var cx = 10 + ci * catTabW;
+      var cy = 72;
+      var catHover = ci === selectedCategory;
+      c.fillStyle = catHover ? '#7744cc' : '#1a0a3a';
+      c.strokeStyle = catHover ? '#ffd24a' : '#44ffff';
+      c.lineWidth = catHover ? 2.5 : 1;
+      roundRect(c, cx, cy, catTabW - 4, 26, 6);
+      c.fill();
+      c.stroke();
+      c.fillStyle = catHover ? '#ffffff' : '#aaccee';
+      c.font = 'bold 11px monospace';
+      c.textAlign = 'center';
+      c.fillText(
+        Game.i18n.t('furnitureCat_' + cat.id),
+        cx + (catTabW - 4) / 2,
+        cy + 17
+      );
+    }
+    /* Selected category's items */
+    var items = FURNITURE_CATEGORIES[selectedCategory].items;
+    for (var fi = 0; fi < items.length; fi++) {
+      var ft = items[fi];
       var fx = 20 + fi * 78;
-      var fy = 72;
+      var fy = 108;
       var hover = selectedFurniture === ft;
       c.fillStyle = hover ? '#7744cc' : '#2a1458';
       c.strokeStyle = '#44ffff';
       c.lineWidth = hover ? 3 : 1;
-      roundRect(c, fx, fy, 68, 60, 8);
+      roundRect(c, fx, fy, 68, 76, 8);
       c.fill();
       c.stroke();
-      /* Bigger icon than before */
-      drawFurniture(c, ft, fx + 34, fy + 36, 'palette');
+      drawFurniture(c, ft, fx + 34, fy + 38, 'palette');
+      /* Tiny label under each piece */
+      c.fillStyle = '#ffe9c8';
+      c.font = '8px monospace';
+      c.textAlign = 'center';
+      c.fillText(
+        Game.i18n.t('furniture_' + ft) || ft,
+        fx + 34,
+        fy + 70
+      );
     }
 
     /* Placed furniture (drawn before the player so they layer below) */
@@ -2467,7 +2536,7 @@
     c.translate(x, y);
     c.scale(scale, scale);
     /* Soft contact shadow under most pieces (skip rug/painting). */
-    if (type !== 'rug' && type !== 'painting') {
+    if (type !== 'rug' && type !== 'painting' && type !== 'mirror' && type !== 'ceilingLight') {
       c.save();
       c.globalAlpha = 0.25;
       c.fillStyle = '#000';
@@ -3189,6 +3258,363 @@
         c.fillRect(16.5, -22, 1.5, 32);
         break;
       }
+      case 'sofa': {
+        /* Three-cushion velvet sofa */
+        c.fillStyle = '#3a2010';
+        c.fillRect(-26, 12, 4, 6);
+        c.fillRect(22, 12, 4, 6);
+        var sofaBack = c.createLinearGradient(0, -16, 0, 4);
+        sofaBack.addColorStop(0, '#cc4488');
+        sofaBack.addColorStop(1, '#7a2454');
+        c.fillStyle = sofaBack;
+        c.beginPath();
+        c.moveTo(-30, -2);
+        c.quadraticCurveTo(-30, -16, -22, -16);
+        c.lineTo(22, -16);
+        c.quadraticCurveTo(30, -16, 30, -2);
+        c.lineTo(30, 12);
+        c.lineTo(-30, 12);
+        c.closePath();
+        c.fill();
+        /* Three seat cushions */
+        var cs = c.createLinearGradient(0, -2, 0, 12);
+        cs.addColorStop(0, '#ff99cc');
+        cs.addColorStop(1, '#cc4488');
+        c.fillStyle = cs;
+        for (var sc = 0; sc < 3; sc++) {
+          c.fillRect(-26 + sc * 18, -2, 17, 14);
+          c.strokeStyle = '#7a2454';
+          c.lineWidth = 0.6;
+          c.strokeRect(-26 + sc * 18, -2, 17, 14);
+        }
+        /* Pillows */
+        c.fillStyle = '#ffe9c8';
+        c.fillRect(-22, -10, 6, 6);
+        c.fillStyle = '#88ddff';
+        c.fillRect(16, -10, 6, 6);
+        /* Tufts on the back */
+        c.fillStyle = '#5a1a3a';
+        for (var sft = 0; sft < 5; sft++) {
+          c.beginPath();
+          c.arc(-18 + sft * 9, -10, 0.7, 0, Math.PI * 2);
+          c.fill();
+        }
+        break;
+      }
+      case 'stool': {
+        /* Round padded stool with brass legs */
+        c.fillStyle = '#ffd24a';
+        c.fillRect(-9, 6, 2, 10);
+        c.fillRect(7, 6, 2, 10);
+        c.fillStyle = '#a86820';
+        c.fillRect(-9, 14, 2, 2);
+        c.fillRect(7, 14, 2, 2);
+        var sto = c.createRadialGradient(0, 2, 2, 0, 4, 14);
+        sto.addColorStop(0, '#ee99dd');
+        sto.addColorStop(1, '#aa3a88');
+        c.fillStyle = sto;
+        c.beginPath();
+        c.ellipse(0, 4, 12, 5, 0, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#552266';
+        c.beginPath(); c.arc(0, 4, 0.9, 0, Math.PI * 2); c.fill();
+        break;
+      }
+      case 'coffeeTable': {
+        /* Low rectangular coffee table with magazine + mug */
+        c.fillStyle = '#3a2010';
+        c.fillRect(-20, 10, 4, 6);
+        c.fillRect(16, 10, 4, 6);
+        var ctop = c.createLinearGradient(0, -2, 0, 10);
+        ctop.addColorStop(0, '#d8a064');
+        ctop.addColorStop(1, '#7a4818');
+        c.fillStyle = ctop;
+        c.fillRect(-22, -2, 44, 12);
+        c.fillStyle = '#5a2a14';
+        c.fillRect(-22, -2, 44, 1.5);
+        /* Magazine */
+        c.fillStyle = '#88ddff';
+        c.fillRect(-14, 0, 14, 8);
+        c.fillStyle = '#ff66cc';
+        c.fillRect(-13, 1, 6, 1);
+        c.fillRect(-13, 3, 8, 1);
+        /* Mug */
+        c.fillStyle = '#ffd24a';
+        c.fillRect(4, 1, 6, 6);
+        c.strokeStyle = '#ffd24a';
+        c.lineWidth = 1;
+        c.beginPath(); c.arc(11, 4, 2, -Math.PI / 2, Math.PI / 2); c.stroke();
+        break;
+      }
+      case 'desk': {
+        /* Writing desk with drawer + lamp + book */
+        c.fillStyle = '#3a2010';
+        c.fillRect(-22, -4, 44, 6);
+        c.fillRect(-22, 2, 6, 18);
+        c.fillRect(16, 2, 6, 18);
+        /* Drawer */
+        c.fillStyle = '#a36a3a';
+        c.fillRect(-15, 4, 30, 8);
+        c.strokeStyle = '#3a2010';
+        c.lineWidth = 0.6;
+        c.strokeRect(-15, 4, 30, 8);
+        c.fillStyle = '#ffd24a';
+        c.beginPath(); c.arc(0, 8, 1.4, 0, Math.PI * 2); c.fill();
+        /* Desk top highlight */
+        c.fillStyle = '#d8a064';
+        c.fillRect(-22, -4, 44, 1.4);
+        /* Tiny task lamp */
+        c.strokeStyle = '#ddddee';
+        c.lineWidth = 1.4;
+        c.beginPath();
+        c.moveTo(-12, -4);
+        c.lineTo(-12, -10);
+        c.lineTo(-7, -12);
+        c.stroke();
+        c.fillStyle = '#ffd24a';
+        c.beginPath();
+        c.moveTo(-9, -10);
+        c.lineTo(-3, -10);
+        c.lineTo(-5, -7);
+        c.lineTo(-7, -7);
+        c.closePath();
+        c.fill();
+        /* Stack of books */
+        c.fillStyle = '#cc4466';
+        c.fillRect(6, -8, 10, 2);
+        c.fillStyle = '#44aa66';
+        c.fillRect(7, -10, 9, 2);
+        c.fillStyle = '#4488cc';
+        c.fillRect(6, -12, 10, 2);
+        break;
+      }
+      case 'ceilingLight': {
+        /* Pendant chandelier — small but ornate */
+        c.strokeStyle = '#3a1a2a';
+        c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(0, -22);
+        c.lineTo(0, -12);
+        c.stroke();
+        c.fillStyle = '#ffd24a';
+        c.beginPath();
+        c.moveTo(-10, -12);
+        c.lineTo(10, -12);
+        c.lineTo(7, -2);
+        c.lineTo(-7, -2);
+        c.closePath();
+        c.fill();
+        c.fillStyle = '#ffe9a8';
+        c.beginPath(); c.arc(0, -2, 2.6, 0, Math.PI * 2); c.fill();
+        /* Glow */
+        c.save();
+        c.globalAlpha = 0.4;
+        var ceilG = c.createRadialGradient(0, -2, 2, 0, -2, 24);
+        ceilG.addColorStop(0, '#ffe98a');
+        ceilG.addColorStop(1, 'rgba(255,232,140,0)');
+        c.fillStyle = ceilG;
+        c.beginPath(); c.arc(0, -2, 24, 0, Math.PI * 2); c.fill();
+        c.restore();
+        /* Drop crystals */
+        c.fillStyle = '#cdeaf4';
+        c.beginPath(); c.arc(-6, 1, 1, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(0, 3, 1.2, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(6, 1, 1, 0, Math.PI * 2); c.fill();
+        break;
+      }
+      case 'candle': {
+        /* Three pillar candles in a brass tray */
+        c.fillStyle = '#3a2014';
+        c.beginPath();
+        c.ellipse(0, 14, 16, 3, 0, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#ffd24a';
+        c.fillRect(-14, 12, 28, 2);
+        var heights = [-6, -10, -4];
+        var cposx = [-9, 0, 9];
+        for (var ca = 0; ca < 3; ca++) {
+          c.fillStyle = '#ffe9c8';
+          c.fillRect(cposx[ca] - 2, heights[ca], 4, 12 - heights[ca]);
+          c.fillStyle = '#cc8855';
+          c.fillRect(cposx[ca] - 2, heights[ca], 4, 1.4);
+          c.strokeStyle = '#3a2010';
+          c.lineWidth = 0.5;
+          c.beginPath();
+          c.moveTo(cposx[ca], heights[ca] - 1);
+          c.lineTo(cposx[ca], heights[ca] - 4);
+          c.stroke();
+          c.fillStyle = '#ffaa44';
+          c.beginPath();
+          c.ellipse(cposx[ca], heights[ca] - 5, 1.2, 2.4, 0, 0, Math.PI * 2);
+          c.fill();
+          c.fillStyle = '#ffe98a';
+          c.beginPath();
+          c.ellipse(cposx[ca], heights[ca] - 5, 0.6, 1.6, 0, 0, Math.PI * 2);
+          c.fill();
+        }
+        break;
+      }
+      case 'mirror': {
+        /* Tall ornate oval mirror */
+        c.fillStyle = '#3a2a14';
+        c.beginPath();
+        c.ellipse(0, 0, 14, 22, 0, 0, Math.PI * 2);
+        c.fill();
+        var mirG = c.createLinearGradient(-12, -20, 12, 20);
+        mirG.addColorStop(0, '#ffe9a8');
+        mirG.addColorStop(0.5, '#c89a3a');
+        mirG.addColorStop(1, '#7a5a22');
+        c.fillStyle = mirG;
+        c.beginPath();
+        c.ellipse(0, 0, 13, 20, 0, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#cdeaf4';
+        c.beginPath();
+        c.ellipse(0, 0, 10, 17, 0, 0, Math.PI * 2);
+        c.fill();
+        /* Reflection sheen */
+        c.save();
+        c.globalAlpha = 0.5;
+        c.fillStyle = '#fff';
+        c.beginPath();
+        c.ellipse(-3, -8, 3, 8, -0.3, 0, Math.PI * 2);
+        c.fill();
+        c.restore();
+        /* Top crown ornament */
+        c.fillStyle = '#ffd24a';
+        c.beginPath(); c.arc(0, -22, 2, 0, Math.PI * 2); c.fill();
+        break;
+      }
+      case 'flowers': {
+        /* Bouquet vase with mixed wildflowers */
+        c.fillStyle = '#cdeaf4';
+        c.beginPath();
+        c.moveTo(-7, 6);
+        c.lineTo(7, 6);
+        c.lineTo(5, 18);
+        c.lineTo(-5, 18);
+        c.closePath();
+        c.fill();
+        c.fillStyle = '#88ccdd';
+        c.fillRect(-7, 6, 14, 1.4);
+        /* Stems */
+        c.strokeStyle = '#3a8a3a';
+        c.lineWidth = 0.6;
+        for (var ss = 0; ss < 5; ss++) {
+          c.beginPath();
+          c.moveTo(-4 + ss * 2, 6);
+          c.lineTo(-4 + ss * 2 + (ss - 2) * 0.6, -6 - ss * 0.5);
+          c.stroke();
+        }
+        /* Flower heads */
+        var flCol = ['#ff66cc', '#ffd24a', '#cc88ff', '#ff8866', '#88ddff'];
+        var flY = [-8, -10, -7, -11, -9];
+        for (var flI = 0; flI < 5; flI++) {
+          c.fillStyle = flCol[flI];
+          c.beginPath();
+          c.arc(-4 + flI * 2 + (flI - 2) * 0.6, flY[flI], 2.2, 0, Math.PI * 2);
+          c.fill();
+          c.fillStyle = '#ffd24a';
+          c.beginPath();
+          c.arc(-4 + flI * 2 + (flI - 2) * 0.6, flY[flI], 0.7, 0, Math.PI * 2);
+          c.fill();
+        }
+        /* Leaves */
+        c.fillStyle = '#3a8a3a';
+        c.beginPath();
+        c.ellipse(-3, 2, 3, 1.2, 0.4, 0, Math.PI * 2);
+        c.fill();
+        c.beginPath();
+        c.ellipse(3, 2, 3, 1.2, -0.4, 0, Math.PI * 2);
+        c.fill();
+        break;
+      }
+      case 'tv': {
+        /* Retro tube TV on a wooden stand */
+        c.fillStyle = '#3a2010';
+        c.fillRect(-20, 10, 40, 8);
+        c.fillStyle = '#5a3418';
+        c.fillRect(-20, 10, 40, 1.4);
+        c.fillStyle = '#3a2010';
+        c.fillRect(-16, 18, 4, 6);
+        c.fillRect(12, 18, 4, 6);
+        /* TV body */
+        c.fillStyle = '#3a3a4a';
+        c.fillRect(-18, -16, 36, 26);
+        /* Screen */
+        var scr = c.createLinearGradient(-14, -12, 14, 6);
+        scr.addColorStop(0, '#88aaff');
+        scr.addColorStop(0.5, '#cdeaf4');
+        scr.addColorStop(1, '#3a4488');
+        c.fillStyle = scr;
+        c.fillRect(-14, -12, 28, 18);
+        /* Static / scan lines */
+        c.strokeStyle = 'rgba(255,255,255,0.18)';
+        c.lineWidth = 0.4;
+        for (var sl = 0; sl < 4; sl++) {
+          c.beginPath();
+          c.moveTo(-14, -10 + sl * 4);
+          c.lineTo(14, -10 + sl * 4);
+          c.stroke();
+        }
+        /* Heart on the screen */
+        c.fillStyle = '#ff66cc';
+        c.beginPath();
+        c.arc(-2, -3, 1.4, 0, Math.PI * 2);
+        c.arc(2, -3, 1.4, 0, Math.PI * 2);
+        c.moveTo(-3.4, -2);
+        c.lineTo(0, 1.2);
+        c.lineTo(3.4, -2);
+        c.closePath();
+        c.fill();
+        /* Knobs and antenna */
+        c.fillStyle = '#7a8896';
+        c.beginPath(); c.arc(-15, 2, 1.4, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(-15, 6, 1.4, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = '#7a8896';
+        c.lineWidth = 0.8;
+        c.beginPath();
+        c.moveTo(-6, -16); c.lineTo(-12, -22);
+        c.moveTo(6, -16); c.lineTo(12, -22);
+        c.stroke();
+        c.fillStyle = '#ff66cc';
+        c.beginPath(); c.arc(-12, -22, 0.9, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(12, -22, 0.9, 0, Math.PI * 2); c.fill();
+        break;
+      }
+      case 'dresser': {
+        /* Mid-century three-drawer dresser with mirror */
+        var drG = c.createLinearGradient(-22, 0, 22, 0);
+        drG.addColorStop(0, '#5a3418');
+        drG.addColorStop(0.5, '#a36a3a');
+        drG.addColorStop(1, '#5a3418');
+        c.fillStyle = drG;
+        c.fillRect(-22, -10, 44, 30);
+        /* Top edge highlight */
+        c.fillStyle = '#d8a064';
+        c.fillRect(-22, -10, 44, 1.6);
+        /* Three drawers */
+        c.strokeStyle = '#3a2010';
+        c.lineWidth = 0.8;
+        for (var dr = 0; dr < 3; dr++) {
+          c.strokeRect(-20, -7 + dr * 9, 40, 8);
+          c.fillStyle = '#ffd24a';
+          c.beginPath(); c.arc(-8, -3 + dr * 9, 1.2, 0, Math.PI * 2); c.fill();
+          c.beginPath(); c.arc(8, -3 + dr * 9, 1.2, 0, Math.PI * 2); c.fill();
+        }
+        /* Vanity items on top */
+        c.fillStyle = '#ff99cc';
+        c.fillRect(-12, -14, 6, 4);
+        c.fillStyle = '#cc88ff';
+        c.beginPath(); c.arc(2, -12, 2.4, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#ffd24a';
+        c.beginPath(); c.arc(2, -13, 0.8, 0, Math.PI * 2); c.fill();
+        /* Feet */
+        c.fillStyle = '#3a2010';
+        c.fillRect(-22, 20, 4, 4);
+        c.fillRect(18, 20, 4, 4);
+        break;
+      }
     }
     c.restore();
   }
@@ -3200,12 +3626,35 @@
       selectedFurniture = null;
       return 'exit';
     }
-    /* Palette clicks */
-    for (var fi = 0; fi < FURNITURE_TYPES.length; fi++) {
+    /* Clear button — wipes all furniture for this house in one shot */
+    var clearW = 84, clearH = 22, clearX = W - clearW - 10, clearY = 54;
+    if (hitButton(mx, my, clearX, clearY, clearW, clearH)) {
+      var st0 = loadFurnitureState();
+      st0[houseId] = [];
+      saveFurnitureState(st0);
+      selectedFurniture = null;
+      Game.audio.play('select');
+      return null;
+    }
+    /* Category tabs */
+    var catTabW = Math.min(86, Math.floor((W - 20) / FURNITURE_CATEGORIES.length));
+    for (var ci = 0; ci < FURNITURE_CATEGORIES.length; ci++) {
+      var cx = 10 + ci * catTabW;
+      var cy = 72;
+      if (hitButton(mx, my, cx, cy, catTabW - 4, 26)) {
+        selectedCategory = ci;
+        selectedFurniture = null;
+        Game.audio.play('select');
+        return null;
+      }
+    }
+    /* Item palette clicks (selected category only) */
+    var palItems = FURNITURE_CATEGORIES[selectedCategory].items;
+    for (var fi = 0; fi < palItems.length; fi++) {
       var fx = 20 + fi * 78;
-      var fy = 72;
-      if (hitButton(mx, my, fx, fy, 68, 60)) {
-        selectedFurniture = FURNITURE_TYPES[fi];
+      var fy = 108;
+      if (hitButton(mx, my, fx, fy, 68, 76)) {
+        selectedFurniture = palItems[fi];
         Game.audio.play('pickup');
         return null;
       }
@@ -3249,6 +3698,686 @@
     if (pp.y < HOUSE_FLOOR_TOP)   pp.y = HOUSE_FLOOR_TOP;
     if (pp.y > HOUSE_FLOOR_BOTTOM) pp.y = HOUSE_FLOOR_BOTTOM;
     if (moved) housePlayerFrame = (housePlayerFrame + 1) % 24;
+  }
+
+  /* ============================================================ */
+  /*                  COSMIC CAFÉ — comfy cutscene                  */
+  /* ============================================================ */
+  /* Cozy cafe interior with warm lighting, a barista, patrons sipping
+     drinks, drifting steam and floating hearts. Momoko walks in and sits
+     at a table with her dog. Press the action button or tap the door to
+     leave. */
+  var cafeTimer = 0;
+  var cafePlayerX = 130;
+  var cafePlayerY = H - 80;
+  var cafeFacing = 1;
+  var cafeFrame = 0;
+  var cafeHearts = [];
+
+  function startCafeCutscene() {
+    cafeTimer = 0;
+    cafePlayerX = 130;
+    cafePlayerY = H - 80;
+    cafeFacing = 1;
+    cafeFrame = 0;
+    cafeHearts = [];
+    for (var hi = 0; hi < 6; hi++) {
+      cafeHearts.push({
+        x: 80 + Math.random() * (W - 160),
+        y: H - 40 - Math.random() * 200,
+        vy: -0.2 - Math.random() * 0.4,
+        phase: Math.random() * Math.PI * 2,
+        size: 2 + Math.random() * 2,
+      });
+    }
+  }
+
+  function updateCafeInterior(keys, jp) {
+    cafeTimer++;
+    /* Walk Momoko around the cafe floor */
+    var sp = 2.0;
+    var moved = false;
+    if (keys.left)  { cafePlayerX -= sp; cafeFacing = -1; moved = true; }
+    if (keys.right) { cafePlayerX += sp; cafeFacing = 1;  moved = true; }
+    if (keys.up)    { cafePlayerY -= sp; moved = true; }
+    if (keys.down)  { cafePlayerY += sp; moved = true; }
+    if (cafePlayerX < 30)       cafePlayerX = 30;
+    if (cafePlayerX > W - 110)  cafePlayerX = W - 110;
+    if (cafePlayerY < 200)      cafePlayerY = 200;
+    if (cafePlayerY > H - 30)   cafePlayerY = H - 30;
+    if (moved) cafeFrame = (cafeFrame + 1) % 24;
+    /* Hearts drift up and respawn at the bottom */
+    for (var hi = 0; hi < cafeHearts.length; hi++) {
+      var h = cafeHearts[hi];
+      h.y += h.vy;
+      h.phase += 0.04;
+      if (h.y < 60) {
+        h.y = H - 30;
+        h.x = 80 + Math.random() * (W - 160);
+      }
+    }
+    /* Action button or up at exit door leaves the cafe */
+    if (jp.action) return 'exit';
+    return null;
+  }
+
+  function drawCafeCounter(c) {
+    /* Long pink wood counter along the back wall */
+    c.fillStyle = '#5a2a44';
+    c.fillRect(40, 158, W - 240, 12);
+    var topG = c.createLinearGradient(0, 150, 0, 158);
+    topG.addColorStop(0, '#ffd9a8');
+    topG.addColorStop(1, '#cc7a44');
+    c.fillStyle = topG;
+    c.fillRect(40, 150, W - 240, 8);
+    /* Counter front */
+    var frG = c.createLinearGradient(0, 170, 0, 220);
+    frG.addColorStop(0, '#aa3a66');
+    frG.addColorStop(1, '#5a1a2a');
+    c.fillStyle = frG;
+    c.fillRect(40, 170, W - 240, 50);
+    /* Heart panels along the front */
+    for (var hp = 0; hp < 6; hp++) {
+      var hpx = 80 + hp * 80;
+      c.fillStyle = '#ff8ab0';
+      c.beginPath();
+      c.arc(hpx - 3, 188, 3, 0, Math.PI * 2);
+      c.arc(hpx + 3, 188, 3, 0, Math.PI * 2);
+      c.moveTo(hpx - 5.4, 190);
+      c.lineTo(hpx, 197);
+      c.lineTo(hpx + 5.4, 190);
+      c.closePath();
+      c.fill();
+    }
+    /* Espresso machine */
+    c.fillStyle = '#d8d8e0';
+    c.fillRect(70, 110, 64, 40);
+    c.fillStyle = '#7a8896';
+    c.fillRect(74, 144, 56, 6);
+    /* Espresso machine spouts */
+    c.fillStyle = '#3a2a44';
+    c.fillRect(86, 150, 4, 6);
+    c.fillRect(112, 150, 4, 6);
+    /* Indicator lights */
+    var indicator = (Math.sin(cafeTimer * 0.06) + 1) * 0.5;
+    c.fillStyle = '#ff6644';
+    c.globalAlpha = 0.5 + indicator * 0.5;
+    c.beginPath(); c.arc(82, 122, 2, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#44ff88';
+    c.beginPath(); c.arc(92, 122, 2, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1;
+    /* Steam puff */
+    c.save();
+    c.globalAlpha = 0.5 + Math.sin(cafeTimer * 0.05) * 0.2;
+    c.fillStyle = '#fff';
+    var stY = 100 - (cafeTimer * 0.5 % 30);
+    c.beginPath(); c.arc(102, stY, 4, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(106, stY - 6, 3, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(98, stY - 10, 2.5, 0, Math.PI * 2); c.fill();
+    c.restore();
+    /* Pastry display case */
+    c.fillStyle = '#ffe9c8';
+    c.fillRect(160, 122, 100, 30);
+    c.strokeStyle = '#5a2a44';
+    c.lineWidth = 1.5;
+    c.strokeRect(160, 122, 100, 30);
+    /* Cakes inside */
+    var cakeColors = ['#ff66cc', '#ffd24a', '#cc88ff', '#88ddff'];
+    for (var ck = 0; ck < 4; ck++) {
+      var ckx = 170 + ck * 22;
+      c.fillStyle = cakeColors[ck];
+      c.fillRect(ckx, 138, 14, 12);
+      c.fillStyle = '#ffffff';
+      c.fillRect(ckx, 136, 14, 2);
+      c.fillStyle = '#ff3366';
+      c.beginPath(); c.arc(ckx + 7, 134, 1.4, 0, Math.PI * 2); c.fill();
+    }
+    /* Cash register */
+    c.fillStyle = '#3a2a44';
+    c.fillRect(290, 124, 36, 26);
+    c.fillStyle = '#ffd24a';
+    c.fillRect(294, 128, 28, 6);
+    c.fillStyle = '#0a0420';
+    c.fillRect(294, 128, 28, 6);
+    c.fillStyle = '#44ffff';
+    c.font = '7px monospace';
+    c.textAlign = 'left';
+    c.fillText('$1.50', 296, 133);
+    /* Small chalkboard menu on the back wall */
+    c.fillStyle = '#1a2a1a';
+    c.fillRect(360, 70, 140, 64);
+    c.strokeStyle = '#88553a';
+    c.lineWidth = 3;
+    c.strokeRect(360, 70, 140, 64);
+    c.fillStyle = '#ffe9f4';
+    c.font = 'bold 10px monospace';
+    c.textAlign = 'center';
+    c.fillText('~ COSMIC MENU ~', 430, 84);
+    c.fillStyle = '#ffd24a';
+    c.font = '9px monospace';
+    c.textAlign = 'left';
+    c.fillText('star latte ........ $2', 370, 98);
+    c.fillText('moon mocha ..... $3', 370, 110);
+    c.fillText('comet cake ...... $1', 370, 122);
+  }
+
+  function drawCafePatron(c, x, y, color, hairColor, t, drink) {
+    /* Tiny seated patron in a chair, sipping a hot drink */
+    /* Chair back behind */
+    c.fillStyle = '#5a2a44';
+    c.fillRect(x - 12, y - 6, 24, 28);
+    c.fillStyle = '#aa3a66';
+    c.fillRect(x - 11, y - 5, 22, 18);
+    /* Body */
+    c.fillStyle = color;
+    c.fillRect(x - 8, y - 12, 16, 20);
+    /* Head */
+    c.fillStyle = '#ffccaa';
+    c.beginPath();
+    c.arc(x, y - 16, 7, 0, Math.PI * 2);
+    c.fill();
+    /* Hair */
+    c.fillStyle = hairColor;
+    c.beginPath();
+    c.arc(x, y - 19, 7, Math.PI, Math.PI * 2);
+    c.fill();
+    c.fillRect(x - 7, y - 19, 14, 4);
+    /* Eyes — closed (relaxed) every few seconds */
+    var blink = Math.sin(t * 0.04 + x * 0.01) > 0.95;
+    c.fillStyle = '#220033';
+    if (blink) {
+      c.fillRect(x - 3, y - 16, 2, 0.6);
+      c.fillRect(x + 1, y - 16, 2, 0.6);
+    } else {
+      c.beginPath(); c.arc(x - 2, y - 16, 0.8, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(x + 2, y - 16, 0.8, 0, Math.PI * 2); c.fill();
+    }
+    /* Smile */
+    c.strokeStyle = '#aa3a66';
+    c.lineWidth = 0.8;
+    c.beginPath();
+    c.arc(x, y - 13, 1.6, 0.2, Math.PI - 0.2);
+    c.stroke();
+    /* Drink */
+    if (drink) {
+      c.fillStyle = '#ffd24a';
+      c.fillRect(x - 2, y - 6, 4, 4);
+      c.fillStyle = '#3a2a44';
+      c.fillRect(x - 2, y - 6, 4, 1);
+      /* Steam */
+      c.save();
+      c.globalAlpha = 0.5 + Math.sin(t * 0.06 + x) * 0.2;
+      c.fillStyle = '#fff';
+      c.beginPath(); c.arc(x, y - 12 - (t * 0.4 + x * 0.1) % 6, 1.2, 0, Math.PI * 2); c.fill();
+      c.restore();
+    }
+  }
+
+  function drawCafeTable(c, x, y) {
+    /* Round bistro table */
+    c.fillStyle = '#3a2010';
+    c.beginPath();
+    c.ellipse(x, y, 20, 5, 0, 0, Math.PI * 2);
+    c.fill();
+    var topG = c.createRadialGradient(x - 4, y - 2, 2, x, y, 22);
+    topG.addColorStop(0, '#d8a064');
+    topG.addColorStop(1, '#7a4818');
+    c.fillStyle = topG;
+    c.beginPath();
+    c.ellipse(x, y - 2, 19, 4, 0, 0, Math.PI * 2);
+    c.fill();
+    /* Pedestal */
+    c.fillStyle = '#5a3418';
+    c.fillRect(x - 2, y, 4, 18);
+    /* Cross-base feet */
+    c.fillStyle = '#3a2010';
+    c.fillRect(x - 12, y + 18, 24, 3);
+    /* Mug + flower vase */
+    c.fillStyle = '#ff8ab0';
+    c.fillRect(x - 8, y - 8, 6, 6);
+    c.strokeStyle = '#ff8ab0';
+    c.lineWidth = 1;
+    c.beginPath();
+    c.arc(x - 1, y - 5, 2, -Math.PI / 2, Math.PI / 2);
+    c.stroke();
+    /* Vase + flower */
+    c.fillStyle = '#cc88ff';
+    c.beginPath();
+    c.moveTo(x + 4, y - 4);
+    c.lineTo(x + 9, y - 4);
+    c.lineTo(x + 8, y - 10);
+    c.lineTo(x + 5, y - 10);
+    c.closePath();
+    c.fill();
+    c.fillStyle = '#ff66cc';
+    c.beginPath(); c.arc(x + 6.5, y - 12, 2, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#ffd24a';
+    c.beginPath(); c.arc(x + 6.5, y - 12, 0.8, 0, Math.PI * 2); c.fill();
+  }
+
+  function drawCafeInterior(c) {
+    cafeTimer++;
+    /* Warm interior gradient — sunset peach into cream */
+    var bg = c.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#5a1a3a');
+    bg.addColorStop(0.55, '#a83a5a');
+    bg.addColorStop(1, '#3a1024');
+    c.fillStyle = bg;
+    c.fillRect(0, 0, W, H);
+    /* Wallpaper pattern — repeating tiny stars */
+    c.save();
+    c.globalAlpha = 0.18;
+    c.fillStyle = '#ffd9a8';
+    for (var ws = 0; ws < 60; ws++) {
+      var wsx = (ws * 71) % W;
+      var wsy = (ws * 43) % (H - 200) + 20;
+      c.beginPath();
+      c.arc(wsx, wsy, 1.4, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.restore();
+    /* Ceiling beam */
+    c.fillStyle = '#3a1a2a';
+    c.fillRect(0, 50, W, 14);
+    c.fillStyle = '#5a2a44';
+    c.fillRect(0, 60, W, 4);
+    /* Hanging pendant lamps with warm glow */
+    for (var lp = 0; lp < 5; lp++) {
+      var lpx = 100 + lp * 140;
+      c.strokeStyle = '#3a1a2a';
+      c.lineWidth = 1.5;
+      c.beginPath();
+      c.moveTo(lpx, 64);
+      c.lineTo(lpx, 86);
+      c.stroke();
+      c.fillStyle = '#ffd24a';
+      c.beginPath();
+      c.moveTo(lpx - 9, 86);
+      c.lineTo(lpx + 9, 86);
+      c.lineTo(lpx + 6, 96);
+      c.lineTo(lpx - 6, 96);
+      c.closePath();
+      c.fill();
+      c.save();
+      c.globalAlpha = 0.4 + Math.sin(cafeTimer * 0.04 + lp) * 0.05;
+      var glow = c.createRadialGradient(lpx, 96, 4, lpx, 96, 60);
+      glow.addColorStop(0, 'rgba(255,210,138,0.7)');
+      glow.addColorStop(1, 'rgba(255,210,138,0)');
+      c.fillStyle = glow;
+      c.beginPath(); c.arc(lpx, 96, 60, 0, Math.PI * 2); c.fill();
+      c.restore();
+    }
+    /* Floor — warm wood planks */
+    var fl = c.createLinearGradient(0, 220, 0, H);
+    fl.addColorStop(0, '#7a4818');
+    fl.addColorStop(1, '#3a2010');
+    c.fillStyle = fl;
+    c.fillRect(0, 220, W, H - 220);
+    c.strokeStyle = 'rgba(0,0,0,0.3)';
+    c.lineWidth = 1;
+    for (var pl = 0; pl < 7; pl++) {
+      c.beginPath();
+      c.moveTo(0, 240 + pl * 24);
+      c.lineTo(W, 240 + pl * 24);
+      c.stroke();
+    }
+    /* Counter at the back */
+    drawCafeCounter(c);
+    /* Barista behind the counter */
+    drawCafePatron(c, 220, 138, '#ee99dd', '#cc4488', cafeTimer, false);
+    /* Small "Welcome to the Cosmic Café!" sign */
+    c.fillStyle = '#ffe9c8';
+    c.font = 'bold 22px "Brush Script MT", cursive';
+    c.textAlign = 'center';
+    c.fillText('~ Cosmic Café ~', W / 2, 40);
+    c.font = '12px monospace';
+    c.fillStyle = '#ffd9a8';
+    c.fillText('a cozy spot among the stars', W / 2, 56);
+    /* Tables with patrons */
+    drawCafeTable(c, 130, 320);
+    drawCafePatron(c, 130, 320 - 6, '#88ddff', '#3a4488', cafeTimer + 30, true);
+    drawCafeTable(c, 360, 350);
+    drawCafePatron(c, 350, 350 - 6, '#ffd24a', '#7a4418', cafeTimer + 70, true);
+    drawCafePatron(c, 372, 350 - 6, '#cc88ff', '#552288', cafeTimer + 110, true);
+    drawCafeTable(c, 560, 320);
+    drawCafePatron(c, 560, 320 - 6, '#88ee88', '#3a7a3a', cafeTimer + 50, true);
+    /* Window with stars (right side) */
+    c.fillStyle = '#0a0420';
+    c.fillRect(W - 200, 90, 130, 90);
+    c.strokeStyle = '#ffd24a';
+    c.lineWidth = 3;
+    c.strokeRect(W - 200, 90, 130, 90);
+    /* Cross frame */
+    c.beginPath();
+    c.moveTo(W - 135, 90); c.lineTo(W - 135, 180); c.stroke();
+    c.beginPath();
+    c.moveTo(W - 200, 135); c.lineTo(W - 70, 135); c.stroke();
+    /* Stars inside the window */
+    c.fillStyle = '#fff';
+    for (var sw = 0; sw < 14; sw++) {
+      var swx = (W - 196) + ((sw * 13) % 122);
+      var swy = 96 + ((sw * 27) % 78);
+      c.globalAlpha = 0.5 + ((sw * 17) % 50) / 100;
+      c.beginPath();
+      c.arc(swx, swy, 0.8 + (sw % 3) * 0.4, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+    /* Tiny ringed planet visible */
+    c.fillStyle = '#ff66cc';
+    c.beginPath(); c.arc(W - 120, 145, 7, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#ffd24a';
+    c.lineWidth = 1.2;
+    c.beginPath();
+    c.ellipse(W - 120, 145, 12, 3, -0.3, 0, Math.PI * 2);
+    c.stroke();
+    /* Floating hearts (atmosphere) */
+    for (var hi = 0; hi < cafeHearts.length; hi++) {
+      var h = cafeHearts[hi];
+      var sway = Math.sin(h.phase) * 8;
+      var hx = h.x + sway;
+      c.save();
+      c.globalAlpha = 0.55;
+      c.fillStyle = '#ff99cc';
+      c.beginPath();
+      c.arc(hx - h.size, h.y - h.size * 0.5, h.size, 0, Math.PI * 2);
+      c.arc(hx + h.size, h.y - h.size * 0.5, h.size, 0, Math.PI * 2);
+      c.moveTo(hx - h.size * 1.8, h.y);
+      c.lineTo(hx, h.y + h.size * 1.8);
+      c.lineTo(hx + h.size * 1.8, h.y);
+      c.closePath();
+      c.fill();
+      c.restore();
+    }
+    /* Momoko walking around the cafe */
+    if (Game.entities && Game.entities.drawMomokoSprite) {
+      c.save();
+      var psx = cafePlayerX - 14, psy = cafePlayerY - 30;
+      if (cafeFacing === -1) {
+        c.translate(psx + 14, 0);
+        c.scale(-1, 1);
+        psx = -14;
+      }
+      Game.entities.drawMomokoSprite(c, psx, psy, Game.customization, cafeFrame);
+      c.restore();
+    }
+    /* Exit door (right side) */
+    c.fillStyle = '#3a2412';
+    c.fillRect(W - 84, H - 140, 64, 110);
+    c.fillStyle = '#aa5a32';
+    c.fillRect(W - 80, H - 136, 56, 102);
+    c.strokeStyle = '#5a3a22';
+    c.lineWidth = 1;
+    c.beginPath(); c.moveTo(W - 52, H - 132); c.lineTo(W - 52, H - 36); c.stroke();
+    c.fillStyle = '#ffd24a';
+    c.beginPath();
+    c.arc(W - 36, H - 86, 3, 0, Math.PI * 2);
+    c.fill();
+    /* "Outside" sign */
+    c.fillStyle = '#44ffff';
+    c.fillRect(W - 92, H - 152, 80, 16);
+    c.fillStyle = '#0a0420';
+    c.font = 'bold 11px monospace';
+    c.textAlign = 'center';
+    c.fillText(Game.i18n.t('furnitureExit'), W - 52, H - 141);
+    /* Hint at the bottom */
+    c.fillStyle = 'rgba(10, 4, 32, 0.7)';
+    c.fillRect(0, H - 24, W - 100, 24);
+    c.fillStyle = '#ffe9c8';
+    c.font = 'bold 11px monospace';
+    c.textAlign = 'center';
+    c.fillText(Game.i18n.t('cafeHint'), (W - 100) / 2, H - 8);
+  }
+
+  function handleCafeInteriorClick(mx, my) {
+    /* Exit door */
+    if (hitButton(mx, my, W - 92, H - 152, 80, 122)) {
+      Game.audio.play('select');
+      return 'exit';
+    }
+    return null;
+  }
+
+  /* ============================================================ */
+  /*                  STAR BAZAAR — shop interior                   */
+  /* ============================================================ */
+  /* The shop renders a grid of buyable furniture (one of each type from
+     FURNITURE_TYPES). Tapping/clicking a tile adds it to Game.shop.cart;
+     the cart is shown in the corner. The hero exits via the right-side
+     door, then walks to a houseDoor — entering deposits the cart. */
+  var shopTimer = 0;
+  var shopFlashItem = null;
+  var shopFlashTimer = 0;
+
+  function startShopInterior() {
+    shopTimer = 0;
+    shopFlashItem = null;
+    shopFlashTimer = 0;
+  }
+
+  function updateShopInterior(keys, jp) {
+    shopTimer++;
+    if (shopFlashTimer > 0) shopFlashTimer--;
+    if (jp.action) return 'exit';
+    return null;
+  }
+
+  function shopGrid() {
+    /* Layout: 9 columns × 2 rows so all 18 furniture types fit between
+       the banner (y < 70) and the lower cart/delivery panels (y > 370). */
+    var cols = 9;
+    var cellW = 84, cellH = 130;
+    var startX = (W - cols * cellW) / 2;
+    var startY = 90;
+    var positions = [];
+    for (var i = 0; i < FURNITURE_TYPES.length; i++) {
+      var col = i % cols;
+      var row = Math.floor(i / cols);
+      positions.push({
+        type: FURNITURE_TYPES[i],
+        x: startX + col * cellW,
+        y: startY + row * cellH,
+        w: cellW,
+        h: cellH,
+      });
+    }
+    return positions;
+  }
+
+  function drawShopInterior(c) {
+    shopTimer++;
+    /* Warm gold/teal interior */
+    var bg = c.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#1a3a4a');
+    bg.addColorStop(0.55, '#3aa8c4');
+    bg.addColorStop(1, '#0a1a22');
+    c.fillStyle = bg;
+    c.fillRect(0, 0, W, H);
+    /* Star wallpaper */
+    c.save();
+    c.globalAlpha = 0.18;
+    c.fillStyle = '#ffd24a';
+    for (var ws = 0; ws < 50; ws++) {
+      var wx = (ws * 67) % W;
+      var wy = (ws * 41) % H;
+      c.beginPath(); c.arc(wx, wy, 1.2, 0, Math.PI * 2); c.fill();
+    }
+    c.restore();
+    /* Banner */
+    c.fillStyle = '#0a1a22';
+    c.fillRect(0, 0, W, 70);
+    c.strokeStyle = '#ffd24a';
+    c.lineWidth = 3;
+    c.strokeRect(2, 2, W - 4, 66);
+    c.fillStyle = '#ffd24a';
+    c.font = 'bold 26px monospace';
+    c.textAlign = 'center';
+    c.fillText('★ STAR BAZAAR ★', W / 2, 30);
+    c.fillStyle = '#cdeaf4';
+    c.font = '12px monospace';
+    c.fillText(Game.i18n.t('shopHint'), W / 2, 52);
+    /* Item grid */
+    var grid = shopGrid();
+    for (var gi = 0; gi < grid.length; gi++) {
+      var g = grid[gi];
+      /* Tile */
+      c.fillStyle = '#247088';
+      c.strokeStyle = '#cdeaf4';
+      c.lineWidth = 1.5;
+      roundRect(c, g.x + 4, g.y + 4, g.w - 8, g.h - 8, 8);
+      c.fill();
+      c.stroke();
+      /* Furniture preview — drawn at palette scale */
+      drawFurniture(c, g.type, g.x + g.w / 2, g.y + g.h / 2 + 4, 'palette');
+      /* Label */
+      c.fillStyle = '#ffe9c8';
+      c.font = '9px monospace';
+      c.textAlign = 'center';
+      c.fillText(
+        Game.i18n.t('furniture_' + g.type) || g.type,
+        g.x + g.w / 2,
+        g.y + g.h - 8
+      );
+      /* Flash highlight on the just-bought item */
+      if (shopFlashItem === g.type && shopFlashTimer > 0) {
+        c.save();
+        c.globalAlpha = shopFlashTimer / 20;
+        c.strokeStyle = '#ffd24a';
+        c.lineWidth = 4;
+        roundRect(c, g.x + 2, g.y + 2, g.w - 4, g.h - 4, 8);
+        c.stroke();
+        c.restore();
+      }
+    }
+    /* Cart panel (lower-left) */
+    var cartX = 12, cartY = H - 110, cartW = 220, cartH = 96;
+    c.fillStyle = 'rgba(10, 26, 34, 0.85)';
+    c.strokeStyle = '#ffd24a';
+    c.lineWidth = 2;
+    roundRect(c, cartX, cartY, cartW, cartH, 10);
+    c.fill();
+    c.stroke();
+    c.fillStyle = '#ffd24a';
+    c.font = 'bold 12px monospace';
+    c.textAlign = 'left';
+    c.fillText(
+      Game.i18n.t('shopCart') + ' ' +
+        (Game.shop ? Game.shop.cart.length : 0) + '/' +
+        (Game.shop ? Game.shop.MAX : 4),
+      cartX + 10,
+      cartY + 18
+    );
+    /* Cart icons */
+    var cart = (Game.shop && Game.shop.cart) || [];
+    for (var ci = 0; ci < cart.length; ci++) {
+      var cixx = cartX + 24 + ci * 48;
+      var ciyy = cartY + 60;
+      c.fillStyle = '#1a3a4a';
+      c.beginPath(); c.arc(cixx, ciyy, 20, 0, Math.PI * 2); c.fill();
+      drawFurniture(c, cart[ci].type, cixx, ciyy + 4, 'palette');
+    }
+    if (cart.length === 0) {
+      c.fillStyle = '#88aabb';
+      c.font = '11px monospace';
+      c.textAlign = 'left';
+      c.fillText(Game.i18n.t('shopCartEmpty'), cartX + 10, cartY + 56);
+    }
+    /* Delivery hint (lower-right) */
+    var hintX = W - 280, hintY = H - 110;
+    c.fillStyle = 'rgba(10, 26, 34, 0.85)';
+    c.strokeStyle = '#ff66cc';
+    c.lineWidth = 2;
+    roundRect(c, hintX, hintY, 270, 68, 10);
+    c.fill();
+    c.stroke();
+    c.fillStyle = '#ff99cc';
+    c.font = 'bold 12px monospace';
+    c.textAlign = 'left';
+    c.fillText(Game.i18n.t('shopDeliveryTitle'), hintX + 12, hintY + 18);
+    c.fillStyle = '#ffe9c8';
+    c.font = '11px monospace';
+    var lines = (Game.i18n.t('shopDeliveryDesc') || '').split('\n');
+    for (var ln = 0; ln < lines.length; ln++) {
+      c.fillText(lines[ln], hintX + 12, hintY + 36 + ln * 14);
+    }
+    /* Exit door */
+    c.fillStyle = '#3a2412';
+    c.fillRect(W - 84, H - 220, 64, 110);
+    c.fillStyle = '#aa5a32';
+    c.fillRect(W - 80, H - 216, 56, 102);
+    c.strokeStyle = '#5a3a22';
+    c.lineWidth = 1;
+    c.beginPath(); c.moveTo(W - 52, H - 212); c.lineTo(W - 52, H - 116); c.stroke();
+    c.fillStyle = '#ffd24a';
+    c.beginPath();
+    c.arc(W - 36, H - 166, 3, 0, Math.PI * 2);
+    c.fill();
+    /* "Outside" sign */
+    c.fillStyle = '#44ffff';
+    c.fillRect(W - 92, H - 232, 80, 16);
+    c.fillStyle = '#0a0420';
+    c.font = 'bold 11px monospace';
+    c.textAlign = 'center';
+    c.fillText(Game.i18n.t('furnitureExit'), W - 52, H - 221);
+  }
+
+  function handleShopInteriorClick(mx, my) {
+    /* Exit door */
+    if (hitButton(mx, my, W - 92, H - 232, 80, 122)) {
+      Game.audio.play('select');
+      return 'exit';
+    }
+    /* Item grid */
+    var grid = shopGrid();
+    for (var gi = 0; gi < grid.length; gi++) {
+      var g = grid[gi];
+      if (hitButton(mx, my, g.x + 4, g.y + 4, g.w - 8, g.h - 8)) {
+        if (Game.shop && Game.shop.cart.length < Game.shop.MAX) {
+          Game.shop.cart.push({ type: g.type });
+          shopFlashItem = g.type;
+          shopFlashTimer = 20;
+          Game.audio.play('pickup');
+        } else {
+          Game.audio.play('select');
+        }
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /* Carry-overlay – bobbing icons of items in the cart, hovering above
+     Momoko's head while she walks the world map. */
+  function drawCarryOverlay(c, player, camX, camY) {
+    if (!Game.shop || !Game.shop.cart || Game.shop.cart.length === 0) return;
+    var bx = Math.round(player.x - camX) + (player.w || 28) / 2;
+    var by = Math.round(player.y - camY) - 18;
+    var t = Date.now() * 0.005;
+    var bob = Math.sin(t * 2) * 2;
+    /* Pillow under the items */
+    c.save();
+    c.globalAlpha = 0.55;
+    c.fillStyle = '#000';
+    c.beginPath();
+    c.ellipse(bx, by + 14, 22, 4, 0, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+    /* Stack items */
+    var items = Game.shop.cart;
+    for (var i = 0; i < items.length; i++) {
+      var ix = bx + (i - (items.length - 1) / 2) * 22;
+      var iy = by + bob - i * 1.5;
+      /* Halo behind each item */
+      c.save();
+      c.globalAlpha = 0.55;
+      var halo = c.createRadialGradient(ix, iy, 2, ix, iy, 18);
+      halo.addColorStop(0, 'rgba(255,232,140,0.8)');
+      halo.addColorStop(1, 'rgba(255,232,140,0)');
+      c.fillStyle = halo;
+      c.beginPath(); c.arc(ix, iy, 18, 0, Math.PI * 2); c.fill();
+      c.restore();
+      drawFurniture(c, items[i].type, ix, iy, 'palette');
+    }
   }
 
   /* ============================================================ */
@@ -3310,6 +4439,15 @@
     drawHouseInterior: drawHouseInterior,
     handleHouseInteriorClick: handleHouseInteriorClick,
     updateHouseInterior: updateHouseInterior,
+    drawCafeInterior: drawCafeInterior,
+    handleCafeInteriorClick: handleCafeInteriorClick,
+    updateCafeInterior: updateCafeInterior,
+    startCafeCutscene: startCafeCutscene,
+    drawShopInterior: drawShopInterior,
+    handleShopInteriorClick: handleShopInteriorClick,
+    updateShopInterior: updateShopInterior,
+    startShopInterior: startShopInterior,
+    drawCarryOverlay: drawCarryOverlay,
     drawQuestHUD: drawQuestHUD,
   };
 })();

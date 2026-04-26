@@ -45,6 +45,8 @@
     TRAVEL_MENU: 'travelMenu',
     ROCKET_ANIM: 'rocketAnim',
     HOUSE_INTERIOR: 'houseInterior',
+    CAFE_INTERIOR: 'cafeInterior',
+    SHOP_INTERIOR: 'shopInterior',
   };
   var state = State.TITLE;
   var prevState = null;
@@ -70,6 +72,14 @@
     lila: 'notStarted',      /* 'notStarted' | 'inProgress' | 'done' */
     migword: 'notStarted',
     progress: { gems: 0, cheese: 0 },
+  };
+
+  /* Shop delivery state – items the hero has purchased and is carrying.
+     Each entry: { type: <furniture-type> }. Cleared (deposited) when
+     she enters a houseDoor. */
+  Game.shop = {
+    cart: [],
+    MAX: 4,
   };
 
   /* ---- Camera ---- */
@@ -205,14 +215,12 @@
     var sp = level.spawns.player;
     player = new Game.entities.Momoko(sp.x, sp.y);
 
-    /* Enemies – aliens & UFOs (reusing Fish / Octopus classes for now). */
+    /* Enemies – friendly aliens (Fish class). */
     enemies = [];
     for (var i = 0; i < level.spawns.enemies.length; i++) {
       var e = level.spawns.enemies[i];
       if (e.type === 'fish' || e.type === 'alien') {
         enemies.push(new Game.entities.Fish(e.x, e.y, e.pattern, e.dir, e.species));
-      } else if (e.type === 'octopus' || e.type === 'ufo') {
-        enemies.push(new Game.entities.Octopus(e.x, e.y));
       }
     }
 
@@ -231,6 +239,8 @@
       else if (nd.type === 'moonMouse' && Game.entities.MoonMouse) npcEntity = new Game.entities.MoonMouse(nd.x, nd.y, nd.mouseId, nd.color);
       else if (nd.type === 'rocket' && Game.entities.RocketShip) npcEntity = new Game.entities.RocketShip(nd.x, nd.y);
       else if (nd.type === 'houseDoor' && Game.entities.HouseDoor) npcEntity = new Game.entities.HouseDoor(nd.x, nd.y, nd.houseId);
+      else if (nd.type === 'cafeDoor' && Game.entities.CafeDoor) npcEntity = new Game.entities.CafeDoor(nd.x, nd.y);
+      else if (nd.type === 'shopDoor' && Game.entities.ShopDoor) npcEntity = new Game.entities.ShopDoor(nd.x, nd.y);
       if (npcEntity) npcs.push({ entity: npcEntity, type: nd.type, data: nd });
     }
 
@@ -478,7 +488,23 @@
               }
             } else if (npcType === 'houseDoor') {
               if (jp.up || keys.up) {
-                enterHouse(npcData.houseId || 'heroHome');
+                var hid = npcData.houseId || 'heroHome';
+                /* Deliver any carried shop items into this house's
+                   furniture state, scattered across the floor. */
+                if (Game.shop && Game.shop.cart && Game.shop.cart.length > 0) {
+                  depositCartIntoHouse(hid);
+                }
+                enterHouse(hid);
+                npcCooldowns[npcType] = 300;
+              }
+            } else if (npcType === 'cafeDoor') {
+              if (jp.up || keys.up) {
+                enterCafe();
+                npcCooldowns[npcType] = 300;
+              }
+            } else if (npcType === 'shopDoor') {
+              if (jp.up || keys.up) {
+                enterShop();
                 npcCooldowns[npcType] = 300;
               }
             } else if (npcType === 'lila') {
@@ -575,6 +601,16 @@
         if (jp.pause) { exitHouse(); }
         if (Game.ui.updateHouseInterior) Game.ui.updateHouseInterior(keys, jp, currentHouseId);
         break;
+
+      case State.CAFE_INTERIOR:
+        if (jp.pause) { exitCafe(); }
+        if (Game.ui.updateCafeInterior) Game.ui.updateCafeInterior(keys, jp);
+        break;
+
+      case State.SHOP_INTERIOR:
+        if (jp.pause) { exitShop(); }
+        if (Game.ui.updateShopInterior) Game.ui.updateShopInterior(keys, jp);
+        break;
     }
   }
 
@@ -646,6 +682,14 @@
         if (Game.ui.drawHouseInterior) Game.ui.drawHouseInterior(ctx, currentHouseId, player);
         break;
 
+      case State.CAFE_INTERIOR:
+        if (Game.ui.drawCafeInterior) Game.ui.drawCafeInterior(ctx);
+        break;
+
+      case State.SHOP_INTERIOR:
+        if (Game.ui.drawShopInterior) Game.ui.drawShopInterior(ctx);
+        break;
+
       case State.PAUSED:
         renderGame();
         Game.ui.drawPauseMenu(ctx);
@@ -680,7 +724,12 @@
         Game.ui.drawQRCode(ctx, rightCx, qrCy, qrSize);
       }
     }
-    if (Game.input.isTouch() && (state === State.PLAYING || state === State.BEACH)) {
+    if (Game.input.isTouch() && (
+        state === State.PLAYING ||
+        state === State.BEACH ||
+        state === State.HOUSE_INTERIOR ||
+        state === State.CAFE_INTERIOR ||
+        state === State.SHOP_INTERIOR)) {
       Game.input.drawTouchButtons(ctx);
     }
 
@@ -915,6 +964,12 @@
 
     /* Player */
     if (player) player.draw(ctx, camera.x, camera.y);
+
+    /* Shop-cart carry overlay — bobbing item icons floating above Momoko's
+       head while she walks her purchases home. */
+    if (player && Game.shop && Game.shop.cart && Game.shop.cart.length > 0 && Game.ui && Game.ui.drawCarryOverlay) {
+      Game.ui.drawCarryOverlay(ctx, player, camera.x, camera.y);
+    }
 
     /* Wolfe (visible near surface) */
     if (wolfe && camera.y <= 20) {
@@ -1481,6 +1536,35 @@
         ctx.fillText(nsTxt, dx, dy - 78);
         ctx.restore();
         ctx.textBaseline = 'alphabetic';
+      } else if (d.type === 'rooftopSign') {
+        /* Compact neon sign mounted on the rooftop of the cafe/shop building
+           — sits above the awning so it doesn't obscure the storefront. */
+        var rsC = d.color || '#44ffff';
+        var rsTxt = d.text || 'SHOP';
+        var rsY = dy - 158;
+        ctx.fillStyle = '#1a1a2a';
+        ctx.fillRect(dx - 38, rsY, 76, 22);
+        ctx.strokeStyle = rsC;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(dx - 38, rsY, 76, 22);
+        ctx.save();
+        ctx.globalAlpha = 0.85 + Math.sin(Date.now() * 0.012 + d.x * 0.03) * 0.15;
+        ctx.fillStyle = rsC;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(rsTxt, dx, rsY + 11);
+        ctx.restore();
+        /* Soft halo */
+        ctx.save();
+        var rsHalo = ctx.createRadialGradient(dx, rsY + 11, 4, dx, rsY + 11, 60);
+        rsHalo.addColorStop(0, rsC);
+        rsHalo.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = 0.18 + Math.sin(Date.now() * 0.004 + d.x * 0.01) * 0.05;
+        ctx.fillStyle = rsHalo;
+        ctx.fillRect(dx - 60, rsY - 14, 120, 50);
+        ctx.restore();
+        ctx.textBaseline = 'alphabetic';
       } else if (d.type === 'techPanel') {
         /* Embedded ground panel with pulsing lights */
         ctx.fillStyle = '#1a1a2a';
@@ -1559,6 +1643,163 @@
         ctx.beginPath();
         ctx.arc(dx - 2, dy - 2, (d.r || 14) * 0.6, 0, Math.PI * 2);
         ctx.fill();
+      } else if (d.type === 'cheeseWedge') {
+        /* Big triangular cheese wedge sticking up from the surface, with
+           characteristic round holes. */
+        var wR = d.size || 1;
+        ctx.save();
+        ctx.translate(dx, dy);
+        ctx.scale(wR, wR);
+        var wG = ctx.createLinearGradient(0, -36, 0, 0);
+        wG.addColorStop(0, '#ffd64a');
+        wG.addColorStop(1, '#c8862a');
+        ctx.fillStyle = wG;
+        ctx.beginPath();
+        ctx.moveTo(-30, 0);
+        ctx.lineTo(30, 0);
+        ctx.lineTo(20, -34);
+        ctx.lineTo(-20, -34);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#7a4818';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        /* Front-face highlight */
+        ctx.fillStyle = '#ffe98a';
+        ctx.beginPath();
+        ctx.moveTo(-26, -2);
+        ctx.lineTo(26, -2);
+        ctx.lineTo(18, -32);
+        ctx.lineTo(-18, -32);
+        ctx.closePath();
+        ctx.fill();
+        /* Holes */
+        ctx.fillStyle = '#a86820';
+        var holes = [[-12, -10, 3], [6, -16, 4], [-4, -22, 2.4], [10, -8, 2], [-8, -28, 1.8]];
+        for (var hwI = 0; hwI < holes.length; hwI++) {
+          ctx.beginPath();
+          ctx.arc(holes[hwI][0], holes[hwI][1], holes[hwI][2], 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#5a2a10';
+        for (var hwJ = 0; hwJ < holes.length; hwJ++) {
+          ctx.beginPath();
+          ctx.arc(holes[hwJ][0] - 0.6, holes[hwJ][1] - 0.6, holes[hwJ][2] * 0.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      } else if (d.type === 'cheeseChunk') {
+        /* Small cube of cheese on the ground */
+        ctx.fillStyle = '#ffd64a';
+        ctx.fillRect(dx - 9, dy - 12, 18, 12);
+        ctx.fillStyle = '#ffe98a';
+        ctx.fillRect(dx - 9, dy - 12, 18, 2);
+        ctx.fillStyle = '#a86820';
+        ctx.fillRect(dx - 9, dy - 1, 18, 1);
+        /* Holes */
+        ctx.fillStyle = '#a86820';
+        ctx.beginPath(); ctx.arc(dx - 4, dy - 7, 1.6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(dx + 3, dy - 4, 1.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(dx + 5, dy - 9, 1, 0, Math.PI * 2); ctx.fill();
+      } else if (d.type === 'cheeseDrip') {
+        /* Patch of melted cheese with droplets dripping off the ledge */
+        ctx.fillStyle = '#ffaa22';
+        ctx.beginPath();
+        ctx.moveTo(dx - 18, dy);
+        ctx.bezierCurveTo(dx - 18, dy + 14, dx - 6, dy + 16, dx, dy + 14);
+        ctx.bezierCurveTo(dx + 6, dy + 18, dx + 16, dy + 12, dx + 18, dy);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#ffd24a';
+        ctx.beginPath();
+        ctx.moveTo(dx - 14, dy + 1);
+        ctx.bezierCurveTo(dx - 14, dy + 9, dx - 4, dy + 11, dx, dy + 10);
+        ctx.bezierCurveTo(dx + 4, dy + 12, dx + 12, dy + 8, dx + 14, dy + 1);
+        ctx.closePath();
+        ctx.fill();
+        /* Drips dangling */
+        ctx.fillStyle = '#ffaa22';
+        ctx.beginPath(); ctx.arc(dx - 10, dy + 18, 2.6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(dx + 8, dy + 16, 2.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(dx, dy + 22, 2, 0, Math.PI * 2); ctx.fill();
+      } else if (d.type === 'cheeseTree') {
+        /* Stylised cheese-fondue palm tree — yellow trunk with wedge fronds */
+        ctx.fillStyle = '#a86820';
+        ctx.fillRect(dx - 3, dy - 36, 6, 36);
+        ctx.fillStyle = '#7a4818';
+        ctx.fillRect(dx - 3, dy - 36, 1.4, 36);
+        /* Cheese frond crown */
+        var crown = [[-14, -36, -24, -42], [14, -36, 24, -42], [-8, -42, -14, -52], [8, -42, 14, -52], [0, -44, 0, -56]];
+        ctx.fillStyle = '#ffd64a';
+        ctx.strokeStyle = '#a86820';
+        ctx.lineWidth = 1;
+        for (var ct = 0; ct < crown.length; ct++) {
+          var p = crown[ct];
+          ctx.beginPath();
+          ctx.moveTo(dx + p[0] - 3, dy + p[1]);
+          ctx.lineTo(dx + p[2], dy + p[3]);
+          ctx.lineTo(dx + p[0] + 3, dy + p[1]);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+        /* Cheese-coconuts */
+        ctx.fillStyle = '#ffaa22';
+        ctx.beginPath(); ctx.arc(dx - 5, dy - 38, 2.4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(dx + 5, dy - 38, 2.4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#a86820';
+        ctx.beginPath(); ctx.arc(dx - 5, dy - 38, 0.7, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(dx + 5, dy - 38, 0.7, 0, Math.PI * 2); ctx.fill();
+      } else if (d.type === 'cheeseSign') {
+        /* Wooden sign with a cheese-wedge logo */
+        ctx.fillStyle = '#3a2010';
+        ctx.fillRect(dx - 1.6, dy - 32, 3.2, 32);
+        ctx.fillStyle = '#a86820';
+        ctx.fillRect(dx - 24, dy - 56, 48, 24);
+        ctx.fillStyle = '#7a4818';
+        ctx.fillRect(dx - 24, dy - 56, 48, 1.5);
+        ctx.fillRect(dx - 24, dy - 33.5, 48, 1.5);
+        /* Cheese wedge logo */
+        ctx.fillStyle = '#ffd64a';
+        ctx.beginPath();
+        ctx.moveTo(dx - 18, dy - 38);
+        ctx.lineTo(dx - 8, dy - 50);
+        ctx.lineTo(dx - 4, dy - 38);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#a86820';
+        ctx.beginPath(); ctx.arc(dx - 12, dy - 42, 0.9, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(dx - 8, dy - 45, 0.7, 0, Math.PI * 2); ctx.fill();
+        /* Sign text */
+        ctx.fillStyle = '#ffe9c8';
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(d.text || 'CHEESE', dx + 6, dy - 41);
+      } else if (d.type === 'cheeseMoonBg') {
+        /* Big cheese moon in the parallax sky */
+        ctx.save();
+        var cmX = dx - camera.x * 0.15;
+        ctx.fillStyle = '#ffd64a';
+        ctx.beginPath();
+        ctx.arc(cmX, dy, d.r || 90, 0, Math.PI * 2);
+        ctx.fill();
+        /* Crescent shadow */
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = '#7a4818';
+        ctx.beginPath();
+        ctx.arc(cmX + (d.r || 90) * 0.25, dy, (d.r || 90) * 0.85, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        /* Holes */
+        ctx.fillStyle = '#a86820';
+        var moonHoles = [[-30, -20, 8], [10, 30, 6], [-20, 18, 5], [25, -10, 7], [0, -38, 4]];
+        for (var mh = 0; mh < moonHoles.length; mh++) {
+          ctx.beginPath();
+          ctx.arc(cmX + moonHoles[mh][0], dy + moonHoles[mh][1], moonHoles[mh][2], 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
       }
     }
   }
@@ -1623,6 +1864,20 @@
         }
         break;
 
+      case State.CAFE_INTERIOR:
+        if (Game.ui.handleCafeInteriorClick) {
+          var ciResult = Game.ui.handleCafeInteriorClick(mx, my);
+          if (ciResult === 'exit') exitCafe();
+        }
+        break;
+
+      case State.SHOP_INTERIOR:
+        if (Game.ui.handleShopInteriorClick) {
+          var siResult = Game.ui.handleShopInteriorClick(mx, my);
+          if (siResult === 'exit') exitShop();
+        }
+        break;
+
       case State.VICTORY:
         var vAction = Game.ui.handleVictoryClick(mx, my);
         if (vAction === 'restart') { Game.audio.startMusic('title'); state = State.TITLE; }
@@ -1673,6 +1928,48 @@
   function exitHouse() {
     currentHouseId = null;
     state = State.PLAYING;
+  }
+
+  /* ---- Cafe cutscene ---- */
+  function enterCafe() {
+    if (Game.ui.startCafeCutscene) Game.ui.startCafeCutscene();
+    state = State.CAFE_INTERIOR;
+  }
+
+  function exitCafe() {
+    state = State.PLAYING;
+  }
+
+  /* ---- Shop ---- */
+  function enterShop() {
+    if (Game.ui.startShopInterior) Game.ui.startShopInterior();
+    state = State.SHOP_INTERIOR;
+  }
+
+  function exitShop() {
+    state = State.PLAYING;
+  }
+
+  /* When the hero enters a houseDoor with a non-empty shopping cart,
+     deposit each item into that house's furniture state at scattered
+     positions along the floor area. Then clear the cart. */
+  function depositCartIntoHouse(houseId) {
+    if (!Game.shop || !Game.shop.cart || Game.shop.cart.length === 0) return;
+    var raw = null;
+    try { raw = localStorage.getItem('momoko-space-furniture'); } catch (e) {}
+    var furn = {};
+    try { furn = raw ? JSON.parse(raw) : {}; } catch (e) { furn = {}; }
+    if (!furn[houseId]) furn[houseId] = [];
+    /* Floor placement bounds — match HOUSE_FLOOR_* in ui.js. */
+    var FX_LEFT = 60, FX_RIGHT = 680, FY_TOP = 220, FY_BOTTOM = 440;
+    for (var ci = 0; ci < Game.shop.cart.length; ci++) {
+      var ix = FX_LEFT + Math.floor(Math.random() * (FX_RIGHT - FX_LEFT));
+      var iy = FY_TOP + Math.floor(Math.random() * (FY_BOTTOM - FY_TOP));
+      furn[houseId].push({ type: Game.shop.cart[ci].type, x: ix, y: iy });
+    }
+    try { localStorage.setItem('momoko-space-furniture', JSON.stringify(furn)); } catch (e) {}
+    Game.shop.cart = [];
+    if (Game.audio && Game.audio.play) Game.audio.play('victory');
   }
 
   /* ---- Persistence ---- */
