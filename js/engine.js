@@ -380,13 +380,9 @@
         /* Player */
         player.update(keys, level);
 
-        /* Shoot */
-        if (keys.action && player.shootCooldown <= 0) {
-          var b = player.shoot();
-          if (b) bubbles.push(b);
-        }
-
-        /* Bubbles */
+        /* Bubbles (still ticked so any in-flight effects fade out
+           cleanly; the action button no longer spawns new ones — it
+           is now the universal "interact" trigger handled below). */
         for (var bi = bubbles.length - 1; bi >= 0; bi--) {
           bubbles[bi].update();
           if (!bubbles[bi].active) bubbles.splice(bi, 1);
@@ -480,14 +476,17 @@
             Math.pow(player.x - npc.x, 2) + Math.pow(player.y - npc.y, 2)
           );
           if (dist < 80 && !npc.talking && (!npcCooldowns[npcType] || npcCooldowns[npcType] <= 0)) {
+            /* Universal "interact" trigger: action button (Sparkle on
+               touch, Space/Z on keyboard) or Up. */
+            var interact = jp.up || keys.up || jp.action;
             /* Rocket – open travel menu. */
             if (npcType === 'rocket') {
-              if (jp.up || keys.up) {
+              if (interact) {
                 onRocketInteract();
                 npcCooldowns[npcType] = 300;
               }
             } else if (npcType === 'houseDoor') {
-              if (jp.up || keys.up) {
+              if (interact) {
                 var hid = npcData.houseId || 'heroHome';
                 /* Deliver any carried shop items into this house's
                    furniture state, scattered across the floor. */
@@ -498,12 +497,12 @@
                 npcCooldowns[npcType] = 300;
               }
             } else if (npcType === 'cafeDoor') {
-              if (jp.up || keys.up) {
+              if (interact) {
                 enterCafe();
                 npcCooldowns[npcType] = 300;
               }
             } else if (npcType === 'shopDoor') {
-              if (jp.up || keys.up) {
+              if (interact) {
                 enterShop();
                 npcCooldowns[npcType] = 300;
               }

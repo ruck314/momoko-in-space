@@ -9,11 +9,11 @@
       titleSubtitle: '~ A Comfortable Cosmic RPG ~',
       play: 'Play',
       howToPlay: 'How to Play',
-      instructions: 'Float: Arrow Keys / D-Pad\nCast Sparkle: Space / Sparkle Button\nVisit friends and explore the stars!',
+      instructions: 'Float: Arrow Keys / D-Pad\nTalk / Interact: Space / Talk Button\nVisit friends and explore the stars!',
       language: 'Language',
       langLabel: 'EN',
       rotateHint: 'Please rotate your device to landscape mode!',
-      bubbleBtn: 'SPARKLE',
+      bubbleBtn: 'TALK',
       soundOn: 'Sound: ON',
       soundOff: 'Sound: OFF',
 
@@ -115,6 +115,9 @@
       shopCartEmpty: 'Tap an item below to take it home.',
       shopDeliveryTitle: '★ Delivery!',
       shopDeliveryDesc: 'Walk to a house door,\npress UP to drop off.',
+      cafeBuyPrompt: 'TAP / TALK',
+      cafeYum: 'Yum!',
+      exitButton: 'EXIT',
 
       /* ---- Travel menu ---- */
       travelMenuTitle: 'Where to?',
@@ -225,11 +228,11 @@
       titleSubtitle: '〜 ほしぞらの やさしい RPG 〜',
       play: 'スタート',
       howToPlay: 'あそびかた',
-      instructions: 'うかぶ: やじるしキー / 十字ボタン\nキラキラ: スペース / キラキラボタン\nともだちに あいに いこう！ほしも たんけんしよう！',
+      instructions: 'うかぶ: やじるしキー / 十字ボタン\nはなす: スペース / はなすボタン\nともだちに あいに いこう！ほしも たんけんしよう！',
       language: 'ことば',
       langLabel: 'JP',
       rotateHint: 'デバイスを よこむきにしてください！',
-      bubbleBtn: 'キラキラ',
+      bubbleBtn: 'はなす',
       soundOn: 'おと: オン',
       soundOff: 'おと: オフ',
 
@@ -331,6 +334,9 @@
       shopCartEmpty: 'した の かぐを タップして もちかえろう。',
       shopDeliveryTitle: '★ おとどけ！',
       shopDeliveryDesc: 'おうちの ドアまで あるいて\nうえキーで わたそう。',
+      cafeBuyPrompt: 'タップ／はなす',
+      cafeYum: 'おいしい！',
+      exitButton: 'でる',
 
       /* ---- とらべるメニュー ---- */
       travelMenuTitle: 'どこへ いく？',

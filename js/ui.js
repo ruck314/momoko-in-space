@@ -2524,6 +2524,9 @@
     c.font = 'bold 11px monospace';
     c.textAlign = 'center';
     c.fillText(Game.i18n.t('furnitureExit'), W - 52, H - 141);
+    /* One-shot top-right EXIT button (drawn after the palette so it
+       sits above category tabs / clear button visually). */
+    drawExitButton(c);
   }
 
   function drawFurniture(c, type, x, y, mode) {
@@ -3620,6 +3623,12 @@
   }
 
   function handleHouseInteriorClick(mx, my, houseId) {
+    /* One-shot top-right EXIT button */
+    if (hitExitButton(mx, my)) {
+      Game.audio.play('select');
+      selectedFurniture = null;
+      return 'exit';
+    }
     /* Exit door */
     if (hitButton(mx, my, W - 92, H - 152, 80, 122)) {
       Game.audio.play('select');
@@ -3714,6 +3723,29 @@
   var cafeFrame = 0;
   var cafeHearts = [];
 
+  /* Buyable items on the cafe counter. Buying an item swaps the held-food
+     slot in Game.customization so the snack appears in Momoko's hand once
+     she leaves the cafe. Positions are tuned to sit on top of the counter
+     band (y ≈ 158) within the rendered counter (x ≈ 40..560). */
+  var CAFE_MENU = [
+    { food: 'iceCream',   labelKey: 'varIceCream',   x: 80,  y: 152 },
+    { food: 'donut',      labelKey: 'varDonut',      x: 180, y: 152 },
+    { food: 'macaron',    labelKey: 'varMacaron',    x: 280, y: 152 },
+    { food: 'crepe',      labelKey: 'varCrepe',      x: 380, y: 152 },
+    { food: 'parfait',    labelKey: 'varParfait',    x: 480, y: 152 },
+    { food: 'taiyaki',    labelKey: 'varTaiyaki',    x: 80,  y: 248 },
+    { food: 'onigiri',    labelKey: 'varOnigiri',    x: 180, y: 248 },
+    { food: 'strawberry', labelKey: 'varStrawberry', x: 280, y: 248 },
+  ];
+  /* Index of the menu item Momoko is currently close enough to buy with
+     the action button (-1 = none). Recomputed each frame from her
+     position. */
+  var cafeNearMenuIdx = -1;
+  /* Brief feedback bubble — "Yum!" text shown after a purchase. */
+  var cafeYumTimer = 0;
+  var cafeYumX = 0;
+  var cafeYumY = 0;
+
   function startCafeCutscene() {
     cafeTimer = 0;
     cafePlayerX = 130;
@@ -3721,6 +3753,8 @@
     cafeFacing = 1;
     cafeFrame = 0;
     cafeHearts = [];
+    cafeNearMenuIdx = -1;
+    cafeYumTimer = 0;
     for (var hi = 0; hi < 6; hi++) {
       cafeHearts.push({
         x: 80 + Math.random() * (W - 160),
@@ -3732,8 +3766,23 @@
     }
   }
 
+  /* Apply a purchase: swap in the held-food slot, persist, sparkle and
+     pop a "Yum!" bubble above the player. */
+  function buyCafeItem(idx) {
+    if (idx < 0 || idx >= CAFE_MENU.length) return;
+    var item = CAFE_MENU[idx];
+    if (!Game.customization) return;
+    Game.customization.food = item.food;
+    if (Game.engine && Game.engine.savePersistent) Game.engine.savePersistent();
+    cafeYumTimer = 60;
+    cafeYumX = cafePlayerX;
+    cafeYumY = cafePlayerY - 40;
+    if (Game.audio && Game.audio.play) Game.audio.play('pickup');
+  }
+
   function updateCafeInterior(keys, jp) {
     cafeTimer++;
+    if (cafeYumTimer > 0) cafeYumTimer--;
     /* Walk Momoko around the cafe floor */
     var sp = 2.0;
     var moved = false;
@@ -3756,8 +3805,25 @@
         h.x = 80 + Math.random() * (W - 160);
       }
     }
-    /* Action button or up at exit door leaves the cafe */
-    if (jp.action) return 'exit';
+    /* Find the closest menu item within proximity range so the action
+       button buys it instead of exiting. */
+    cafeNearMenuIdx = -1;
+    var bestDist = 70;
+    for (var mi = 0; mi < CAFE_MENU.length; mi++) {
+      var m = CAFE_MENU[mi];
+      var dx = cafePlayerX - m.x;
+      var dy = cafePlayerY - m.y;
+      var dd = Math.sqrt(dx * dx + dy * dy);
+      if (dd < bestDist) {
+        bestDist = dd;
+        cafeNearMenuIdx = mi;
+      }
+    }
+    /* Action button: buy if near a menu item. The EXIT button + door
+       tile handle leaving so action stays focused on interaction. */
+    if (jp.action && cafeNearMenuIdx >= 0) {
+      buyCafeItem(cafeNearMenuIdx);
+    }
     return null;
   }
 
@@ -3861,56 +3927,438 @@
     c.fillText('comet cake ...... $1', 370, 122);
   }
 
+  /* Hash a position into a deterministic per-patron variant index so
+     facial style / outfit varies between patrons but stays consistent
+     between frames. */
+  function cafePatronVariant(x, n) {
+    return Math.abs(Math.floor(x * 13 + 7)) % n;
+  }
+
   function drawCafePatron(c, x, y, color, hairColor, t, drink) {
-    /* Tiny seated patron in a chair, sipping a hot drink */
-    /* Chair back behind */
-    c.fillStyle = '#5a2a44';
-    c.fillRect(x - 12, y - 6, 24, 28);
-    c.fillStyle = '#aa3a66';
-    c.fillRect(x - 11, y - 5, 22, 18);
-    /* Body */
+    var variant = cafePatronVariant(x, 4);
+    var hairStyle = cafePatronVariant(x + 41, 4);
+    var bob = Math.sin(t * 0.05 + x * 0.01) * 0.6;
+    var blink = Math.sin(t * 0.04 + x * 0.013) > 0.95;
+    /* ===== Chair behind the patron ===== */
+    /* Chair legs peek out at the bottom */
+    c.fillStyle = '#3a1a2a';
+    c.fillRect(x - 13, y + 12, 2.6, 8);
+    c.fillRect(x + 10.4, y + 12, 2.6, 8);
+    /* Chair seat */
+    var seatG = c.createLinearGradient(0, y + 8, 0, y + 16);
+    seatG.addColorStop(0, '#cc4488');
+    seatG.addColorStop(1, '#7a2454');
+    c.fillStyle = seatG;
+    c.beginPath();
+    c.moveTo(x - 14, y + 16);
+    c.quadraticCurveTo(x - 16, y + 10, x - 12, y + 8);
+    c.lineTo(x + 12, y + 8);
+    c.quadraticCurveTo(x + 16, y + 10, x + 14, y + 16);
+    c.closePath();
+    c.fill();
+    /* Chair back — high curved with button tufts */
+    var backG = c.createLinearGradient(0, y - 18, 0, y + 8);
+    backG.addColorStop(0, '#aa3a66');
+    backG.addColorStop(1, '#5a1a3a');
+    c.fillStyle = backG;
+    c.beginPath();
+    c.moveTo(x - 13, y + 8);
+    c.lineTo(x - 13, y - 10);
+    c.quadraticCurveTo(x - 13, y - 18, x - 7, y - 18);
+    c.lineTo(x + 7, y - 18);
+    c.quadraticCurveTo(x + 13, y - 18, x + 13, y - 10);
+    c.lineTo(x + 13, y + 8);
+    c.closePath();
+    c.fill();
+    /* Button tufts on the chair back */
+    c.fillStyle = '#3a0a22';
+    var tufts = [[-5, -12], [5, -12], [0, -7], [-5, -2], [5, -2]];
+    for (var ct = 0; ct < tufts.length; ct++) {
+      c.beginPath();
+      c.arc(x + tufts[ct][0], y + tufts[ct][1], 0.7, 0, Math.PI * 2);
+      c.fill();
+    }
+    /* ===== Body / outfit ===== */
+    /* Outfit shading */
+    var bodyG = c.createLinearGradient(0, y - 12, 0, y + 8);
+    bodyG.addColorStop(0, color);
+    bodyG.addColorStop(1, hexShadeUI(color, -25));
+    c.fillStyle = bodyG;
+    c.beginPath();
+    c.moveTo(x - 9, y + 8);
+    c.lineTo(x - 9, y - 10);
+    c.quadraticCurveTo(x - 9, y - 12, x - 7, y - 12);
+    c.lineTo(x + 7, y - 12);
+    c.quadraticCurveTo(x + 9, y - 12, x + 9, y - 10);
+    c.lineTo(x + 9, y + 8);
+    c.closePath();
+    c.fill();
+    /* Outfit detail per variant — collar, scarf, jacket, sweater */
+    if (variant === 0) {
+      /* V-neck collar with brooch */
+      c.fillStyle = '#ffe9c8';
+      c.beginPath();
+      c.moveTo(x - 5, y - 10);
+      c.lineTo(x, y - 4);
+      c.lineTo(x + 5, y - 10);
+      c.closePath();
+      c.fill();
+      c.fillStyle = '#ffd24a';
+      c.beginPath(); c.arc(x, y - 7, 0.9, 0, Math.PI * 2); c.fill();
+    } else if (variant === 1) {
+      /* Striped scarf around the neck */
+      c.fillStyle = '#ffe9c8';
+      c.fillRect(x - 8, y - 12, 16, 3);
+      c.fillStyle = '#cc4466';
+      c.fillRect(x - 8, y - 11, 16, 0.6);
+      c.fillRect(x - 8, y - 9.6, 16, 0.6);
+      c.fillStyle = '#ffe9c8';
+      c.fillRect(x - 5, y - 9, 3, 6);
+    } else if (variant === 2) {
+      /* Cardigan with row of buttons */
+      c.fillStyle = hexShadeUI(color, -40);
+      c.fillRect(x - 9, y - 11, 1.4, 19);
+      c.fillRect(x + 7.6, y - 11, 1.4, 19);
+      c.fillStyle = '#ffd24a';
+      for (var bb = 0; bb < 3; bb++) {
+        c.beginPath(); c.arc(x, y - 8 + bb * 5, 0.8, 0, Math.PI * 2); c.fill();
+      }
+    } else {
+      /* Striped sweater */
+      c.fillStyle = hexShadeUI(color, 30);
+      c.fillRect(x - 9, y - 8, 18, 1.4);
+      c.fillRect(x - 9, y - 4, 18, 1.4);
+      c.fillRect(x - 9, y, 18, 1.4);
+      c.fillRect(x - 9, y + 4, 18, 1.4);
+    }
+    /* Visible sleeve / arm on the table side, holding the drink/snack */
     c.fillStyle = color;
-    c.fillRect(x - 8, y - 12, 16, 20);
-    /* Head */
+    c.beginPath();
+    c.moveTo(x + 6, y - 8);
+    c.quadraticCurveTo(x + 12, y - 4, x + 8, y);
+    c.lineTo(x + 4, y);
+    c.lineTo(x + 4, y - 6);
+    c.closePath();
+    c.fill();
     c.fillStyle = '#ffccaa';
     c.beginPath();
-    c.arc(x, y - 16, 7, 0, Math.PI * 2);
+    c.arc(x + 7, y - 1, 1.8, 0, Math.PI * 2);
     c.fill();
-    /* Hair */
-    c.fillStyle = hairColor;
+    /* ===== Head ===== */
+    var hy = y - 16 + bob;
+    /* Neck */
+    c.fillStyle = '#ddaa88';
+    c.fillRect(x - 2.2, y - 12, 4.4, 3);
+    /* Head shape */
+    c.fillStyle = '#ffccaa';
     c.beginPath();
-    c.arc(x, y - 19, 7, Math.PI, Math.PI * 2);
+    c.arc(x, hy, 7, 0, Math.PI * 2);
     c.fill();
-    c.fillRect(x - 7, y - 19, 14, 4);
-    /* Eyes — closed (relaxed) every few seconds */
-    var blink = Math.sin(t * 0.04 + x * 0.01) > 0.95;
+    /* Cheek blush */
+    c.save();
+    c.globalAlpha = 0.6;
+    c.fillStyle = '#ff99aa';
+    c.beginPath(); c.arc(x - 4, hy + 1, 1.6, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(x + 4, hy + 1, 1.6, 0, Math.PI * 2); c.fill();
+    c.restore();
+    /* Ears */
+    c.fillStyle = '#ddaa88';
+    c.beginPath(); c.arc(x - 7, hy + 1, 1.4, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(x + 7, hy + 1, 1.4, 0, Math.PI * 2); c.fill();
+    /* Earrings */
+    c.fillStyle = '#ffd24a';
+    c.beginPath(); c.arc(x - 7, hy + 2.8, 0.55, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(x + 7, hy + 2.8, 0.55, 0, Math.PI * 2); c.fill();
+    /* ===== Hair (4 styles) ===== */
+    if (hairStyle === 0) {
+      /* Long flowing hair with side bangs */
+      c.fillStyle = hairColor;
+      c.beginPath();
+      c.arc(x, hy - 1, 8, Math.PI, Math.PI * 2);
+      c.fill();
+      c.fillRect(x - 8, hy - 1, 16, 5);
+      /* Side strands flowing down past shoulders */
+      c.beginPath();
+      c.moveTo(x - 8, hy + 4);
+      c.bezierCurveTo(x - 11, hy + 8, x - 10, hy + 12, x - 8, hy + 14);
+      c.lineTo(x - 5, hy + 14);
+      c.lineTo(x - 5, hy + 4);
+      c.closePath();
+      c.fill();
+      c.beginPath();
+      c.moveTo(x + 8, hy + 4);
+      c.bezierCurveTo(x + 11, hy + 8, x + 10, hy + 12, x + 8, hy + 14);
+      c.lineTo(x + 5, hy + 14);
+      c.lineTo(x + 5, hy + 4);
+      c.closePath();
+      c.fill();
+      /* Bangs */
+      c.fillStyle = hexShadeUI(hairColor, -15);
+      c.beginPath();
+      c.moveTo(x - 7, hy - 4);
+      c.bezierCurveTo(x - 4, hy - 1, x + 4, hy - 1, x + 7, hy - 4);
+      c.lineTo(x + 6, hy + 1);
+      c.lineTo(x - 6, hy + 1);
+      c.closePath();
+      c.fill();
+      /* Hair bow */
+      c.fillStyle = '#ff66cc';
+      c.beginPath();
+      c.moveTo(x - 6, hy - 6);
+      c.lineTo(x - 9, hy - 9);
+      c.lineTo(x - 9, hy - 4);
+      c.closePath();
+      c.fill();
+      c.beginPath();
+      c.moveTo(x - 6, hy - 6);
+      c.lineTo(x - 4, hy - 9);
+      c.lineTo(x - 4, hy - 4);
+      c.closePath();
+      c.fill();
+      c.fillStyle = '#ffd24a';
+      c.beginPath(); c.arc(x - 6, hy - 6, 0.7, 0, Math.PI * 2); c.fill();
+    } else if (hairStyle === 1) {
+      /* Twin-tail buns */
+      c.fillStyle = hairColor;
+      c.beginPath();
+      c.arc(x, hy - 1, 8, Math.PI, Math.PI * 2);
+      c.fill();
+      c.fillRect(x - 8, hy - 1, 16, 4);
+      c.beginPath(); c.arc(x - 8, hy - 5, 3.4, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(x + 8, hy - 5, 3.4, 0, Math.PI * 2); c.fill();
+      /* Bangs */
+      c.fillStyle = hexShadeUI(hairColor, -15);
+      c.fillRect(x - 6, hy - 3, 12, 3);
+      /* Bun ribbons */
+      c.fillStyle = '#ff66cc';
+      c.fillRect(x - 9.6, hy - 6, 3.2, 0.8);
+      c.fillRect(x + 6.4, hy - 6, 3.2, 0.8);
+    } else if (hairStyle === 2) {
+      /* Short bob with side fringe */
+      c.fillStyle = hairColor;
+      c.beginPath();
+      c.arc(x, hy, 8.4, Math.PI - 0.1, Math.PI * 2 + 0.1);
+      c.fill();
+      c.fillRect(x - 8, hy, 16, 5);
+      c.fillStyle = hexShadeUI(hairColor, 25);
+      c.fillRect(x - 7, hy - 4, 6, 3);
+      /* Hair clip */
+      c.fillStyle = '#ffd24a';
+      c.fillRect(x + 4, hy - 4, 3, 1.2);
+    } else {
+      /* Curly afro / pile */
+      c.fillStyle = hairColor;
+      var puffs = [[-7, -4], [-3, -7], [3, -7], [7, -4], [-5, -1], [5, -1], [0, -8]];
+      for (var pf = 0; pf < puffs.length; pf++) {
+        c.beginPath();
+        c.arc(x + puffs[pf][0], hy + puffs[pf][1], 4, 0, Math.PI * 2);
+        c.fill();
+      }
+      /* Headband */
+      c.fillStyle = '#ff66cc';
+      c.fillRect(x - 8, hy - 1, 16, 1.2);
+      c.fillStyle = '#ffd24a';
+      c.beginPath(); c.arc(x, hy - 0.4, 0.8, 0, Math.PI * 2); c.fill();
+    }
+    /* ===== Eyes ===== */
     c.fillStyle = '#220033';
     if (blink) {
-      c.fillRect(x - 3, y - 16, 2, 0.6);
-      c.fillRect(x + 1, y - 16, 2, 0.6);
+      c.fillRect(x - 3.2, hy + 0.5, 2.4, 0.7);
+      c.fillRect(x + 0.8, hy + 0.5, 2.4, 0.7);
     } else {
-      c.beginPath(); c.arc(x - 2, y - 16, 0.8, 0, Math.PI * 2); c.fill();
-      c.beginPath(); c.arc(x + 2, y - 16, 0.8, 0, Math.PI * 2); c.fill();
+      /* Eye whites */
+      c.fillStyle = '#ffffff';
+      c.beginPath(); c.arc(x - 2.2, hy + 0.6, 1.5, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(x + 2.2, hy + 0.6, 1.5, 0, Math.PI * 2); c.fill();
+      /* Pupils */
+      c.fillStyle = '#220033';
+      c.beginPath(); c.arc(x - 2.2, hy + 0.8, 1, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(x + 2.2, hy + 0.8, 1, 0, Math.PI * 2); c.fill();
+      /* Eye shine */
+      c.fillStyle = '#ffffff';
+      c.beginPath(); c.arc(x - 1.7, hy + 0.4, 0.5, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(x + 2.7, hy + 0.4, 0.5, 0, Math.PI * 2); c.fill();
+      /* Eyelashes */
+      c.strokeStyle = '#220033';
+      c.lineWidth = 0.5;
+      c.beginPath(); c.moveTo(x - 3.5, hy - 0.4); c.lineTo(x - 4.4, hy - 1.4); c.stroke();
+      c.beginPath(); c.moveTo(x + 3.5, hy - 0.4); c.lineTo(x + 4.4, hy - 1.4); c.stroke();
     }
+    /* Eyebrows */
+    c.strokeStyle = hexShadeUI(hairColor, -30);
+    c.lineWidth = 0.7;
+    c.beginPath(); c.moveTo(x - 4, hy - 1.6); c.lineTo(x - 1, hy - 2.2); c.stroke();
+    c.beginPath(); c.moveTo(x + 1, hy - 2.2); c.lineTo(x + 4, hy - 1.6); c.stroke();
+    /* Nose */
+    c.strokeStyle = '#cc8866';
+    c.lineWidth = 0.4;
+    c.beginPath();
+    c.moveTo(x, hy + 1.4);
+    c.lineTo(x + 0.4, hy + 2.4);
+    c.stroke();
     /* Smile */
     c.strokeStyle = '#aa3a66';
     c.lineWidth = 0.8;
     c.beginPath();
-    c.arc(x, y - 13, 1.6, 0.2, Math.PI - 0.2);
+    c.arc(x, hy + 3, 1.7, 0.2, Math.PI - 0.2);
     c.stroke();
-    /* Drink */
+    /* Lip blush */
+    c.save();
+    c.globalAlpha = 0.5;
+    c.strokeStyle = '#ff99aa';
+    c.lineWidth = 1.2;
+    c.beginPath();
+    c.arc(x, hy + 3, 1.4, 0.6, Math.PI - 0.6);
+    c.stroke();
+    c.restore();
+    /* ===== Drink + dessert in front ===== */
     if (drink) {
-      c.fillStyle = '#ffd24a';
-      c.fillRect(x - 2, y - 6, 4, 4);
-      c.fillStyle = '#3a2a44';
-      c.fillRect(x - 2, y - 6, 4, 1);
-      /* Steam */
-      c.save();
-      c.globalAlpha = 0.5 + Math.sin(t * 0.06 + x) * 0.2;
+      var mugVariant = cafePatronVariant(x + 7, 3);
+      /* Mug body */
+      var mugColors = ['#ff8ab0', '#88ddff', '#ffd24a'];
+      var mugColor = mugColors[mugVariant];
+      c.fillStyle = mugColor;
+      c.beginPath();
+      c.moveTo(x + 4, y - 6);
+      c.lineTo(x + 12, y - 6);
+      c.lineTo(x + 11, y - 1);
+      c.lineTo(x + 5, y - 1);
+      c.closePath();
+      c.fill();
+      /* Mug rim band */
+      c.fillStyle = hexShadeUI(mugColor, 25);
+      c.fillRect(x + 4, y - 6, 8, 1);
+      /* Mug heart */
       c.fillStyle = '#fff';
-      c.beginPath(); c.arc(x, y - 12 - (t * 0.4 + x * 0.1) % 6, 1.2, 0, Math.PI * 2); c.fill();
+      var hcX = x + 8, hcY = y - 4;
+      c.beginPath();
+      c.arc(hcX - 0.9, hcY - 0.3, 0.8, 0, Math.PI * 2);
+      c.arc(hcX + 0.9, hcY - 0.3, 0.8, 0, Math.PI * 2);
+      c.moveTo(hcX - 1.6, hcY);
+      c.lineTo(hcX, hcY + 1.6);
+      c.lineTo(hcX + 1.6, hcY);
+      c.closePath();
+      c.fill();
+      /* Mug handle */
+      c.strokeStyle = mugColor;
+      c.lineWidth = 1;
+      c.beginPath(); c.arc(x + 13, y - 3.4, 1.6, -Math.PI / 2, Math.PI / 2); c.stroke();
+      /* Drink surface — coffee crema */
+      c.fillStyle = '#a8744a';
+      c.beginPath();
+      c.ellipse(x + 8, y - 6, 4, 0.8, 0, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#ffe9c8';
+      c.save();
+      c.globalAlpha = 0.6;
+      c.beginPath();
+      c.ellipse(x + 7.4, y - 6.1, 2, 0.5, 0, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
+      /* Steam (rising) */
+      c.save();
+      c.globalAlpha = 0.55 + Math.sin(t * 0.06 + x) * 0.2;
+      c.fillStyle = '#fff';
+      var stPhase = (t * 0.4 + x * 0.1) % 12;
+      c.beginPath(); c.arc(x + 7, y - 8 - stPhase, 1.4, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(x + 9.4, y - 11 - stPhase, 1.1, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(x + 6.4, y - 13 - stPhase, 0.9, 0, Math.PI * 2); c.fill();
+      c.restore();
+      /* Pastry plate */
+      var dessertVariant = cafePatronVariant(x + 19, 4);
+      c.fillStyle = '#ffe9c8';
+      c.beginPath();
+      c.ellipse(x - 5, y - 1, 5, 1.4, 0, 0, Math.PI * 2);
+      c.fill();
+      c.strokeStyle = '#cdaaee';
+      c.lineWidth = 0.4;
+      c.beginPath();
+      c.ellipse(x - 5, y - 1, 5, 1.4, 0, 0, Math.PI * 2);
+      c.stroke();
+      if (dessertVariant === 0) {
+        /* Pink macaron */
+        c.fillStyle = '#ff8ab0';
+        c.beginPath(); c.ellipse(x - 5, y - 3, 3, 1.4, 0, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#ffe9c8';
+        c.fillRect(x - 7.2, y - 2.6, 4.4, 0.6);
+        c.fillStyle = '#ff99cc';
+        c.beginPath(); c.ellipse(x - 5, y - 4, 3, 1.4, 0, 0, Math.PI * 2); c.fill();
+      } else if (dessertVariant === 1) {
+        /* Slice of cake */
+        c.fillStyle = '#ffd9e8';
+        c.beginPath();
+        c.moveTo(x - 8, y - 2.4);
+        c.lineTo(x - 2, y - 2.4);
+        c.lineTo(x - 5, y - 7);
+        c.closePath();
+        c.fill();
+        c.fillStyle = '#ff66cc';
+        c.beginPath();
+        c.arc(x - 5, y - 7, 1, 0, Math.PI * 2);
+        c.fill();
+      } else if (dessertVariant === 2) {
+        /* Donut */
+        c.fillStyle = '#a8744a';
+        c.beginPath(); c.ellipse(x - 5, y - 3, 2.8, 1.6, 0, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#ff66cc';
+        c.beginPath(); c.ellipse(x - 5, y - 3.4, 2.6, 1, 0, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#ffe9c8';
+        c.beginPath(); c.arc(x - 5, y - 3.2, 0.7, 0, Math.PI * 2); c.fill();
+        /* Sprinkles */
+        c.fillStyle = '#ffd24a';
+        c.fillRect(x - 6, y - 4, 0.5, 0.5);
+        c.fillStyle = '#88ddff';
+        c.fillRect(x - 4, y - 3.4, 0.5, 0.5);
+        c.fillStyle = '#fff';
+        c.fillRect(x - 5.5, y - 3.6, 0.5, 0.5);
+      } else {
+        /* Croissant */
+        c.fillStyle = '#d8a064';
+        c.beginPath();
+        c.arc(x - 5, y - 3, 3, Math.PI, 0);
+        c.fill();
+        c.fillStyle = '#a8744a';
+        c.beginPath();
+        c.arc(x - 5, y - 3, 3, Math.PI, 0);
+        c.stroke();
+      }
+    }
+    /* ===== Conversation bubble — occasionally shows a chat icon ===== */
+    var chatPhase = Math.sin(t * 0.012 + x * 0.07);
+    if (chatPhase > 0.92) {
+      c.save();
+      c.globalAlpha = (chatPhase - 0.92) / 0.08;
+      var bx = x + 10, by = hy - 10;
+      c.fillStyle = '#fff';
+      c.beginPath();
+      c.ellipse(bx, by, 6, 4, 0, 0, Math.PI * 2);
+      c.fill();
+      c.beginPath();
+      c.moveTo(bx - 3, by + 3);
+      c.lineTo(bx - 5, by + 6);
+      c.lineTo(bx - 1, by + 4);
+      c.closePath();
+      c.fill();
+      c.fillStyle = '#220033';
+      c.font = '5px monospace';
+      c.textAlign = 'center';
+      c.fillText('♥♥♥', bx, by + 1.5);
       c.restore();
     }
+  }
+
+  /* Lightweight color shader for the cafe — local to ui.js so we don't
+     reach into entities.js. Positive `pct` lightens, negative darkens. */
+  function hexShadeUI(hex, pct) {
+    var n = parseInt(hex.slice(1), 16);
+    var r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
+    var f = pct / 100;
+    function adj(v) {
+      var nv = v + (f >= 0 ? (255 - v) * f : v * f);
+      return Math.max(0, Math.min(255, Math.round(nv)));
+    }
+    var r2 = adj(r), g2 = adj(g), b2 = adj(b);
+    return '#' + ((1 << 24) + (r2 << 16) + (g2 << 8) + b2).toString(16).slice(1);
   }
 
   function drawCafeTable(c, x, y) {
@@ -4089,6 +4537,9 @@
       c.fill();
       c.restore();
     }
+    /* Buyable menu items on the counter — drawn before Momoko so she
+       walks in front of the food stand. */
+    drawCafeMenuItems(c);
     /* Momoko walking around the cafe */
     if (Game.entities && Game.entities.drawMomokoSprite) {
       c.save();
@@ -4099,6 +4550,23 @@
         psx = -14;
       }
       Game.entities.drawMomokoSprite(c, psx, psy, Game.customization, cafeFrame);
+      c.restore();
+    }
+    /* Yum! purchase feedback bubble */
+    if (cafeYumTimer > 0) {
+      c.save();
+      c.globalAlpha = Math.min(1, cafeYumTimer / 30);
+      var ybY = cafeYumY - (60 - cafeYumTimer) * 0.4;
+      c.fillStyle = '#fff';
+      c.beginPath();
+      c.ellipse(cafeYumX, ybY, 20, 12, 0, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#ff66cc';
+      c.font = 'bold 14px monospace';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(Game.i18n.t('cafeYum'), cafeYumX, ybY);
+      c.textBaseline = 'alphabetic';
       c.restore();
     }
     /* Exit door (right side) */
@@ -4127,13 +4595,246 @@
     c.font = 'bold 11px monospace';
     c.textAlign = 'center';
     c.fillText(Game.i18n.t('cafeHint'), (W - 100) / 2, H - 8);
+    /* One-shot top-right EXIT button (always visible) */
+    drawExitButton(c);
+  }
+
+  /* Render each buyable menu item on the counter as a small framed
+     dish. Highlights the one Momoko is closest to. */
+  function drawCafeMenuItems(c) {
+    for (var mi = 0; mi < CAFE_MENU.length; mi++) {
+      var m = CAFE_MENU[mi];
+      var hot = (mi === cafeNearMenuIdx);
+      /* Plate */
+      c.save();
+      c.fillStyle = '#3a1a2a';
+      c.beginPath();
+      c.ellipse(m.x, m.y + 18, 22, 4, 0, 0, Math.PI * 2);
+      c.fill();
+      /* Stand frame */
+      c.fillStyle = hot ? '#ffd24a' : '#a86820';
+      c.fillRect(m.x - 22, m.y - 14, 44, 4);
+      /* Plate ring */
+      var plateG = c.createRadialGradient(m.x - 4, m.y + 12, 2, m.x, m.y + 14, 22);
+      plateG.addColorStop(0, '#ffe9c8');
+      plateG.addColorStop(1, '#cdaaee');
+      c.fillStyle = plateG;
+      c.beginPath();
+      c.ellipse(m.x, m.y + 14, 20, 5, 0, 0, Math.PI * 2);
+      c.fill();
+      /* Item icon — borrow the held-food drawing logic by creating a
+         tiny inline sprite per food type. */
+      drawCafeFoodIcon(c, m.food, m.x, m.y);
+      /* Highlight ring + price tag when Momoko is near */
+      if (hot) {
+        c.save();
+        c.globalAlpha = 0.55 + Math.sin(cafeTimer * 0.18) * 0.25;
+        c.strokeStyle = '#ffd24a';
+        c.lineWidth = 2;
+        c.beginPath();
+        c.ellipse(m.x, m.y + 14, 24, 7, 0, 0, Math.PI * 2);
+        c.stroke();
+        c.restore();
+      }
+      /* Label */
+      c.fillStyle = hot ? '#ffd24a' : '#ffe9c8';
+      c.font = (hot ? 'bold ' : '') + '9px monospace';
+      c.textAlign = 'center';
+      c.fillText(Game.i18n.t(m.labelKey) || m.food, m.x, m.y + 28);
+      c.restore();
+    }
+    /* Action prompt above the closest item */
+    if (cafeNearMenuIdx >= 0) {
+      var nm = CAFE_MENU[cafeNearMenuIdx];
+      var px = nm.x, py = nm.y - 22;
+      c.save();
+      c.globalAlpha = 0.85;
+      c.fillStyle = '#0a0420';
+      c.strokeStyle = '#ffd24a';
+      c.lineWidth = 1.5;
+      roundRect(c, px - 32, py - 9, 64, 18, 5);
+      c.fill();
+      c.stroke();
+      c.fillStyle = '#ffd24a';
+      c.font = 'bold 9px monospace';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(Game.i18n.t('cafeBuyPrompt'), px, py);
+      c.textBaseline = 'alphabetic';
+      c.restore();
+    }
+  }
+
+  /* Tiny food icons drawn at the menu position. Mirrors the held-food
+     options so the player sees what she's buying. */
+  function drawCafeFoodIcon(c, food, x, y) {
+    if (food === 'iceCream') {
+      /* Cone */
+      c.fillStyle = '#e0b070';
+      c.beginPath();
+      c.moveTo(x - 5, y + 6);
+      c.lineTo(x + 5, y + 6);
+      c.lineTo(x, y + 14);
+      c.closePath();
+      c.fill();
+      c.strokeStyle = '#9a7048';
+      c.lineWidth = 0.6;
+      c.beginPath(); c.moveTo(x - 3, y + 7); c.lineTo(x + 3, y + 13); c.stroke();
+      c.fillStyle = '#ffc8d4';
+      c.beginPath(); c.arc(x, y + 4, 6, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ff3355';
+      c.beginPath(); c.arc(x, y - 2, 1.6, 0, Math.PI * 2); c.fill();
+    } else if (food === 'donut') {
+      c.fillStyle = '#a8744a';
+      c.beginPath(); c.ellipse(x, y + 6, 9, 5, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ff66cc';
+      c.beginPath(); c.ellipse(x, y + 5, 8, 4, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffe9c8';
+      c.beginPath(); c.arc(x, y + 5, 1.8, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffd24a';
+      c.fillRect(x - 4, y + 3, 1, 1);
+      c.fillStyle = '#88ddff';
+      c.fillRect(x + 3, y + 4, 1, 1);
+      c.fillStyle = '#fff';
+      c.fillRect(x, y + 7, 1, 1);
+    } else if (food === 'macaron') {
+      c.fillStyle = '#ff8ab0';
+      c.beginPath(); c.ellipse(x, y + 3, 7, 3, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffe9c8';
+      c.fillRect(x - 6, y + 5, 12, 2);
+      c.fillStyle = '#ff99cc';
+      c.beginPath(); c.ellipse(x, y + 8, 7, 3, 0, 0, Math.PI * 2); c.fill();
+    } else if (food === 'crepe') {
+      c.fillStyle = '#e8c898';
+      c.beginPath();
+      c.moveTo(x - 7, y + 12);
+      c.lineTo(x + 7, y + 12);
+      c.lineTo(x, y - 4);
+      c.closePath();
+      c.fill();
+      c.fillStyle = '#ffd9e8';
+      c.beginPath();
+      c.moveTo(x - 4, y - 2);
+      c.lineTo(x + 4, y - 2);
+      c.lineTo(x, y + 6);
+      c.closePath();
+      c.fill();
+      c.fillStyle = '#cc4466';
+      c.beginPath(); c.arc(x, y - 1, 1.4, 0, Math.PI * 2); c.fill();
+    } else if (food === 'parfait') {
+      /* Glass */
+      c.strokeStyle = '#cdeaf4';
+      c.lineWidth = 0.8;
+      c.beginPath();
+      c.moveTo(x - 5, y - 2);
+      c.lineTo(x - 4, y + 12);
+      c.lineTo(x + 4, y + 12);
+      c.lineTo(x + 5, y - 2);
+      c.stroke();
+      c.fillStyle = '#cc4466';
+      c.fillRect(x - 4, y + 3, 8, 4);
+      c.fillStyle = '#ffd9e8';
+      c.fillRect(x - 4, y, 8, 3);
+      c.fillStyle = '#ffe9c8';
+      c.beginPath(); c.arc(x, y - 2, 3, Math.PI, 0); c.fill();
+      c.fillStyle = '#ff3366';
+      c.beginPath(); c.arc(x, y - 4, 1, 0, Math.PI * 2); c.fill();
+    } else if (food === 'taiyaki') {
+      c.fillStyle = '#d8a064';
+      c.beginPath();
+      c.ellipse(x, y + 6, 8, 4, 0, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#7a4818';
+      c.beginPath(); c.arc(x - 4, y + 5, 0.6, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffe9c8';
+      c.beginPath();
+      c.moveTo(x + 6, y + 6);
+      c.lineTo(x + 10, y + 4);
+      c.lineTo(x + 10, y + 8);
+      c.closePath();
+      c.fill();
+    } else if (food === 'onigiri') {
+      c.fillStyle = '#fff';
+      c.beginPath();
+      c.moveTo(x - 7, y + 10);
+      c.lineTo(x, y - 4);
+      c.lineTo(x + 7, y + 10);
+      c.closePath();
+      c.fill();
+      c.fillStyle = '#3a2010';
+      c.fillRect(x - 5, y + 5, 10, 4);
+    } else if (food === 'strawberry') {
+      c.fillStyle = '#ff3366';
+      c.beginPath();
+      c.moveTo(x, y + 12);
+      c.bezierCurveTo(x - 8, y + 10, x - 8, y - 2, x, y - 2);
+      c.bezierCurveTo(x + 8, y - 2, x + 8, y + 10, x, y + 12);
+      c.closePath();
+      c.fill();
+      c.fillStyle = '#ffd24a';
+      c.beginPath(); c.arc(x - 2, y + 2, 0.6, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(x + 2, y + 5, 0.6, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(x, y + 8, 0.6, 0, Math.PI * 2); c.fill();
+      /* Leaves */
+      c.fillStyle = '#3a8a3a';
+      c.beginPath();
+      c.moveTo(x - 4, y - 1);
+      c.lineTo(x, y - 5);
+      c.lineTo(x + 4, y - 1);
+      c.closePath();
+      c.fill();
+    }
+  }
+
+  /* ============================================================ */
+  /*                  ONE-SHOT EXIT BUTTON                          */
+  /* ============================================================ */
+  /* Compact button rendered in the top-right corner of every interior
+     scene (cafe, shop, house). One tap returns the player to the
+     planet, no matter where they are in the room. */
+  var EXIT_BTN = { x: W - 80, y: 8, w: 72, h: 30 };
+  function drawExitButton(c) {
+    c.save();
+    c.fillStyle = '#cc4466';
+    c.strokeStyle = '#ff99aa';
+    c.lineWidth = 2;
+    roundRect(c, EXIT_BTN.x, EXIT_BTN.y, EXIT_BTN.w, EXIT_BTN.h, 8);
+    c.fill();
+    c.stroke();
+    c.fillStyle = '#fff';
+    c.font = 'bold 13px monospace';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(
+      Game.i18n.t('exitButton') + ' ✕',
+      EXIT_BTN.x + EXIT_BTN.w / 2,
+      EXIT_BTN.y + EXIT_BTN.h / 2
+    );
+    c.textBaseline = 'alphabetic';
+    c.restore();
+  }
+  function hitExitButton(mx, my) {
+    return hitButton(mx, my, EXIT_BTN.x, EXIT_BTN.y, EXIT_BTN.w, EXIT_BTN.h);
   }
 
   function handleCafeInteriorClick(mx, my) {
+    /* One-shot top-right EXIT button */
+    if (hitExitButton(mx, my)) {
+      Game.audio.play('select');
+      return 'exit';
+    }
     /* Exit door */
     if (hitButton(mx, my, W - 92, H - 152, 80, 122)) {
       Game.audio.play('select');
       return 'exit';
+    }
+    /* Tap a counter menu item to buy it directly. */
+    for (var mi = 0; mi < CAFE_MENU.length; mi++) {
+      var m = CAFE_MENU[mi];
+      if (hitButton(mx, my, m.x - 28, m.y - 28, 56, 70)) {
+        buyCafeItem(mi);
+        return null;
+      }
     }
     return null;
   }
@@ -4319,9 +5020,16 @@
     c.font = 'bold 11px monospace';
     c.textAlign = 'center';
     c.fillText(Game.i18n.t('furnitureExit'), W - 52, H - 221);
+    /* One-shot top-right EXIT button */
+    drawExitButton(c);
   }
 
   function handleShopInteriorClick(mx, my) {
+    /* One-shot top-right EXIT button */
+    if (hitExitButton(mx, my)) {
+      Game.audio.play('select');
+      return 'exit';
+    }
     /* Exit door */
     if (hitButton(mx, my, W - 92, H - 232, 80, 122)) {
       Game.audio.play('select');
