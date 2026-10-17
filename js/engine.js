@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.8.0';
+  Game.VERSION = 'v2.9.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -649,13 +649,14 @@
        button (which is drawn last, in canvas space). The game viewport in
        the middle is fully overwritten by the state renderer below, so it
        doesn't matter that we paint across it here. */
-    /* Menu screens have no touch controls, so on a tablet they paint
-       their own starfield across the whole canvas instead of sitting in a
-       dark frame. Gameplay keeps the bezel so the D-pad has a quiet
+    /* Menu screens and the rocket flight have no touch controls, so on
+       a tablet they paint their own starfield across the whole canvas
+       instead of sitting in a dark frame. Gameplay keeps the bezel so the D-pad has a quiet
        backdrop. */
     var fullBleed = Game.input.isTouch() && (
       state === State.TITLE || state === State.CUSTOMIZE ||
-      state === State.INTRO || state === State.VICTORY);
+      state === State.INTRO || state === State.VICTORY ||
+      state === State.ROCKET_ANIM);
     /* Pause and game-over dim the whole screen, bezel included, so the
        menu floats over the frozen game instead of a bright island. */
     var dimAll = Game.input.isTouch() && (

@@ -267,30 +267,49 @@
     titleAnimTimer++;
 
     drawSpaceBackdrop(c, titleAnimTimer);
-    clipGame(c);
+    /* Version stamp in the bottom-right corner of the screen (not the
+       viewport) – helps us know which build is running */
+    drawViewStamp(c, '#6a8aaa');
 
-    /* Ringed home planet and a little moon in the upper-right */
-    drawShadedPlanet(c, W - 110, 86, 40, '#ffc2ee', '#c43e9a', '#ffd24a');
-    drawShadedPlanet(c, W - 44, 170, 11, '#c8fbff', '#3a8fb8', null);
+    /* On a tablet the view is wider and taller than the viewport, so the
+       planets and Momoko move out into the bezel and frame the menu
+       instead of crowding the title. */
+    var wide = VIEW.w > W + 100;
+    if (wide) {
+      var vr = VIEW.x + VIEW.w, vb = VIEW.y + VIEW.h;
+      drawShadedPlanet(c, vr - 150, VIEW.y + 140, 62, '#ffc2ee', '#c43e9a', '#ffd24a');
+      drawShadedPlanet(c, vr - 60, VIEW.y + 270, 16, '#c8fbff', '#3a8fb8', null);
+      drawShadedPlanet(c, vr - 170, vb - 120, 34, '#fff1a8', '#d69a1e', null);
+    } else {
+      clipGame(c);
+      /* Ringed home planet and a little moon in the upper-right */
+      drawShadedPlanet(c, W - 110, 86, 40, '#ffc2ee', '#c43e9a', '#ffd24a');
+      drawShadedPlanet(c, W - 44, 170, 11, '#c8fbff', '#3a8fb8', null);
+    }
 
     /* Momoko drifting by on the left, trailing sparkles */
     var bob = Math.sin(titleAnimTimer * 0.04) * 8;
+    /* Halfway between the screen edge and the buttons */
+    var mx = wide ? (VIEW.x + W / 2 - 90) / 2 : 150;
+    var my = 300;
+    var ms = wide ? 3.4 : 2.6;
     for (var sp = 0; sp < 6; sp++) {
       var age = (titleAnimTimer + sp * 12) % 72;
       c.save();
       c.globalAlpha = (1 - age / 72) * 0.8;
       c.fillStyle = sp % 2 ? '#ffd24a' : '#ff99dd';
       c.beginPath();
-      c.arc(150 - 30 - age * 0.9, 300 + bob + Math.sin(age * 0.2 + sp) * 6, 2.5 - age / 40, 0, Math.PI * 2);
+      c.arc(mx - ms * 11.5 - age * 0.9, my + bob + Math.sin(age * 0.2 + sp) * 6, 2.5 - age / 40, 0, Math.PI * 2);
       c.fill();
       c.restore();
     }
     c.save();
-    c.translate(150, 300 + bob);
+    c.translate(mx, my + bob);
     c.rotate(Math.sin(titleAnimTimer * 0.02) * 0.08);
-    c.scale(2.6, 2.6);
+    c.scale(ms, ms);
     drawMomokoPreview(c, Game.customization);
     c.restore();
+    if (wide) clipGame(c);
 
     /* Title text */
     var title = Game.i18n.t('title');
@@ -323,7 +342,7 @@
     c.fillText(Game.i18n.t('titleSubtitle'), W / 2, 150);
 
     /* Buttons */
-    drawButton(c, Game.i18n.t('play'), W / 2 - 90, 200, 180, 44);
+    drawButton(c, Game.i18n.t('play'), W / 2 - 90, 200, 180, 44, false, 'primary');
     drawButton(c, Game.i18n.t('howToPlay'), W / 2 - 90, 260, 180, 44);
     drawButton(c, Game.i18n.t('language') + ': ' + Game.i18n.t('langLabel'), W / 2 - 90, 320, 180, 44);
 
@@ -331,17 +350,6 @@
     var muteLabel = Game.i18n.t(Game.audio.isMuted() ? 'soundOff' : 'soundOn');
     drawButton(c, muteLabel, W / 2 - 90, 380, 180, 36);
 
-    /* Version stamp (bottom-right) – helps us know which build is running */
-    if (Game.VERSION) {
-      c.save();
-      c.fillStyle = '#4a6a8a';
-      c.font = '11px "M PLUS Rounded 1c", sans-serif';
-      c.textAlign = 'right';
-      c.textBaseline = 'alphabetic';
-      var stamp = Game.VERSION + (Game.BUILD ? ' (' + Game.BUILD + ')' : '');
-      c.fillText(stamp, W - 8, H - 8);
-      c.restore();
-    }
 
     /* Instructions overlay flag */
     return false;
@@ -484,14 +492,7 @@
 
     /* Version stamp – matches the title-screen stamp so we can tell at a
        glance which build is paused (handy for bug reports). */
-    if (Game.VERSION) {
-      c.fillStyle = '#6688aa';
-      c.font = '11px "M PLUS Rounded 1c", sans-serif';
-      c.textAlign = 'right';
-      c.textBaseline = 'alphabetic';
-      var pStamp = Game.VERSION + (Game.BUILD ? ' (' + Game.BUILD + ')' : '');
-      c.fillText(pStamp, W - 8, H - 8);
-    }
+    drawViewStamp(c, '#6688aa');
     c.restore();
   }
 
@@ -689,9 +690,17 @@
 
     c.save();
     drawSpaceBackdrop(c, victoryTimer);
-    clipGame(c);
-    drawShadedPlanet(c, 110, 380, 46, '#ffc2ee', '#c43e9a', '#ffd24a');
-    drawShadedPlanet(c, W - 96, 360, 30, '#fff1a8', '#d69a1e', null);
+    /* On a tablet the planets sit out toward the screen corners, as on
+       the title, so the celebration fills the screen. */
+    if (VIEW.w > W + 100) {
+      drawShadedPlanet(c, VIEW.x + 170, VIEW.y + VIEW.h - 150, 62, '#ffc2ee', '#c43e9a', '#ffd24a');
+      drawShadedPlanet(c, VIEW.x + VIEW.w - 140, VIEW.y + 150, 38, '#fff1a8', '#d69a1e', null);
+      clipGame(c);
+    } else {
+      clipGame(c);
+      drawShadedPlanet(c, 110, 380, 46, '#ffc2ee', '#c43e9a', '#ffd24a');
+      drawShadedPlanet(c, W - 96, 360, 30, '#fff1a8', '#d69a1e', null);
+    }
 
     /* Fireworks: round sparks that glow, fade, and leave short trails */
     if (victoryTimer % 24 === 1) {
@@ -1435,7 +1444,7 @@
     }
 
     /* Start button */
-    drawButton(c, Game.i18n.t('startGame'), START_BTN_X, START_BTN_Y, START_BTN_W, START_BTN_H);
+    drawButton(c, Game.i18n.t('startGame'), START_BTN_X, START_BTN_Y, START_BTN_W, START_BTN_H, false, 'primary');
   }
 
   function drawMomokoPreview(c, cust) {
@@ -1560,23 +1569,28 @@
     c.fillText(Game.i18n.t('introTitle'), W / 2, 46);
     c.shadowBlur = 0;
 
-    /* Story panel */
-    c.fillStyle = 'rgba(8, 24, 48, 0.75)';
-    roundRect(c, panelX, panelY, panelW, panelH, 10);
+    /* Story panel – the same violet card as How to Play and dialogue */
+    c.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    roundRect(c, panelX, panelY + 4, panelW, panelH, 14);
     c.fill();
-    c.strokeStyle = '#2a5580';
+    var pg = c.createLinearGradient(0, panelY, 0, panelY + panelH);
+    pg.addColorStop(0, 'rgba(44, 18, 92, 0.92)');
+    pg.addColorStop(1, 'rgba(22, 8, 52, 0.92)');
+    c.fillStyle = pg;
+    roundRect(c, panelX, panelY, panelW, panelH, 14);
+    c.fill();
+    c.strokeStyle = '#b07cff';
     c.lineWidth = 2;
-    roundRect(c, panelX, panelY, panelW, panelH, 10);
     c.stroke();
 
     /* Story text */
-    c.fillStyle = '#dfeeff';
+    c.fillStyle = '#f0e8ff';
     c.font = '14px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'left';
     wrapText(c, Game.i18n.t('introText'), panelX + 18, panelY + 28, panelW - 36, 20);
 
     /* Continue button */
-    drawButton(c, Game.i18n.t('continueBtn'), W / 2 - 90, H - 60, 180, 44);
+    drawButton(c, Game.i18n.t('continueBtn'), W / 2 - 90, H - 60, 180, 44, false, 'primary');
   }
 
   function handleIntroClick(mx, my) {
@@ -2436,12 +2450,18 @@
     c.fillStyle = 'rgba(10, 4, 32, 0.85)';
     c.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
 
-    /* Panel */
-    c.fillStyle = '#1a0b3d';
+    /* Panel – drop shadow and a soft violet gradient like the other cards */
+    var px = W / 2 - 240, py = 70, pw = 480, ph = 340;
+    c.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    roundRect(c, px, py + 4, pw, ph, 16);
+    c.fill();
+    var pg = c.createLinearGradient(0, py, 0, py + ph);
+    pg.addColorStop(0, '#2c125c');
+    pg.addColorStop(1, '#160834');
+    c.fillStyle = pg;
     c.strokeStyle = '#ff66cc';
     c.lineWidth = 3;
-    var px = W / 2 - 240, py = 70, pw = 480, ph = 340;
-    roundRect(c, px, py, pw, ph, 12);
+    roundRect(c, px, py, pw, ph, 16);
     c.fill();
     c.stroke();
 
@@ -2467,45 +2487,42 @@
 
   function drawDestinationCard(c, x, y, w, h, kind) {
     c.save();
-    c.fillStyle = '#2a1458';
+    var cg = c.createLinearGradient(0, y, 0, y + h);
+    cg.addColorStop(0, '#33186a');
+    cg.addColorStop(1, '#1e0c44');
+    c.fillStyle = cg;
     c.strokeStyle = '#44ffff';
     c.lineWidth = 2;
-    roundRect(c, x, y, w, h, 10);
+    roundRect(c, x, y, w, h, 12);
     c.fill();
     c.stroke();
 
-    /* Planet preview */
-    var pcx = x + w / 2, pcy = y + 65;
+    /* Planet preview – the same shaded planets as the title and the
+       rocket flight, sitting in a soft glow */
+    var pcx = x + w / 2, pcy = y + 62;
+    var glow = c.createRadialGradient(pcx, pcy, 10, pcx, pcy, 60);
+    glow.addColorStop(0, kind === 'home' ? 'rgba(255, 102, 204, 0.3)' : 'rgba(255, 210, 74, 0.3)');
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    c.fillStyle = glow;
+    c.fillRect(x + 2, y + 2, w - 4, 120);
     if (kind === 'home') {
-      /* Ringed home planet */
-      c.fillStyle = '#ff88dd';
-      c.beginPath();
-      c.arc(pcx, pcy, 32, 0, Math.PI * 2);
-      c.fill();
-      c.strokeStyle = '#ffd24a';
-      c.lineWidth = 3;
-      c.beginPath();
-      c.ellipse(pcx, pcy, 52, 10, -0.2, 0, Math.PI * 2);
-      c.stroke();
+      drawShadedPlanet(c, pcx, pcy, 30, '#ffc2ee', '#c43e9a', '#ffd24a');
     } else {
-      /* Cheese moon */
-      c.fillStyle = '#ffcc44';
-      c.beginPath();
-      c.arc(pcx, pcy, 32, 0, Math.PI * 2);
-      c.fill();
-      c.fillStyle = '#cc9922';
-      c.beginPath(); c.arc(pcx - 8, pcy - 4, 5, 0, Math.PI * 2); c.fill();
-      c.beginPath(); c.arc(pcx + 6, pcy + 6, 4, 0, Math.PI * 2); c.fill();
-      c.beginPath(); c.arc(pcx - 2, pcy + 10, 3, 0, Math.PI * 2); c.fill();
+      drawShadedPlanet(c, pcx, pcy, 32, '#fff1a8', '#d69a1e', null);
+      /* Cheese holes */
+      c.fillStyle = 'rgba(160, 100, 20, 0.55)';
+      c.beginPath(); c.arc(pcx - 9, pcy - 5, 5, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(pcx + 9, pcy + 6, 4, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(pcx - 3, pcy + 14, 3, 0, Math.PI * 2); c.fill();
     }
 
     /* Label */
     c.fillStyle = '#ffffff';
-    c.font = 'bold 16px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'center';
     var label = kind === 'home'
       ? Game.i18n.t('destHerosPlanet')
       : Game.i18n.t('destCheeseMoon');
+    fitFont(c, label, w - 16, 16, 'bold');
     c.fillText(label, pcx, y + 130);
 
     /* Launch button */
@@ -2603,9 +2620,12 @@
     var speed = 4 + Math.sin(t * Math.PI) * 14;
     c.strokeStyle = '#ffffff';
     c.lineCap = 'round';
-    for (var s = 0; s < 40; s++) {
-      var sy = (s * 97) % H;
-      var sx = W - ((s * 211 + timer * speed * (0.5 + (s % 3) * 0.4)) % (W + 80));
+    /* Fill the whole view (the tablet screen during the flight) at the
+       viewport's streak density. */
+    var streaks = Math.round(40 * VIEW.w * VIEW.h / (W * H));
+    for (var s = 0; s < streaks; s++) {
+      var sy = VIEW.y + (s * 97) % VIEW.h;
+      var sx = VIEW.x + VIEW.w - ((s * 211 + timer * speed * (0.5 + (s % 3) * 0.4)) % (VIEW.w + 80));
       c.globalAlpha = 0.25 + (s % 3) * 0.2;
       c.lineWidth = 1 + (s % 3) * 0.5;
       c.beginPath();
@@ -2848,13 +2868,18 @@
     c.fillStyle = vig;
     c.fillRect(0, wb, W, H - wb);
 
-    /* House name label */
-    c.fillStyle = '#44ffff';
+    /* House name label – outlined so the cyan reads on the bright
+       cheese wallpaper as well as the dark ones */
     c.font = 'bold 20px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'left';
     var nameKey = houseId === 'heroHome' ? 'houseHero'
                 : houseId === 'lilaHouse' ? 'houseLila'
                 : 'houseMigword';
+    c.lineJoin = 'round';
+    c.lineWidth = 5;
+    c.strokeStyle = '#1a0b3d';
+    c.strokeText(Game.i18n.t(nameKey), 20, 40);
+    c.fillStyle = '#44ffff';
     c.fillText(Game.i18n.t(nameKey), 20, 40);
 
     /* Palette strip (categories on top, items below) */
@@ -2942,16 +2967,31 @@
     }
 
     /* Exit door (right side, bigger so it reads as an actual exit) */
+    c.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    c.beginPath();
+    c.ellipse(W - 52, H - 30, 44, 6, 0, 0, Math.PI * 2);
+    c.fill();
     c.fillStyle = '#3a2412';
     c.fillRect(W - 84, H - 140, 64, 110);
-    c.fillStyle = '#8a5a32';
+    var dg = c.createLinearGradient(W - 80, 0, W - 24, 0);
+    dg.addColorStop(0, '#9a6a3c');
+    dg.addColorStop(1, '#74482a');
+    c.fillStyle = dg;
     c.fillRect(W - 80, H - 136, 56, 102);
+    /* Recessed panels */
     c.strokeStyle = '#5a3a22';
-    c.lineWidth = 1;
-    c.beginPath(); c.moveTo(W - 52, H - 132); c.lineTo(W - 52, H - 36); c.stroke();
+    c.lineWidth = 1.5;
+    c.strokeRect(W - 74, H - 128, 18, 40);
+    c.strokeRect(W - 48, H - 128, 18, 40);
+    c.strokeRect(W - 74, H - 80, 18, 38);
+    c.strokeRect(W - 48, H - 80, 18, 38);
     c.fillStyle = '#ffd24a';
     c.beginPath();
-    c.arc(W - 36, H - 86, 3, 0, Math.PI * 2);
+    c.arc(W - 33, H - 86, 3.5, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    c.beginPath();
+    c.arc(W - 34, H - 87, 1.2, 0, Math.PI * 2);
     c.fill();
     /* "Outside" sign */
     c.fillStyle = '#44ffff';
@@ -5626,16 +5666,35 @@
     drawVersionStamp: drawVersionStamp,
   };
 
+  /* Version stamp in the bottom-right corner of the current view, so on
+     a tablet menu it sits in the screen corner. */
+  function drawViewStamp(c, color) {
+    if (!Game.VERSION) return;
+    c.save();
+    c.fillStyle = color;
+    c.font = '11px ' + FONT;
+    c.textAlign = 'right';
+    c.textBaseline = 'alphabetic';
+    c.fillText(Game.VERSION + (Game.BUILD ? ' (' + Game.BUILD + ')' : ''),
+      VIEW.x + VIEW.w - 8, VIEW.y + VIEW.h - 8);
+    c.restore();
+  }
+
   /* Reusable version stamp — same position + style as the title screen
      so you can tell at a glance which build is running during gameplay. */
   function drawVersionStamp(c) {
     if (!Game.VERSION) return;
     c.save();
-    c.fillStyle = '#4a6a8a';
     c.font = '11px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'right';
     c.textBaseline = 'alphabetic';
     var stamp = Game.VERSION + (Game.BUILD ? ' (' + Game.BUILD + ')' : '');
+    /* Dark halo so it stays readable on the bright Cheese Moon ground */
+    c.lineJoin = 'round';
+    c.lineWidth = 3;
+    c.strokeStyle = 'rgba(10, 4, 32, 0.55)';
+    c.strokeText(stamp, W - 8, H - 8);
+    c.fillStyle = '#9ab4d4';
     c.fillText(stamp, W - 8, H - 8);
     c.restore();
   }
