@@ -292,8 +292,9 @@
     var bEdge = gy + GAME_H;
 
     c.save();
-    /* Bezel fill across the entire canvas */
-    c.fillStyle = '#081224';
+    /* Bezel fill across the entire canvas – the same deep space as the
+       page background, so the frame belongs to the game. */
+    c.fillStyle = '#0a0420';
     c.fillRect(0, 0, cw, ch);
 
     /* A few faint fixed stars so the bezel reads as more of space
@@ -311,12 +312,12 @@
        state renderer paints over the inside of the rect. */
     if (gx > 0 || gy > 0 || rEdge < cw || bEdge < ch) {
       c.save();
-      c.shadowColor = 'rgba(100, 160, 220, 0.45)';
+      c.shadowColor = 'rgba(170, 120, 255, 0.45)';
       c.shadowBlur = 18;
-      c.fillStyle = '#081224';
+      c.fillStyle = '#0a0420';
       c.fillRect(gx, gy, GAME_W, GAME_H);
       c.restore();
-      c.strokeStyle = '#1a3a60';
+      c.strokeStyle = '#3a2470';
       c.lineWidth = 2;
       c.strokeRect(gx - 1, gy - 1, GAME_W + 2, GAME_H + 2);
     }

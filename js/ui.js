@@ -21,6 +21,37 @@
   /* ---- Helpers ---- */
   var FONT = '"M PLUS Rounded 1c", sans-serif';
 
+  /* The rectangle the ambient backdrops fill, in game coordinates. It is
+     the 800x480 viewport everywhere except on touch devices, where the
+     engine widens it to the whole canvas for the title, customize, intro
+     and victory screens so space fills the bezel instead of a dark
+     frame. Everything else on those screens stays clipped to the
+     viewport via clipGame(). */
+  var VIEW = { x: 0, y: 0, w: W, h: H };
+  function setView(x, y, w, h) { VIEW.x = x; VIEW.y = y; VIEW.w = w; VIEW.h = h; }
+  function clipGame(c) { c.beginPath(); c.rect(0, 0, W, H); c.clip(); }
+
+  /* Extra stars for the part of the view outside the viewport, made once
+     per layout at the same density as the title's own star field. */
+  var bezelStars = [], bezelKey = '';
+  function viewBezelStars() {
+    var key = VIEW.x + ',' + VIEW.y + ',' + VIEW.w + ',' + VIEW.h;
+    if (key === bezelKey) return bezelStars;
+    bezelKey = key;
+    bezelStars = [];
+    var extra = VIEW.w * VIEW.h - W * H;
+    var n = Math.round(titleBubbles.length * extra / (W * H));
+    for (var i = 0; i < n; i++) {
+      var x, y, tries = 0;
+      do {
+        x = VIEW.x + Math.random() * VIEW.w;
+        y = VIEW.y + Math.random() * VIEW.h;
+      } while (x >= 0 && x < W && y >= 0 && y < H && ++tries < 20);
+      bezelStars.push({ x: x, y: y, r: 1 + Math.random() * 4, wobble: Math.random() * Math.PI * 2 });
+    }
+    return bezelStars;
+  }
+
   /* True when the mouse is over the rect, in whatever coordinate space
      the caller is currently drawing in (the pointer is stored in
      backing-store pixels and mapped back through the live transform). */
@@ -137,7 +168,7 @@
     grad.addColorStop(0.5, '#1a0b3d');
     grad.addColorStop(1, '#2a1458');
     c.fillStyle = grad;
-    c.fillRect(0, 0, W, H);
+    c.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
 
     for (var n = 0; n < nebulae.length; n++) {
       var nb = nebulae[n];
@@ -148,31 +179,38 @@
       ng.addColorStop(0.5, 'rgba(' + nb.rgb + ', 0.08)');
       ng.addColorStop(1, 'rgba(' + nb.rgb + ', 0)');
       c.fillStyle = ng;
-      c.fillRect(0, 0, W, H);
+      c.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
     }
 
     for (var i = 0; i < titleBubbles.length; i++) {
-      var b = titleBubbles[i];
-      b.wobble += 0.04;
-      var twinkle = 0.3 + 0.7 * Math.abs(Math.sin(b.wobble));
-      c.save();
-      c.globalAlpha = twinkle * 0.9;
-      c.fillStyle = i % 13 === 0 ? '#44ffff' : (i % 17 === 0 ? '#ff66cc' : '#ffffff');
-      c.beginPath();
-      c.arc(b.x, b.y, 0.8 + b.r * 0.4 * twinkle, 0, Math.PI * 2);
-      c.fill();
-      if (b.r > 3) {
-        c.strokeStyle = c.fillStyle;
-        c.lineWidth = 0.6;
-        c.beginPath();
-        c.moveTo(b.x - b.r * 1.3, b.y);
-        c.lineTo(b.x + b.r * 1.3, b.y);
-        c.moveTo(b.x, b.y - b.r * 1.3);
-        c.lineTo(b.x, b.y + b.r * 1.3);
-        c.stroke();
-      }
-      c.restore();
+      drawTwinkleStar(c, titleBubbles[i], i);
     }
+    if (VIEW.w > W || VIEW.h > H) {
+      var extra = viewBezelStars();
+      for (var j = 0; j < extra.length; j++) drawTwinkleStar(c, extra[j], j);
+    }
+  }
+
+  function drawTwinkleStar(c, b, i) {
+    b.wobble += 0.04;
+    var twinkle = 0.3 + 0.7 * Math.abs(Math.sin(b.wobble));
+    c.save();
+    c.globalAlpha = twinkle * 0.9;
+    c.fillStyle = i % 13 === 0 ? '#44ffff' : (i % 17 === 0 ? '#ff66cc' : '#ffffff');
+    c.beginPath();
+    c.arc(b.x, b.y, 0.8 + b.r * 0.4 * twinkle, 0, Math.PI * 2);
+    c.fill();
+    if (b.r > 3) {
+      c.strokeStyle = c.fillStyle;
+      c.lineWidth = 0.6;
+      c.beginPath();
+      c.moveTo(b.x - b.r * 1.3, b.y);
+      c.lineTo(b.x + b.r * 1.3, b.y);
+      c.moveTo(b.x, b.y - b.r * 1.3);
+      c.lineTo(b.x, b.y + b.r * 1.3);
+      c.stroke();
+    }
+    c.restore();
   }
 
   /* Sphere-lit planet with soft bands and an optional ring that passes
@@ -229,6 +267,7 @@
     titleAnimTimer++;
 
     drawSpaceBackdrop(c, titleAnimTimer);
+    clipGame(c);
 
     /* Ringed home planet and a little moon in the upper-right */
     drawShadedPlanet(c, W - 110, 86, 40, '#ffc2ee', '#c43e9a', '#ffd24a');
@@ -650,6 +689,7 @@
 
     c.save();
     drawSpaceBackdrop(c, victoryTimer);
+    clipGame(c);
     drawShadedPlanet(c, 110, 380, 46, '#ffc2ee', '#c43e9a', '#ffd24a');
     drawShadedPlanet(c, W - 96, 360, 30, '#fff1a8', '#d69a1e', null);
 
@@ -1249,13 +1289,15 @@
     c.restore();
   }
 
+  var customizeTimer = 0;
   function drawCustomizeScreen(c) {
-    /* Background */
-    var grad = c.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, '#0a1628');
-    grad.addColorStop(1, '#162e50');
-    c.fillStyle = grad;
-    c.fillRect(0, 0, W, H);
+    customizeTimer++;
+    /* Background – the title's starfield, dimmed so the controls stay
+       legible (it used to be a leftover navy gradient from the sea game). */
+    drawSpaceBackdrop(c, customizeTimer);
+    c.fillStyle = 'rgba(6, 2, 20, 0.4)';
+    c.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
+    clipGame(c);
 
     /* Title */
     c.fillStyle = '#66ccff';
@@ -1489,6 +1531,7 @@
 
     /* Background – same starry backdrop as the title for continuity */
     drawSpaceBackdrop(c, introAnimTimer);
+    clipGame(c);
 
     /* Momoko portrait (left) */
     c.save();
@@ -5504,6 +5547,7 @@
 
   window.Game.ui = {
     beginFrame: function () { anyHot = false; },
+    setView: setView,
     drawShadedPlanet: drawShadedPlanet,
     isHot: function () { return anyHot; },
     drawTitleScreen: function (c) {
