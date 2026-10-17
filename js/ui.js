@@ -124,10 +124,14 @@
   }
 
   /* ---- Title Screen ---- */
-  function drawTitleScreen(c) {
-    titleAnimTimer++;
-
-    /* Space background gradient */
+  /* ---- Space backdrop shared by the title, intro and victory screens ----
+     Soft drifting nebula glows behind the twinkling star field. */
+  var nebulae = [
+    { x: 0.16, y: 0.32, r: 280, rgb: '255, 102, 204' },
+    { x: 0.82, y: 0.72, r: 320, rgb: '68, 200, 255' },
+    { x: 0.58, y: 0.12, r: 220, rgb: '150, 90, 255' },
+  ];
+  function drawSpaceBackdrop(c, t) {
     var grad = c.createLinearGradient(0, 0, 0, H);
     grad.addColorStop(0, '#0a0420');
     grad.addColorStop(0.5, '#1a0b3d');
@@ -135,7 +139,18 @@
     c.fillStyle = grad;
     c.fillRect(0, 0, W, H);
 
-    /* Twinkling stars scattered on title screen */
+    for (var n = 0; n < nebulae.length; n++) {
+      var nb = nebulae[n];
+      var nx = nb.x * W + Math.sin(t * 0.004 + n * 2) * 24;
+      var ny = nb.y * H + Math.cos(t * 0.003 + n) * 14;
+      var ng = c.createRadialGradient(nx, ny, 0, nx, ny, nb.r);
+      ng.addColorStop(0, 'rgba(' + nb.rgb + ', 0.22)');
+      ng.addColorStop(0.5, 'rgba(' + nb.rgb + ', 0.08)');
+      ng.addColorStop(1, 'rgba(' + nb.rgb + ', 0)');
+      c.fillStyle = ng;
+      c.fillRect(0, 0, W, H);
+    }
+
     for (var i = 0; i < titleBubbles.length; i++) {
       var b = titleBubbles[i];
       b.wobble += 0.04;
@@ -158,25 +173,84 @@
       }
       c.restore();
     }
+  }
 
-    /* A ringed planet in the upper-right */
+  /* Sphere-lit planet with soft bands and an optional ring that passes
+     behind the planet at the top and in front of it at the bottom. */
+  function drawShadedPlanet(c, x, y, r, light, dark, ring) {
+    var tilt = -0.3;
     c.save();
-    var pcx = W - 110, pcy = 80;
-    c.fillStyle = '#ff88dd';
+    if (ring) {
+      c.strokeStyle = ring;
+      c.lineWidth = r * 0.14;
+      c.globalAlpha = 0.75;
+      c.beginPath();
+      c.ellipse(x, y, r * 1.7, r * 0.34, tilt, Math.PI, Math.PI * 2);
+      c.stroke();
+      c.globalAlpha = 1;
+    }
+    var g = c.createRadialGradient(x - r * 0.4, y - r * 0.45, r * 0.1, x, y, r);
+    g.addColorStop(0, light);
+    g.addColorStop(1, dark);
+    c.fillStyle = g;
     c.beginPath();
-    c.arc(pcx, pcy, 38, 0, Math.PI * 2);
+    c.arc(x, y, r, 0, Math.PI * 2);
     c.fill();
-    c.globalAlpha = 0.25;
-    c.fillStyle = '#ffffff';
+    /* Bands, clipped to the disc */
+    c.save();
+    c.clip();
+    c.fillStyle = 'rgba(255, 255, 255, 0.12)';
     c.beginPath();
-    c.arc(pcx - 8, pcy - 8, 18, 0, Math.PI * 2);
+    c.ellipse(x, y - r * 0.25, r * 1.2, r * 0.14, tilt, 0, Math.PI * 2);
     c.fill();
-    c.globalAlpha = 0.7;
-    c.strokeStyle = '#ffd24a';
-    c.lineWidth = 3;
+    c.fillStyle = 'rgba(0, 0, 0, 0.1)';
     c.beginPath();
-    c.ellipse(pcx, pcy, 62, 12, -0.3, 0, Math.PI * 2);
+    c.ellipse(x, y + r * 0.3, r * 1.2, r * 0.2, tilt, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+    /* Atmosphere rim */
+    c.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    c.lineWidth = 1.5;
+    c.beginPath();
+    c.arc(x, y, r - 0.5, Math.PI * 0.9, Math.PI * 1.6);
     c.stroke();
+    if (ring) {
+      c.strokeStyle = ring;
+      c.lineWidth = r * 0.14;
+      c.globalAlpha = 0.9;
+      c.beginPath();
+      c.ellipse(x, y, r * 1.7, r * 0.34, tilt, 0, Math.PI);
+      c.stroke();
+    }
+    c.restore();
+  }
+
+  function drawTitleScreen(c) {
+    titleAnimTimer++;
+
+    drawSpaceBackdrop(c, titleAnimTimer);
+
+    /* Ringed home planet and a little moon in the upper-right */
+    drawShadedPlanet(c, W - 110, 86, 40, '#ffc2ee', '#c43e9a', '#ffd24a');
+    drawShadedPlanet(c, W - 44, 170, 11, '#c8fbff', '#3a8fb8', null);
+
+    /* Momoko drifting by on the left, trailing sparkles */
+    var bob = Math.sin(titleAnimTimer * 0.04) * 8;
+    for (var sp = 0; sp < 6; sp++) {
+      var age = (titleAnimTimer + sp * 12) % 72;
+      c.save();
+      c.globalAlpha = (1 - age / 72) * 0.8;
+      c.fillStyle = sp % 2 ? '#ffd24a' : '#ff99dd';
+      c.beginPath();
+      c.arc(150 - 30 - age * 0.9, 300 + bob + Math.sin(age * 0.2 + sp) * 6, 2.5 - age / 40, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
+    }
+    c.save();
+    c.translate(150, 300 + bob);
+    c.rotate(Math.sin(titleAnimTimer * 0.02) * 0.08);
+    c.scale(2.6, 2.6);
+    drawMomokoPreview(c, Game.customization);
     c.restore();
 
     /* Title text */
@@ -185,9 +259,13 @@
     c.font = 'bold 36px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    /* Shadow */
+    /* Shadow + outline */
     c.fillStyle = '#220044';
-    c.fillText(title, W / 2 + 2, 102);
+    c.fillText(title, W / 2 + 2, 104);
+    c.lineJoin = 'round';
+    c.lineWidth = 6;
+    c.strokeStyle = '#2a0b55';
+    c.strokeText(title, W / 2, 100);
     /* Main */
     c.fillStyle = '#44ffff';
     c.fillText(title, W / 2, 100);
@@ -507,64 +585,96 @@
     victoryTimer++;
 
     c.save();
-    c.fillStyle = 'rgba(0, 10, 30, 0.85)';
-    c.fillRect(0, 0, W, H);
+    drawSpaceBackdrop(c, victoryTimer);
+    drawShadedPlanet(c, 110, 380, 46, '#ffc2ee', '#c43e9a', '#ffd24a');
+    drawShadedPlanet(c, W - 96, 360, 30, '#fff1a8', '#d69a1e', null);
 
-    /* Fireworks particles */
-    if (victoryTimer % 10 === 0) {
-      var fx = 100 + Math.random() * 600;
-      var fy = 100 + Math.random() * 200;
-      var colors = ['#ff4466', '#44ff66', '#4488ff', '#ffcc33', '#ff66cc', '#66ffcc'];
-      for (var i = 0; i < 12; i++) {
-        var angle = (Math.PI * 2 * i) / 12;
-        var sp = 1 + Math.random() * 2;
+    /* Fireworks: round sparks that glow, fade, and leave short trails */
+    if (victoryTimer % 24 === 1) {
+      var fx = 160 + Math.random() * 480;
+      var fy = 70 + Math.random() * 140;
+      var colors = ['#ff6688', '#66ff99', '#66aaff', '#ffd24a', '#ff88dd', '#77ffee'];
+      var col = colors[Math.floor(Math.random() * colors.length)];
+      for (var i = 0; i < 28; i++) {
+        var angle = (Math.PI * 2 * i) / 28;
+        var sp = 1.6 + Math.random() * 1.4;
         victoryParticles.push({
-          x: fx, y: fy,
+          x: fx, y: fy, px: fx, py: fy,
           vx: Math.cos(angle) * sp,
           vy: Math.sin(angle) * sp,
-          life: 40 + Math.random() * 20,
-          maxLife: 60,
-          color: colors[Math.floor(Math.random() * colors.length)],
-          size: 2 + Math.random() * 3
+          life: 50 + Math.random() * 20,
+          maxLife: 70,
+          color: i % 5 === 0 ? '#ffffff' : col,
+          size: 1.6 + Math.random() * 1.6
         });
       }
     }
 
+    c.globalCompositeOperation = 'lighter';
+    c.lineCap = 'round';
     for (var p = victoryParticles.length - 1; p >= 0; p--) {
       var part = victoryParticles[p];
+      part.px = part.x;
+      part.py = part.y;
       part.x += part.vx;
       part.y += part.vy;
-      part.vy += 0.03;
+      part.vx *= 0.98;
+      part.vy = part.vy * 0.98 + 0.025;
       part.life--;
       if (part.life <= 0) { victoryParticles.splice(p, 1); continue; }
-      c.globalAlpha = part.life / part.maxLife;
+      var a = part.life / part.maxLife;
+      c.globalAlpha = a;
+      c.strokeStyle = part.color;
+      c.lineWidth = part.size;
+      c.beginPath();
+      c.moveTo(part.px - part.vx * 3, part.py - part.vy * 3);
+      c.lineTo(part.x, part.y);
+      c.stroke();
+      c.globalAlpha = a * 0.35;
       c.fillStyle = part.color;
-      c.fillRect(part.x - part.size / 2, part.y - part.size / 2, part.size, part.size);
+      c.beginPath();
+      c.arc(part.x, part.y, part.size * 2.4, 0, Math.PI * 2);
+      c.fill();
     }
     c.globalAlpha = 1;
+    c.globalCompositeOperation = 'source-over';
 
-    c.fillStyle = '#ffcc33';
-    c.font = 'bold 44px "M PLUS Rounded 1c", sans-serif';
+    /* Momoko dancing in celebration */
+    if (Game.entities && Game.entities.drawMomokoFloss) {
+      c.save();
+      c.translate(W / 2, 290 + Math.abs(Math.sin(victoryTimer * 0.09)) * -6);
+      c.scale(2.6, 2.6);
+      Game.entities.drawMomokoFloss(c, 0, 0, Game.customization, victoryTimer * 0.18);
+      c.restore();
+    }
+
     c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.font = 'bold 48px ' + FONT;
+    c.lineJoin = 'round';
+    c.lineWidth = 7;
+    c.strokeStyle = '#4a1f00';
+    c.strokeText(Game.i18n.t('victory'), W / 2, 74);
+    c.fillStyle = '#ffd24a';
     c.shadowColor = '#ffaa00';
-    c.shadowBlur = 20;
-    c.fillText(Game.i18n.t('victory'), W / 2, 130);
+    c.shadowBlur = 18;
+    c.fillText(Game.i18n.t('victory'), W / 2, 74);
     c.shadowBlur = 0;
 
-    c.fillStyle = '#88ddff';
-    c.font = '20px "M PLUS Rounded 1c", sans-serif';
-    c.fillText(Game.i18n.t('savedOcean'), W / 2, 180);
+    c.fillStyle = '#9fe6ff';
+    fitFont(c, Game.i18n.t('savedOcean'), W - 80, 22, 'bold');
+    c.fillText(Game.i18n.t('savedOcean'), W / 2, 128);
 
-    c.fillStyle = '#ccddee';
-    c.font = '16px "M PLUS Rounded 1c", sans-serif';
-    c.fillText(Game.i18n.t('thanks'), W / 2, 220);
+    c.fillStyle = '#e6dcff';
+    c.font = '16px ' + FONT;
+    c.fillText(Game.i18n.t('thanks'), W / 2, 160);
 
-    drawButton(c, Game.i18n.t('playAgain'), W / 2 - 90, 280, 180, 48);
+    drawButton(c, Game.i18n.t('playAgain'), W / 2 - 100, 400, 200, 48, false, 'primary');
     c.restore();
   }
 
   function handleVictoryClick(mx, my) {
-    if (hitButton(mx, my, W / 2 - 90, 280, 180, 48)) {
+    if (hitButton(mx, my, W / 2 - 100, 400, 200, 48)) {
       Game.audio.play('select');
       victoryParticles = [];
       victoryTimer = 0;
@@ -1306,28 +1416,8 @@
   function drawIntroScreen(c) {
     introAnimTimer++;
 
-    /* Background – same deep-sea gradient as title for continuity */
-    var grad = c.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, '#0a1628');
-    grad.addColorStop(0.5, '#0d2847');
-    grad.addColorStop(1, '#162e50');
-    c.fillStyle = grad;
-    c.fillRect(0, 0, W, H);
-
-    /* Drifting ambient bubbles */
-    for (var i = 0; i < titleBubbles.length; i++) {
-      var b = titleBubbles[i];
-      b.wobble += 0.02;
-      b.y -= b.speed * 0.4;
-      if (b.y < -10) { b.y = H + 10; b.x = Math.random() * W; }
-      c.save();
-      c.globalAlpha = 0.2;
-      c.fillStyle = '#66bbee';
-      c.beginPath();
-      c.arc(b.x + Math.sin(b.wobble) * 15, b.y, b.r, 0, Math.PI * 2);
-      c.fill();
-      c.restore();
-    }
+    /* Background – same starry backdrop as the title for continuity */
+    drawSpaceBackdrop(c, introAnimTimer);
 
     /* Momoko portrait (left) */
     c.save();
@@ -2330,77 +2420,122 @@
   /* ============================================================ */
   /*                    ROCKET LAUNCH ANIMATION                     */
   /* ============================================================ */
-  function drawRocketAnim(c, timer, target) {
-    /* Space backdrop */
-    var grad = c.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, '#0a0420');
-    grad.addColorStop(1, '#1a0b3d');
-    c.fillStyle = grad;
-    c.fillRect(0, 0, W, H);
+  /* Momoko's rocket, nose pointing up, centred on its body. */
+  function drawRocketShip(c, flicker) {
+    /* Flame */
+    var fl = 1 + Math.sin(flicker) * 0.15;
+    var fg = c.createLinearGradient(0, 22, 0, 22 + 34 * fl);
+    fg.addColorStop(0, '#fff6b0');
+    fg.addColorStop(0.4, '#ffb030');
+    fg.addColorStop(1, 'rgba(255, 60, 80, 0)');
+    c.fillStyle = fg;
+    c.beginPath();
+    c.moveTo(-9, 22);
+    c.quadraticCurveTo(0, 22 + 40 * fl, 9, 22);
+    c.closePath();
+    c.fill();
+    /* Fins */
+    c.fillStyle = '#e0449e';
+    c.beginPath();
+    c.moveTo(-11, 4); c.lineTo(-22, 24); c.lineTo(-11, 20); c.closePath();
+    c.moveTo(11, 4); c.lineTo(22, 24); c.lineTo(11, 20); c.closePath();
+    c.fill();
+    /* Body */
+    var bg = c.createLinearGradient(-12, 0, 12, 0);
+    bg.addColorStop(0, '#b9b4d6');
+    bg.addColorStop(0.45, '#ffffff');
+    bg.addColorStop(1, '#9d97c4');
+    c.fillStyle = bg;
+    c.beginPath();
+    c.moveTo(0, -34);
+    c.bezierCurveTo(14, -22, 13, 0, 11, 22);
+    c.lineTo(-11, 22);
+    c.bezierCurveTo(-13, 0, -14, -22, 0, -34);
+    c.fill();
+    /* Nose cone */
+    c.fillStyle = '#ff66cc';
+    c.beginPath();
+    c.moveTo(0, -34);
+    c.bezierCurveTo(8, -27, 10, -22, 10.5, -18);
+    c.lineTo(-10.5, -18);
+    c.bezierCurveTo(-10, -22, -8, -27, 0, -34);
+    c.fill();
+    /* Porthole */
+    c.fillStyle = '#7a6fb0';
+    c.beginPath(); c.arc(0, -4, 7, 0, Math.PI * 2); c.fill();
+    var wg = c.createRadialGradient(-2, -6, 1, 0, -4, 5.5);
+    wg.addColorStop(0, '#d8fbff');
+    wg.addColorStop(1, '#2fa8d8');
+    c.fillStyle = wg;
+    c.beginPath(); c.arc(0, -4, 5.5, 0, Math.PI * 2); c.fill();
+    /* Centre fin */
+    c.fillStyle = '#c23a88';
+    c.fillRect(-1.5, 12, 3, 13);
+  }
 
-    /* Warp stars streaking toward viewer */
-    for (var s = 0; s < 60; s++) {
-      var ang = (s * 73) % 360 * Math.PI / 180;
-      var dist = 20 + ((timer * 8 + s * 30) % 400);
-      var sx = W / 2 + Math.cos(ang) * dist;
-      var sy = H / 2 + Math.sin(ang) * dist;
-      c.fillStyle = '#ffffff';
-      c.globalAlpha = Math.min(1, dist / 200);
+  function drawRocketAnim(c, timer, target) {
+    var t = Math.min(1, timer / 120); /* 0..1 over the flight */
+    drawSpaceBackdrop(c, timer);
+
+    /* Stars streaming past -- faster in mid-flight */
+    var speed = 4 + Math.sin(t * Math.PI) * 14;
+    c.strokeStyle = '#ffffff';
+    c.lineCap = 'round';
+    for (var s = 0; s < 40; s++) {
+      var sy = (s * 97) % H;
+      var sx = W - ((s * 211 + timer * speed * (0.5 + (s % 3) * 0.4)) % (W + 80));
+      c.globalAlpha = 0.25 + (s % 3) * 0.2;
+      c.lineWidth = 1 + (s % 3) * 0.5;
       c.beginPath();
-      c.arc(sx, sy, 1 + (dist / 200), 0, Math.PI * 2);
-      c.fill();
+      c.moveTo(sx, sy);
+      c.lineTo(sx + speed * 2.2, sy);
+      c.stroke();
     }
     c.globalAlpha = 1;
 
-    /* Rocket trail and ship */
-    var t = timer / 120; /* 0..1 */
-    var ry = H - 80 - t * 200; /* launches upward */
-    var rx = W / 2 - 20;
-    /* Flame */
-    c.fillStyle = '#ffd24a';
-    c.beginPath();
-    c.ellipse(rx + 20, ry + 54 + Math.sin(timer * 0.5) * 2, 8, 18, 0, 0, Math.PI * 2);
-    c.fill();
-    c.fillStyle = '#ff4444';
-    c.beginPath();
-    c.ellipse(rx + 20, ry + 54, 4, 10, 0, 0, Math.PI * 2);
-    c.fill();
-    /* Rocket body */
-    c.fillStyle = '#dddddd';
-    c.beginPath();
-    c.moveTo(rx + 20, ry);
-    c.lineTo(rx + 34, ry + 20);
-    c.lineTo(rx + 34, ry + 50);
-    c.lineTo(rx + 6, ry + 50);
-    c.lineTo(rx + 6, ry + 20);
-    c.closePath();
-    c.fill();
-    c.fillStyle = '#44ccff';
-    c.beginPath();
-    c.arc(rx + 20, ry + 24, 5, 0, Math.PI * 2);
-    c.fill();
-    c.fillStyle = '#ff66cc';
-    c.beginPath();
-    c.moveTo(rx + 6, ry + 38);
-    c.lineTo(rx, ry + 54);
-    c.lineTo(rx + 6, ry + 54);
-    c.closePath();
-    c.fill();
-    c.beginPath();
-    c.moveTo(rx + 34, ry + 38);
-    c.lineTo(rx + 40, ry + 54);
-    c.lineTo(rx + 34, ry + 54);
-    c.closePath();
-    c.fill();
+    /* Origin planet slides away to the lower-left, destination grows in
+       from the right. Zone 0 is the ringed home planet, 1 the Cheese Moon. */
+    var home = ['#ffc2ee', '#c43e9a', '#ffd24a'];
+    var moon = ['#fff1a8', '#d69a1e', null];
+    var from = target === 0 ? moon : home;
+    var to = target === 0 ? home : moon;
+    drawShadedPlanet(c, 90 - t * 260, H - 30 + t * 120, 120, from[0], from[1], from[2]);
+    var dr = 20 + t * t * 120;
+    drawShadedPlanet(c, W + 60 - t * 230, 150 + t * 60, dr, to[0], to[1], to[2]);
+
+    /* Rocket: rises off the origin, cruises, then dips toward the target */
+    var rx = 160 + t * 420;
+    var ry = 330 - Math.sin(t * Math.PI * 0.9) * 170 + Math.sin(timer * 0.25) * 2;
+    var heading = 0.6 + t * 0.7; /* radians from straight up toward the right */
+    /* Sparkle trail */
+    for (var k = 0; k < 10; k++) {
+      var kt = Math.max(0, t - k * 0.02);
+      var kx = 160 + kt * 420 - Math.sin(heading) * 30;
+      var ky = 330 - Math.sin(kt * Math.PI * 0.9) * 170 + Math.cos(heading) * 30;
+      c.globalAlpha = (1 - k / 10) * 0.7;
+      c.fillStyle = k % 2 ? '#ffd24a' : '#ff99dd';
+      c.beginPath();
+      c.arc(kx, ky, 3.5 - k * 0.3, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+    c.save();
+    c.translate(rx, ry);
+    c.rotate(heading);
+    c.scale(1.4 - t * 0.5, 1.4 - t * 0.5);
+    drawRocketShip(c, timer * 0.9);
+    c.restore();
 
     /* Text */
-    c.fillStyle = '#44ffff';
-    c.font = 'bold 24px "M PLUS Rounded 1c", sans-serif';
+    c.font = 'bold 26px ' + FONT;
     c.textAlign = 'center';
-    c.fillText(
-      timer < 60 ? Game.i18n.t('rocketLaunching') : Game.i18n.t('rocketArriving'),
-      W / 2, 60
-    );
+    c.lineJoin = 'round';
+    c.lineWidth = 6;
+    c.strokeStyle = '#1a0b3d';
+    var msg = timer < 70 ? Game.i18n.t('rocketLaunching') : Game.i18n.t('rocketArriving');
+    c.strokeText(msg, W / 2, 56);
+    c.fillStyle = '#44ffff';
+    c.fillText(msg, W / 2, 56);
   }
 
   /* ============================================================ */
@@ -2467,44 +2602,107 @@
     return housePlayerPos[houseId];
   }
 
+  /* Per-house look: wall gradient, wallpaper motif, floor colours. */
+  var HOUSE_THEMES = {
+    heroHome:  { wallTop: '#4a2a7a', wallBot: '#6a3c96', motif: 'stars',  ink: '#ffd24a',
+                 floor: '#8a5ab8', floorDark: '#5a3488', trim: '#ff66cc' },
+    lilaHouse: { wallTop: '#1f5a6a', wallBot: '#2f7f88', motif: 'dots',   ink: '#bff7ee',
+                 floor: '#5a8f9a', floorDark: '#355f6a', trim: '#7affd8' },
+    migwordCottage: { wallTop: '#a8741c', wallBot: '#d6a032', motif: 'holes', ink: '#7a4a10',
+                 floor: '#8a5a2a', floorDark: '#5a3a18', trim: '#ffe27a' },
+  };
+  /* Wall/floor seam -- just below the palette strip so furniture placed
+     anywhere in the walkable band stands on the floor, not the wall. */
+  var HOUSE_WALL_BOTTOM = 286;
+
   function drawHouseInterior(c, houseId) {
-    /* Room background */
-    c.fillStyle = '#2a1458';
-    c.fillRect(0, 0, W, H);
-    /* Back wall gradient */
-    var wallGrad = c.createLinearGradient(0, 0, 0, H - 140);
-    wallGrad.addColorStop(0, '#3d2468');
-    wallGrad.addColorStop(1, '#5a3888');
+    var th = HOUSE_THEMES[houseId] || HOUSE_THEMES.heroHome;
+    var wb = HOUSE_WALL_BOTTOM;
+    /* Back wall */
+    var wallGrad = c.createLinearGradient(0, 0, 0, wb);
+    wallGrad.addColorStop(0, th.wallTop);
+    wallGrad.addColorStop(1, th.wallBot);
     c.fillStyle = wallGrad;
-    c.fillRect(0, 0, W, H - 140);
-    /* Floor */
-    c.fillStyle = '#6a4aa0';
-    c.fillRect(0, H - 140, W, 140);
-    /* Floor planks */
-    c.strokeStyle = '#4a2a70';
-    c.lineWidth = 1;
-    for (var pl = 0; pl < 9; pl++) {
-      c.beginPath();
-      c.moveTo(0, H - 140 + pl * 16);
-      c.lineTo(W, H - 140 + pl * 16);
-      c.stroke();
+    c.fillRect(0, 0, W, wb);
+    /* Wallpaper motif */
+    c.save();
+    c.globalAlpha = 0.16;
+    c.fillStyle = th.ink;
+    for (var wy = 18; wy < wb - 10; wy += 34) {
+      for (var wx = ((wy / 34) % 2) * 26 + 14; wx < W; wx += 52) {
+        c.beginPath();
+        if (th.motif === 'stars') {
+          for (var k = 0; k < 10; k++) {
+            var rr = k % 2 ? 2.4 : 6;
+            var aa = -Math.PI / 2 + k * Math.PI / 5;
+            c.lineTo(wx + Math.cos(aa) * rr, wy + Math.sin(aa) * rr);
+          }
+        } else if (th.motif === 'dots') {
+          c.arc(wx, wy, 4, 0, Math.PI * 2);
+        } else {
+          c.ellipse(wx, wy, 7, 5, 0.3, 0, Math.PI * 2);
+        }
+        c.fill();
+      }
     }
-    /* Window with stars */
+    c.restore();
+    /* Window with a view of space, below the palette so it stays visible */
+    var winX = 300, winY = 204, winW = 150, winH = 66;
     c.fillStyle = '#0a0420';
-    c.fillRect(540, 60, 160, 100);
-    c.strokeStyle = '#ff66cc';
-    c.lineWidth = 3;
-    c.strokeRect(540, 60, 160, 100);
-    /* Pre-baked twinkle dots so they don't reflow each frame */
+    roundRect(c, winX, winY, winW, winH, 8);
+    c.fill();
+    c.save();
+    roundRect(c, winX, winY, winW, winH, 8);
+    c.clip();
+    if (houseId === 'migwordCottage') {
+      drawShadedPlanet(c, winX + 112, winY + 22, 16, '#ffc2ee', '#c43e9a', '#ffd24a');
+    } else {
+      drawShadedPlanet(c, winX + 112, winY + 22, 14, '#fff1a8', '#d69a1e', null);
+    }
     c.fillStyle = '#ffffff';
     for (var ws = 0; ws < 12; ws++) {
-      var sxw = 550 + ((ws * 13) % 140);
-      var syw = 70 + ((ws * 27) % 80);
       c.globalAlpha = 0.4 + ((ws * 17) % 60) / 100;
       c.beginPath();
-      c.arc(sxw, syw, 0.8 + (ws % 3) * 0.5, 0, Math.PI * 2);
+      c.arc(winX + 8 + ((ws * 13) % 90), winY + 8 + ((ws * 27) % 52), 0.8 + (ws % 3) * 0.5, 0, Math.PI * 2);
       c.fill();
     }
+    c.restore();
+    c.strokeStyle = th.trim;
+    c.lineWidth = 4;
+    roundRect(c, winX, winY, winW, winH, 8);
+    c.stroke();
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(winX + winW / 2, winY); c.lineTo(winX + winW / 2, winY + winH);
+    c.stroke();
+    /* Floor: lighter toward the back wall, planks fanning out in
+       perspective from a vanishing point above the room. */
+    var floorGrad = c.createLinearGradient(0, wb, 0, H);
+    floorGrad.addColorStop(0, th.floorDark);
+    floorGrad.addColorStop(1, th.floor);
+    c.fillStyle = floorGrad;
+    c.fillRect(0, wb, W, H - wb);
+    c.strokeStyle = 'rgba(0, 0, 0, 0.18)';
+    c.lineWidth = 1;
+    for (var pl = -8; pl <= 8; pl++) {
+      c.beginPath();
+      c.moveTo(W / 2 + pl * 60, wb);
+      c.lineTo(W / 2 + pl * 150, H);
+      c.stroke();
+    }
+    for (var row = 1; row < 6; row++) {
+      var ry = wb + (H - wb) * (row * row) / 36;
+      c.beginPath();
+      c.moveTo(0, ry);
+      c.lineTo(W, ry);
+      c.stroke();
+    }
+    /* Baseboard */
+    c.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    c.fillRect(0, wb - 10, W, 10);
+    c.fillStyle = th.trim;
+    c.globalAlpha = 0.6;
+    c.fillRect(0, wb - 10, W, 2);
     c.globalAlpha = 1;
 
     /* House name label */
@@ -2573,13 +2771,10 @@
       drawFurniture(c, ft, fx + 34, fy + 38, 'palette');
       /* Tiny label under each piece */
       c.fillStyle = '#ffe9c8';
-      c.font = '8px "M PLUS Rounded 1c", sans-serif';
+      var ftLabel = Game.i18n.t('furniture_' + ft) || ft;
+      fitFont(c, ftLabel, 62, 10, 'bold');
       c.textAlign = 'center';
-      c.fillText(
-        Game.i18n.t('furniture_' + ft) || ft,
-        fx + 34,
-        fy + 70
-      );
+      c.fillText(ftLabel, fx + 34, fy + 70);
     }
 
     /* Placed furniture (drawn before the player so they layer below) */
@@ -5224,6 +5419,7 @@
 
   window.Game.ui = {
     beginFrame: function () { anyHot = false; },
+    drawShadedPlanet: drawShadedPlanet,
     isHot: function () { return anyHot; },
     drawTitleScreen: function (c) {
       drawTitleScreen(c);

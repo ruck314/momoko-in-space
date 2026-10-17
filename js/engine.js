@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.3.0';
+  Game.VERSION = 'v2.4.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -119,6 +119,21 @@
   /* World-space x of the background UFO. Persisted across frames so the UFO
      glides smoothly. Reset whenever a level loads. */
   var bgUfoX = 0;
+
+  /* '#rrggbb' -> 'rgba(r, g, b, a)' */
+  function hexA(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + (n >> 16) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255) + ', ' + a + ')';
+  }
+
+  /* Blend two '#rrggbb' colours; t = 0 gives a, 1 gives b. */
+  function mixHex(a, b, t) {
+    var x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16);
+    var r = Math.round((x >> 16) + ((y >> 16) - (x >> 16)) * t);
+    var g = Math.round(((x >> 8) & 255) + (((y >> 8) & 255) - ((x >> 8) & 255)) * t);
+    var bl = Math.round((x & 255) + ((y & 255) - (x & 255)) * t);
+    return '#' + ((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1);
+  }
 
   function initBgLayers() {
     bgLayers = [];
@@ -794,30 +809,33 @@
       ctx.restore();
     }
 
-    /* Parallax background – nebula blobs, distant planets, asteroid silhouettes */
+    /* Parallax background – nebula glows, distant planets, asteroid ridges */
     for (var li = 0; li < bgLayers.length; li++) {
       var layer = bgLayers[li];
       ctx.save();
-      ctx.globalAlpha = li === 0 ? 0.35 : 0.55;
       for (var it = 0; it < layer.items.length; it++) {
         var item = layer.items[it];
         var bx = item.x - camera.x * layer.parallax;
-        if (bx + item.w > 0 && bx < W) {
-          ctx.fillStyle = item.color;
-          if (item.isPlanet) {
-            /* Round planet with a lighter crescent highlight */
-            var pcx = bx + item.w / 2;
-            var pcy = item.y;
-            ctx.beginPath();
-            ctx.arc(pcx, pcy, item.w / 2, 0, Math.PI * 2);
-            ctx.fill();
+        var pad = li === 0 ? item.w : 0;
+        if (bx + item.w + pad > 0 && bx - pad < W) {
+          if (li === 0) {
+            /* Soft nebula glow: radial falloff squashed into an ellipse */
+            var ncx = bx + item.w / 2;
             ctx.save();
-            ctx.globalAlpha = 0.25;
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(pcx - item.w * 0.15, pcy - item.w * 0.15, item.w / 3, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.translate(ncx, item.y);
+            ctx.scale(1, item.h / item.w);
+            var ng = ctx.createRadialGradient(0, 0, 0, 0, 0, item.w);
+            ng.addColorStop(0, hexA(item.color, 0.55));
+            ng.addColorStop(1, hexA(item.color, 0));
+            ctx.fillStyle = ng;
+            ctx.fillRect(-item.w, -item.w, item.w * 2, item.w * 2);
             ctx.restore();
+          } else if (item.isPlanet) {
+            ctx.globalAlpha = 0.8;
+            Game.ui.drawShadedPlanet(ctx, bx + item.w / 2, item.y, item.w / 2,
+              mixHex(item.color, '#ffffff', 0.45), mixHex(item.color, '#000000', 0.35),
+              item.blobSeed > 70 ? hexA(mixHex(item.color, '#ffffff', 0.6), 0.8) : null);
+            ctx.globalAlpha = 1;
           } else {
             ctx.beginPath();
             var cx = bx + item.w / 2;
@@ -836,7 +854,18 @@
               cx + hw, item.y
             );
             ctx.closePath();
+            var rg = ctx.createLinearGradient(0, item.y - hh - 12, 0, item.y);
+            rg.addColorStop(0, mixHex(item.color, '#ffffff', 0.12));
+            rg.addColorStop(1, mixHex(item.color, '#000000', 0.2));
+            ctx.globalAlpha = 0.7;
+            ctx.fillStyle = rg;
             ctx.fill();
+            /* Rim light along the top edge */
+            ctx.globalAlpha = 0.35;
+            ctx.strokeStyle = mixHex(item.color, '#ffffff', 0.5);
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.globalAlpha = 1;
           }
         }
       }
