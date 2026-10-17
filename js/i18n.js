@@ -234,7 +234,7 @@
       howToPlay: 'あそびかた',
       instructions: 'うかぶ: やじるしキー / 十字ボタン\nはなす: スペース / はなすボタン\nともだちに あいに いこう！ほしも たんけんしよう！',
       language: 'ことば',
-      langLabel: 'JP',
+      langLabel: 'JA',
       rotateHint: 'デバイスを よこむきにしてください！',
       bubbleBtn: 'はなす',
       soundOn: 'おと: オン',

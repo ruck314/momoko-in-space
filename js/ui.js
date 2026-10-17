@@ -297,14 +297,14 @@
     c.save();
     /* Keep clear of the ringed planet's ring on the right (the Japanese
        title is much wider than the English one). */
-    fitFont(c, title, 420, 36, 'bold');
+    fitFont(c, title, 500, 44, 'bold');
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     /* Shadow + outline */
     c.fillStyle = '#220044';
     c.fillText(title, W / 2 + 2, 104);
     c.lineJoin = 'round';
-    c.lineWidth = 6;
+    c.lineWidth = 7;
     c.strokeStyle = '#2a0b55';
     c.strokeText(title, W / 2, 100);
     /* Main */
@@ -318,9 +318,9 @@
 
     /* Subtitle */
     c.fillStyle = '#ffd24a';
-    c.font = '14px "M PLUS Rounded 1c", sans-serif';
+    c.font = '15px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'center';
-    c.fillText(Game.i18n.t('titleSubtitle'), W / 2, 140);
+    c.fillText(Game.i18n.t('titleSubtitle'), W / 2, 150);
 
     /* Buttons */
     drawButton(c, Game.i18n.t('play'), W / 2 - 90, 200, 180, 44);
@@ -394,7 +394,7 @@
     /* The title buttons underneath aren't clickable while this is up. */
     anyHot = false;
     c.fillStyle = 'rgba(5, 2, 18, 0.7)';
-    c.fillRect(0, 0, W, H);
+    c.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
     var px = 150, py = 70, pw = W - 300, ph = 310;
     c.fillStyle = 'rgba(0, 0, 0, 0.35)';
     roundRect(c, px, py + 4, pw, ph, 16);
@@ -457,7 +457,7 @@
     pauseFlossTimer++;
     c.save();
     c.fillStyle = 'rgba(10, 4, 32, 0.82)';
-    c.fillRect(0, 0, W, H);
+    c.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
     c.fillStyle = '#44ffff';
     c.font = 'bold 32px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'center';
@@ -664,7 +664,7 @@
   function drawGameOver(c) {
     c.save();
     c.fillStyle = 'rgba(20, 0, 0, 0.85)';
-    c.fillRect(0, 0, W, H);
+    c.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
 
     c.fillStyle = '#ff3344';
     c.font = 'bold 40px "M PLUS Rounded 1c", sans-serif';
@@ -1533,9 +1533,18 @@
     drawSpaceBackdrop(c, introAnimTimer);
     clipGame(c);
 
+    /* Size the story card to its text and centre it between the heading
+       and the Continue button instead of leaving a half-empty box. */
+    var panelX = 240, panelW = 540;
+    c.font = '14px "M PLUS Rounded 1c", sans-serif';
+    var introLines = layoutLines(c, Game.i18n.t('introText'), panelW - 36);
+    var panelH = introLines.length * 20 + 40;
+    var panelY = Math.round(72 + (H - 72 - 72 - panelH) / 2);
+    var portraitY = panelY + panelH / 2 - 32;
+
     /* Momoko portrait (left) */
     c.save();
-    c.translate(120, 200);
+    c.translate(120, portraitY);
     c.scale(3.2, 3.2);
     if (Game.entities && Game.entities.drawMomokoSprite) {
       Game.entities.drawMomokoSprite(c, 0, 0, Game.customization, Math.floor(introAnimTimer / 8) % 4);
@@ -1552,7 +1561,6 @@
     c.shadowBlur = 0;
 
     /* Story panel */
-    var panelX = 240, panelY = 72, panelW = 540, panelH = 320;
     c.fillStyle = 'rgba(8, 24, 48, 0.75)';
     roundRect(c, panelX, panelY, panelW, panelH, 10);
     c.fill();
@@ -5551,7 +5559,11 @@
     drawShadedPlanet: drawShadedPlanet,
     isHot: function () { return anyHot; },
     drawTitleScreen: function (c) {
+      /* The title clips itself to the viewport; pop that before the
+         How-to card so its scrim can dim the whole tablet screen. */
+      c.save();
       drawTitleScreen(c);
+      c.restore();
       if (showInstructions) drawInstructionsOverlay(c);
     },
     drawPauseMenu: drawPauseMenu,
