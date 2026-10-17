@@ -2254,7 +2254,7 @@
     c.fillStyle = '#ffd24a';
     c.fillRect(sx + 32, sy + 84, 26, 4);
     c.fillStyle = '#ff66cc';
-    c.font = 'bold 4.5px monospace';
+    c.font = 'bold 4.5px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'center';
     c.fillText('MOMOKO', cx, sy + 87.5);
 
@@ -2421,7 +2421,7 @@
     c.fill();
     /* Tiny "OPEN" tag */
     c.fillStyle = '#ffd24a';
-    c.font = 'bold 8px monospace';
+    c.font = 'bold 8px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'center';
     c.fillText('OPEN', sx + 24, sy - 22 + bob * 0.5);
     c.textAlign = 'left';
@@ -2471,7 +2471,7 @@
     c.fill();
     /* Tiny "SHOP" tag */
     c.fillStyle = '#44ffff';
-    c.font = 'bold 8px monospace';
+    c.font = 'bold 8px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'center';
     c.fillText('SHOP', sx + 24, sy - 22 + bob * 0.5);
     c.textAlign = 'left';

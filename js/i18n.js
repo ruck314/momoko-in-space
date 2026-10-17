@@ -110,9 +110,10 @@
       rocketPrompt: 'Press UP or tap to enter the rocket!',
       houseDoorPrompt: 'Press UP or tap to go inside!',
       cafeHint: 'Walk around with the D-pad — tap the door to leave',
+      cafeHintKeys: 'Walk around with the arrow keys — click the door to leave',
       shopHint: 'Tap an item to buy it. Carry it home to a house!',
       shopCart: 'Cart:',
-      shopCartEmpty: 'Tap an item below to take it home.',
+      shopCartEmpty: 'Tap an item above to take it home.',
       shopDeliveryTitle: '★ Delivery!',
       shopDeliveryDesc: 'Walk to a house door,\npress UP to drop off.',
       cafeBuyPrompt: 'TAP / TALK',
@@ -329,9 +330,10 @@
       rocketPrompt: 'うえキー か タップで ロケットに のろう！',
       houseDoorPrompt: 'うえキー か タップで なかに はいろう！',
       cafeHint: '十字キーで あるけるよ — ドアを タップで でられるよ',
+      cafeHintKeys: 'やじるしキーで あるけるよ — ドアを クリックで でられるよ',
       shopHint: 'かぐを タップで かおう。おうちまで はこんでね！',
       shopCart: 'カート:',
-      shopCartEmpty: 'した の かぐを タップして もちかえろう。',
+      shopCartEmpty: 'うえ の かぐを タップして もちかえろう。',
       shopDeliveryTitle: '★ おとどけ！',
       shopDeliveryDesc: 'おうちの ドアまで あるいて\nうえキーで わたそう。',
       cafeBuyPrompt: 'タップ／はなす',
@@ -460,9 +462,22 @@
     },
 
     t: function (key) {
-      return (strings[currentLang] && strings[currentLang][key]) ||
-             (strings.en && strings.en[key]) ||
-             key;
+      /* Check for undefined, not falsy: an intentionally empty string
+         (e.g. a JA prefix with no equivalent) must not fall back to EN. */
+      var cur = strings[currentLang];
+      if (cur && cur[key] !== undefined) return cur[key];
+      if (strings.en && strings.en[key] !== undefined) return strings.en[key];
+      return key;
+    },
+
+    /* Every string in every language, so the UI font's Japanese subsets
+       can be fetched up front instead of popping in mid-game. */
+    allText: function () {
+      var out = '';
+      for (var lang in strings) {
+        for (var k in strings[lang]) out += strings[lang][k];
+      }
+      return out;
     },
 
     getJoke: function () {

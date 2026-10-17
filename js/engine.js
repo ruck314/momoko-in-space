@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.2.1';
+  Game.VERSION = 'v2.3.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -629,6 +629,12 @@
        0..H coordinates regardless of the side / top / bottom padding. */
     ctx.save();
     if (GAME_X || GAME_Y) ctx.translate(GAME_X, GAME_Y);
+    /* Keep the world inside the viewport so it can't bleed into the
+       touch bezels. */
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    ctx.clip();
+    if (Game.ui.beginFrame) Game.ui.beginFrame();
 
     switch (state) {
       case State.TITLE:
@@ -711,6 +717,8 @@
 
     ctx.restore();
 
+    updateChrome();
+
     /* Canvas-space overlays sit outside the game viewport so they can
        use the bezel area. */
     if (Game.input.isTouch() && (state === State.PLAYING || state === State.PAUSED)) {
@@ -742,6 +750,21 @@
         CANVAS_W, CANVAS_H, GAME_X, GAME_Y
       );
     }
+  }
+
+  /* DOM bits that track the game state: the Game Center link only shows
+     where it can't cover play, and the cursor turns into a pointer over
+     anything clickable. */
+  var linkEl = null, lastLinkShown = null, lastCursor = null;
+  function updateChrome() {
+    if (!linkEl) linkEl = document.getElementById('game-center-link');
+    var show = state === State.TITLE || state === State.PAUSED;
+    if (linkEl && show !== lastLinkShown) {
+      linkEl.classList.toggle('hidden', !show);
+      lastLinkShown = show;
+    }
+    var cursor = Game.ui.isHot && Game.ui.isHot() ? 'pointer' : 'default';
+    if (cursor !== lastCursor) { canvas.style.cursor = cursor; lastCursor = cursor; }
   }
 
   function renderGame() {
@@ -943,7 +966,7 @@
           var ix = npc.x - camera.x + npc.w / 2;
           var iy = npc.y - camera.y - 14;
           ctx.fillStyle = '#ffcc33';
-          ctx.font = 'bold 14px monospace';
+          ctx.font = 'bold 14px "M PLUS Rounded 1c", sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText('!', ix, iy + Math.sin(Date.now() * 0.005) * 3);
         }
@@ -1285,7 +1308,7 @@
         ctx.lineWidth = 1.4;
         ctx.strokeRect(dx + 50, dy - 70, 18, 26);
         ctx.fillStyle = '#ffe9f4';
-        ctx.font = '5px monospace';
+        ctx.font = '5px "M PLUS Rounded 1c", sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('MENU', dx + 59, dy - 62);
         ctx.fillStyle = '#ffd24a';
@@ -1425,7 +1448,7 @@
         ctx.fillStyle = '#1a0a14';
         ctx.fillRect(swX + 8, swY - 12, 28, 12);
         ctx.fillStyle = '#ff4466';
-        ctx.font = 'bold 9px monospace';
+        ctx.font = 'bold 9px "M PLUS Rounded 1c", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('OPEN', swX + 22, swY - 6);
@@ -1530,7 +1553,7 @@
         ctx.save();
         ctx.globalAlpha = 0.85 + Math.sin(Date.now() * 0.012 + d.x * 0.03) * 0.15;
         ctx.fillStyle = nsC;
-        ctx.font = 'bold 14px monospace';
+        ctx.font = 'bold 14px "M PLUS Rounded 1c", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(nsTxt, dx, dy - 78);
@@ -1550,7 +1573,7 @@
         ctx.save();
         ctx.globalAlpha = 0.85 + Math.sin(Date.now() * 0.012 + d.x * 0.03) * 0.15;
         ctx.fillStyle = rsC;
-        ctx.font = 'bold 13px monospace';
+        ctx.font = 'bold 13px "M PLUS Rounded 1c", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(rsTxt, dx, rsY + 11);
@@ -1755,26 +1778,34 @@
         ctx.fillStyle = '#3a2010';
         ctx.fillRect(dx - 1.6, dy - 32, 3.2, 32);
         ctx.fillStyle = '#a86820';
-        ctx.fillRect(dx - 24, dy - 56, 48, 24);
+        /* Board is wide enough that the text sits beside the logo
+           rather than on top of it. */
+        ctx.fillRect(dx - 32, dy - 56, 64, 24);
         ctx.fillStyle = '#7a4818';
-        ctx.fillRect(dx - 24, dy - 56, 48, 1.5);
-        ctx.fillRect(dx - 24, dy - 33.5, 48, 1.5);
+        ctx.fillRect(dx - 32, dy - 56, 64, 1.5);
+        ctx.fillRect(dx - 32, dy - 33.5, 64, 1.5);
         /* Cheese wedge logo */
         ctx.fillStyle = '#ffd64a';
         ctx.beginPath();
-        ctx.moveTo(dx - 18, dy - 38);
-        ctx.lineTo(dx - 8, dy - 50);
-        ctx.lineTo(dx - 4, dy - 38);
+        ctx.moveTo(dx - 27, dy - 38);
+        ctx.lineTo(dx - 17, dy - 50);
+        ctx.lineTo(dx - 13, dy - 38);
         ctx.closePath();
         ctx.fill();
         ctx.fillStyle = '#a86820';
-        ctx.beginPath(); ctx.arc(dx - 12, dy - 42, 0.9, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(dx - 8, dy - 45, 0.7, 0, Math.PI * 2); ctx.fill();
-        /* Sign text */
+        ctx.beginPath(); ctx.arc(dx - 21, dy - 42, 0.9, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(dx - 17, dy - 45, 0.7, 0, Math.PI * 2); ctx.fill();
+        /* Sign text, shrunk to fit the space right of the logo */
+        var signText = d.text || 'CHEESE';
+        var signSize = 10;
+        do {
+          ctx.font = 'bold ' + signSize + 'px "M PLUS Rounded 1c", sans-serif';
+        } while (ctx.measureText(signText).width > 40 && --signSize > 6);
         ctx.fillStyle = '#ffe9c8';
-        ctx.font = 'bold 9px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(d.text || 'CHEESE', dx + 6, dy - 41);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(signText, dx + 8, dy - 44);
+        ctx.textBaseline = 'alphabetic';
       } else if (d.type === 'cheeseMoonBg') {
         /* Big cheese moon in the parallax sky */
         ctx.save();
