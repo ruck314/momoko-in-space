@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.7.0';
+  Game.VERSION = 'v2.8.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -659,7 +659,7 @@
     /* Pause and game-over dim the whole screen, bezel included, so the
        menu floats over the frozen game instead of a bright island. */
     var dimAll = Game.input.isTouch() && (
-      state === State.PAUSED || state === State.GAME_OVER);
+      state === State.PAUSED || state === State.GAME_OVER || state === State.TRAVEL_MENU);
     if (Game.input.isTouch() && !fullBleed) {
       Game.input.drawTouchStrip(ctx, false);
     }
@@ -720,7 +720,7 @@
         break;
 
       case State.TRAVEL_MENU:
-        renderGame();
+        drawClipped(renderGame);
         if (Game.ui.drawTravelMenu) Game.ui.drawTravelMenu(ctx);
         break;
 

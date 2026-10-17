@@ -2434,7 +2434,7 @@
     /* Dim backdrop over the game */
     c.save();
     c.fillStyle = 'rgba(10, 4, 32, 0.85)';
-    c.fillRect(0, 0, W, H);
+    c.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
 
     /* Panel */
     c.fillStyle = '#1a0b3d';
@@ -2826,6 +2826,27 @@
     c.globalAlpha = 0.6;
     c.fillRect(0, wb - 10, W, 2);
     c.globalAlpha = 1;
+    /* Starlight from the window pooling on the floor, and the floor
+       falling into shadow toward the side walls, so the room reads as a
+       lit space rather than a flat slab. */
+    var pool = c.createLinearGradient(0, wb, 0, H);
+    pool.addColorStop(0, 'rgba(255, 244, 214, 0.16)');
+    pool.addColorStop(1, 'rgba(255, 244, 214, 0)');
+    c.fillStyle = pool;
+    c.beginPath();
+    c.moveTo(winX + 6, wb);
+    c.lineTo(winX + winW - 6, wb);
+    c.lineTo(winX + winW + 70, H);
+    c.lineTo(winX - 70, H);
+    c.closePath();
+    c.fill();
+    var vig = c.createLinearGradient(0, 0, W, 0);
+    vig.addColorStop(0, 'rgba(0, 0, 0, 0.22)');
+    vig.addColorStop(0.2, 'rgba(0, 0, 0, 0)');
+    vig.addColorStop(0.8, 'rgba(0, 0, 0, 0)');
+    vig.addColorStop(1, 'rgba(0, 0, 0, 0.22)');
+    c.fillStyle = vig;
+    c.fillRect(0, wb, W, H - wb);
 
     /* House name label */
     c.fillStyle = '#44ffff';
