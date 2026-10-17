@@ -119,6 +119,9 @@
       cafeBuyPrompt: 'TAP / TALK',
       cafeYum: 'Yum!',
       exitButton: 'EXIT',
+      promptEnter: 'Go in',
+      promptBoard: 'Board',
+      promptFlyUp: 'Float up to board!',
 
       /* ---- Travel menu ---- */
       travelMenuTitle: 'Where to?',
@@ -339,6 +342,9 @@
       cafeBuyPrompt: 'タップ／はなす',
       cafeYum: 'おいしい！',
       exitButton: 'でる',
+      promptEnter: 'はいる',
+      promptBoard: 'のる',
+      promptFlyUp: 'うえに うかんで のろう！',
 
       /* ---- とらべるメニュー ---- */
       travelMenuTitle: 'どこへ いく？',

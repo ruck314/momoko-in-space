@@ -256,7 +256,9 @@
     /* Title text */
     var title = Game.i18n.t('title');
     c.save();
-    c.font = 'bold 36px "M PLUS Rounded 1c", sans-serif';
+    /* Keep clear of the ringed planet's ring on the right (the Japanese
+       title is much wider than the English one). */
+    fitFont(c, title, 420, 36, 'bold');
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     /* Shadow + outline */
@@ -308,14 +310,61 @@
 
   var showInstructions = false;
 
+  /* OK button on the How to Play card — shared by draw and hit test. */
+  var HOWTO_OK = { x: W / 2 - 60, y: 318, w: 120, h: 40 };
+
+  /* Little pictograms for the How to Play rows: 0 arrows, 1 talk, 2 star. */
+  function drawHowToIcon(c, kind, x, y) {
+    c.save();
+    c.translate(x, y);
+    c.fillStyle = 'rgba(102, 204, 255, 0.14)';
+    c.beginPath(); c.arc(0, 0, 22, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#66ccff';
+    c.lineWidth = 1.5;
+    c.stroke();
+    if (kind === 0) {
+      c.fillStyle = '#dff4ff';
+      for (var a = 0; a < 4; a++) {
+        c.save();
+        c.rotate(a * Math.PI / 2);
+        c.beginPath(); c.moveTo(0, -15); c.lineTo(6, -8); c.lineTo(-6, -8); c.closePath(); c.fill();
+        c.restore();
+      }
+      c.beginPath(); c.arc(0, 0, 3, 0, Math.PI * 2); c.fill();
+    } else if (kind === 1) {
+      c.fillStyle = '#ff99dd';
+      roundRect(c, -13, -11, 26, 17, 6);
+      c.fill();
+      c.beginPath(); c.moveTo(-5, 5); c.lineTo(-9, 12); c.lineTo(1, 5); c.closePath(); c.fill();
+      c.fillStyle = '#3a1458';
+      for (var d = -1; d <= 1; d++) { c.beginPath(); c.arc(d * 6, -3, 2, 0, Math.PI * 2); c.fill(); }
+    } else {
+      c.fillStyle = '#ffd24a';
+      c.beginPath();
+      for (var p = 0; p < 10; p++) {
+        var r = p % 2 ? 6 : 14, ang = -Math.PI / 2 + p * Math.PI / 5;
+        c.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
+      }
+      c.closePath(); c.fill();
+    }
+    c.restore();
+  }
+
   function drawInstructionsOverlay(c) {
     c.save();
     /* The title buttons underneath aren't clickable while this is up. */
     anyHot = false;
     c.fillStyle = 'rgba(5, 2, 18, 0.7)';
     c.fillRect(0, 0, W, H);
-    c.fillStyle = 'rgba(30, 12, 64, 0.97)';
-    roundRect(c, 110, 40, W - 220, 380, 16);
+    var px = 150, py = 70, pw = W - 300, ph = 310;
+    c.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    roundRect(c, px, py + 4, pw, ph, 16);
+    c.fill();
+    var g = c.createLinearGradient(0, py, 0, py + ph);
+    g.addColorStop(0, 'rgba(44, 18, 92, 0.98)');
+    g.addColorStop(1, 'rgba(22, 8, 52, 0.98)');
+    c.fillStyle = g;
+    roundRect(c, px, py, pw, ph, 16);
     c.fill();
     c.strokeStyle = '#b07cff';
     c.lineWidth = 2;
@@ -323,19 +372,31 @@
     c.fillStyle = '#66ccff';
     c.font = 'bold 24px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'center';
-    c.fillText(Game.i18n.t('howToPlay'), W / 2, 80);
-    c.fillStyle = '#ccddee';
-    c.font = '16px "M PLUS Rounded 1c", sans-serif';
-    c.textAlign = 'center';
-    wrapText(c, Game.i18n.t('instructions'), W / 2, 130, 600, 28);
-    drawButton(c, 'OK', W / 2 - 60, 350, 120, 40);
+    c.textBaseline = 'middle';
+    c.fillText(Game.i18n.t('howToPlay'), W / 2, py + 34);
+    /* One row per instruction line, each with its own pictogram. */
+    var rows = Game.i18n.t('instructions').split('\n');
+    c.textAlign = 'left';
+    for (var i = 0; i < rows.length; i++) {
+      var ry = py + 90 + i * 58;
+      if (i > 0) {
+        c.fillStyle = 'rgba(176, 124, 255, 0.18)';
+        c.fillRect(px + 30, ry - 29, pw - 60, 1);
+      }
+      drawHowToIcon(c, Math.min(i, 2), px + 60, ry);
+      c.fillStyle = '#e6eeff';
+      fitFont(c, rows[i], pw - 130, 16, '');
+      c.fillText(rows[i], px + 96, ry + 1);
+    }
+    c.textBaseline = 'alphabetic';
+    drawButton(c, 'OK', HOWTO_OK.x, HOWTO_OK.y, HOWTO_OK.w, HOWTO_OK.h);
     c.restore();
   }
 
   /* Title click handler – returns action string or null */
   function handleTitleClick(mx, my) {
     if (showInstructions) {
-      if (hitButton(mx, my, W / 2 - 60, 350, 120, 40)) {
+      if (hitButton(mx, my, HOWTO_OK.x, HOWTO_OK.y, HOWTO_OK.w, HOWTO_OK.h)) {
         showInstructions = false;
         Game.audio.play('select');
         return null;
@@ -496,6 +557,7 @@
     var gameBottom = gy + H;
     var bezelBelow = Math.max(0, ch - gameBottom);
     var boxH, boxY;
+    var topDock = false;
     if (bezelBelow >= 56) {
       /* Sits fully in the bottom bezel */
       boxH = Math.min(bezelBelow - 8, 90);
@@ -505,12 +567,14 @@
       boxH = Math.min(56 + bezelBelow, 80);
       boxY = ch - boxH - 4;
     } else {
-      /* No bezel — tuck against the very bottom of gameplay with a
-         shorter box so less of the screen is covered. */
+      /* No bezel — dock at the top of the sky. Momoko and whoever she is
+         talking to stand on the ground, so the bottom would hide them. */
+      topDock = true;
       boxH = 56;
-      boxY = gameBottom - boxH - 4;
+      boxY = gy + 16;
     }
-    var boxW = Math.min(560, cw - 40);
+    /* Narrower when docked on top so the quest HUD stays clear. */
+    var boxW = Math.min(topDock ? 500 : 560, cw - 40);
     var boxX = (cw - boxW) / 2;
 
     c.save();
@@ -519,7 +583,7 @@
     c.font = '14px ' + FONT;
     var lines = layoutLines(c, text, boxW - 32);
     var need = 34 + lines.length * 19 + 10;
-    if (need > boxH) { boxY -= need - boxH; boxH = need; }
+    if (need > boxH) { if (!topDock) boxY -= need - boxH; boxH = need; }
 
     c.fillStyle = 'rgba(0, 0, 0, 0.35)';
     roundRect(c, boxX, boxY + 3, boxW, boxH, 12);
@@ -591,8 +655,9 @@
 
     /* Fireworks: round sparks that glow, fade, and leave short trails */
     if (victoryTimer % 24 === 1) {
-      var fx = 160 + Math.random() * 480;
-      var fy = 70 + Math.random() * 140;
+      /* Burst to either side of the centred headline, not on top of it. */
+      var fx = (Math.random() < 0.5 ? 70 : 560) + Math.random() * 170;
+      var fy = 60 + Math.random() * 170;
       var colors = ['#ff6688', '#66ff99', '#66aaff', '#ffd24a', '#ff88dd', '#77ffee'];
       var col = colors[Math.floor(Math.random() * colors.length)];
       for (var i = 0; i < 28; i++) {
@@ -661,12 +726,17 @@
     c.fillText(Game.i18n.t('victory'), W / 2, 74);
     c.shadowBlur = 0;
 
+    c.lineWidth = 5;
+    c.strokeStyle = 'rgba(20, 6, 48, 0.85)';
     c.fillStyle = '#9fe6ff';
     fitFont(c, Game.i18n.t('savedOcean'), W - 80, 22, 'bold');
+    c.strokeText(Game.i18n.t('savedOcean'), W / 2, 128);
     c.fillText(Game.i18n.t('savedOcean'), W / 2, 128);
 
     c.fillStyle = '#e6dcff';
     c.font = '16px ' + FONT;
+    c.lineWidth = 4;
+    c.strokeText(Game.i18n.t('thanks'), W / 2, 160);
     c.fillText(Game.i18n.t('thanks'), W / 2, 160);
 
     drawButton(c, Game.i18n.t('playAgain'), W / 2 - 100, 400, 200, 48, false, 'primary');
@@ -1270,6 +1340,7 @@
     if (activeTab.colorField && activeTab.colors) {
       var labelKey = activeTab.colorField === 'hair' ? 'hairColor'
                    : activeTab.colorField === 'suit' ? 'suitColor'
+                   : activeTab.colorField === 'flipper' ? 'tabShoes'
                    : 'skinTone';
       c.fillStyle = '#88aacc';
       c.font = '13px "M PLUS Rounded 1c", sans-serif';
@@ -5386,24 +5457,38 @@
   function drawQuestHUD(c) {
     var q = Game.quests;
     if (!q) return;
-    var y = 50;
-    c.save();
-    c.font = 'bold 12px "M PLUS Rounded 1c", sans-serif';
-    c.textAlign = 'right';
+    var rows = [];
     if (q.lila === 'inProgress') {
-      c.fillStyle = '#ff66cc';
-      c.fillText(
-        Game.i18n.t('questLilaProgress') + ' ' + (q.progress.gems || 0) + '/5',
-        W - 10, y
-      );
-      y += 18;
+      rows.push({ text: Game.i18n.t('questLilaProgress') + ' ' + (q.progress.gems || 0) + '/5',
+                  color: '#ff66cc', icon: '\u2605' });
     }
     if (q.migword === 'inProgress') {
-      c.fillStyle = '#ffd24a';
-      c.fillText(
-        Game.i18n.t('questMigwordProgress') + ' ' + (q.progress.cheese || 0) + '/3',
-        W - 10, y
-      );
+      rows.push({ text: Game.i18n.t('questMigwordProgress') + ' ' + (q.progress.cheese || 0) + '/3',
+                  color: '#ffd24a', icon: '\u2665' });
+    }
+    var y = 38;
+    c.save();
+    c.font = 'bold 12px "M PLUS Rounded 1c", sans-serif';
+    c.textBaseline = 'middle';
+    for (var i = 0; i < rows.length; i++) {
+      /* Dark pill so the text stays readable over bright planets (the
+         cheese moon sits right behind it on level 2). */
+      var tw = c.measureText(rows[i].text).width;
+      var pw = tw + 34, ph = 22, px = W - 10 - pw;
+      c.fillStyle = 'rgba(14, 6, 36, 0.78)';
+      roundRect(c, px, y - ph / 2, pw, ph, 11);
+      c.fill();
+      c.strokeStyle = rows[i].color;
+      c.globalAlpha = 0.7;
+      c.lineWidth = 1.5;
+      c.stroke();
+      c.globalAlpha = 1;
+      c.fillStyle = rows[i].color;
+      c.textAlign = 'center';
+      c.fillText(rows[i].icon, px + 13, y + 1);
+      c.textAlign = 'left';
+      c.fillText(rows[i].text, px + 24, y + 1);
+      y += 28;
     }
     c.restore();
   }

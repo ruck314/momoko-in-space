@@ -2130,13 +2130,24 @@
     c.fill();
     c.restore();
 
+    /* Everything below is in sprite units, so a 0.35 line is ~3px on
+       screen — a soft ink outline matching the rest of the town. */
+    var INK = '#2a1450';
+    c.lineJoin = 'round';
+    c.lineWidth = 0.35;
+    c.strokeStyle = INK;
+    function tankGrad(x0, x1) {
+      var g = c.createLinearGradient(sx + x0, sy, sx + x1, sy);
+      g.addColorStop(0, '#6c7a8c');
+      g.addColorStop(0.35, '#e4ecf4');
+      g.addColorStop(0.6, '#c3cfdb');
+      g.addColorStop(1, '#5e6b7d');
+      return g;
+    }
+
     /* ----- Boosters (left & right strap-on tanks) ----- */
-    var bGrad = c.createLinearGradient(sx, sy, sx + this.w, sy);
-    bGrad.addColorStop(0, '#7a8896');
-    bGrad.addColorStop(0.5, '#cdd8e2');
-    bGrad.addColorStop(1, '#7a8896');
-    c.fillStyle = bGrad;
     /* Left booster */
+    c.fillStyle = tankGrad(4, 16);
     c.beginPath();
     c.moveTo(sx + 8, sy + 60);
     c.lineTo(sx + 4, sy + 70);
@@ -2145,7 +2156,9 @@
     c.lineTo(sx + 16, sy + 60);
     c.closePath();
     c.fill();
+    c.stroke();
     /* Right booster */
+    c.fillStyle = tankGrad(74, 86);
     c.beginPath();
     c.moveTo(sx + 74, sy + 60);
     c.lineTo(sx + 74, sy + 130);
@@ -2154,38 +2167,63 @@
     c.lineTo(sx + 82, sy + 60);
     c.closePath();
     c.fill();
+    c.stroke();
+    /* Booster bands */
+    c.fillStyle = '#ff66cc';
+    c.fillRect(sx + 4, sy + 96, 12, 3);
+    c.fillRect(sx + 74, sy + 96, 12, 3);
+    c.strokeRect(sx + 4, sy + 96, 12, 3);
+    c.strokeRect(sx + 74, sy + 96, 12, 3);
     /* Booster nose cones */
     c.fillStyle = '#ff66cc';
     c.beginPath();
-    c.moveTo(sx + 4, sy + 70); c.lineTo(sx + 10, sy + 50); c.lineTo(sx + 16, sy + 70);
-    c.closePath(); c.fill();
+    c.moveTo(sx + 4, sy + 70); c.quadraticCurveTo(sx + 5, sy + 56, sx + 10, sy + 50);
+    c.quadraticCurveTo(sx + 15, sy + 56, sx + 16, sy + 70);
+    c.closePath(); c.fill(); c.stroke();
     c.beginPath();
-    c.moveTo(sx + 74, sy + 70); c.lineTo(sx + 80, sy + 50); c.lineTo(sx + 86, sy + 70);
-    c.closePath(); c.fill();
+    c.moveTo(sx + 74, sy + 70); c.quadraticCurveTo(sx + 75, sy + 56, sx + 80, sy + 50);
+    c.quadraticCurveTo(sx + 85, sy + 56, sx + 86, sy + 70);
+    c.closePath(); c.fill(); c.stroke();
+    /* Cone highlights */
+    c.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    c.beginPath(); c.ellipse(sx + 8, sy + 61, 1.2, 5, 0.15, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(sx + 78, sy + 61, 1.2, 5, 0.15, 0, Math.PI * 2); c.fill();
 
     /* ----- Main body ----- */
     var mGrad = c.createLinearGradient(sx + 24, sy, sx + 66, sy);
-    mGrad.addColorStop(0, '#aab5c2');
-    mGrad.addColorStop(0.5, '#ffffff');
-    mGrad.addColorStop(1, '#aab5c2');
+    mGrad.addColorStop(0, '#9aa6b6');
+    mGrad.addColorStop(0.3, '#ffffff');
+    mGrad.addColorStop(0.55, '#eef3f8');
+    mGrad.addColorStop(1, '#8592a4');
     c.fillStyle = mGrad;
     c.beginPath();
     c.moveTo(cx, sy + 0);                 /* tip */
-    c.lineTo(sx + 66, sy + 40);
+    c.quadraticCurveTo(sx + 64, sy + 18, sx + 66, sy + 40);
     c.lineTo(sx + 66, sy + 130);
     c.lineTo(sx + 24, sy + 130);
     c.lineTo(sx + 24, sy + 40);
+    c.quadraticCurveTo(sx + 26, sy + 18, cx, sy + 0);
     c.closePath();
     c.fill();
+    c.stroke();
+    /* Long specular streak down the lit side */
+    c.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    c.fillRect(sx + 32, sy + 44, 2, 84);
 
     /* Nose cone — pink with stripes */
-    c.fillStyle = '#ff4488';
+    var nGrad = c.createLinearGradient(sx + 24, sy, sx + 66, sy);
+    nGrad.addColorStop(0, '#d92f73');
+    nGrad.addColorStop(0.35, '#ff6aa6');
+    nGrad.addColorStop(1, '#c4245f');
+    c.fillStyle = nGrad;
     c.beginPath();
     c.moveTo(cx, sy + 0);
-    c.lineTo(sx + 66, sy + 40);
+    c.quadraticCurveTo(sx + 64, sy + 18, sx + 66, sy + 40);
     c.lineTo(sx + 24, sy + 40);
+    c.quadraticCurveTo(sx + 26, sy + 18, cx, sy + 0);
     c.closePath();
     c.fill();
+    c.stroke();
     /* Cone stripe */
     c.fillStyle = '#ffd24a';
     c.beginPath();
@@ -2274,19 +2312,23 @@
     c.beginPath(); c.arc(sx + 76, sy + 36, 1.6, 0, Math.PI * 2); c.fill();
 
     /* Big fins at the base */
+    c.strokeStyle = INK;
+    c.lineWidth = 0.35;
     c.fillStyle = '#ff66cc';
     c.beginPath();
     c.moveTo(sx + 24, sy + 110);
-    c.lineTo(sx + 6, sy + 144);
+    c.quadraticCurveTo(sx + 8, sy + 128, sx + 6, sy + 144);
     c.lineTo(sx + 24, sy + 144);
     c.closePath();
     c.fill();
+    c.stroke();
     c.beginPath();
     c.moveTo(sx + 66, sy + 110);
-    c.lineTo(sx + 84, sy + 144);
+    c.quadraticCurveTo(sx + 82, sy + 128, sx + 84, sy + 144);
     c.lineTo(sx + 66, sy + 144);
     c.closePath();
     c.fill();
+    c.stroke();
     /* Fin highlights */
     c.fillStyle = '#ff99dd';
     c.beginPath();
@@ -2303,13 +2345,28 @@
     c.fill();
 
     /* ----- Triple thrusters at the very base ----- */
-    c.fillStyle = '#3a3a4a';
-    c.fillRect(sx + 28, sy + 134, 8, 16);
-    c.fillRect(sx + 41, sy + 134, 8, 16);
-    c.fillRect(sx + 54, sy + 134, 8, 16);
+    function nozzle(nx, ny, nw, nh) {
+      var g = c.createLinearGradient(nx - nw / 2, 0, nx + nw / 2, 0);
+      g.addColorStop(0, '#2c2c3c');
+      g.addColorStop(0.4, '#7a7a90');
+      g.addColorStop(1, '#25253a');
+      c.fillStyle = g;
+      c.beginPath();
+      c.moveTo(nx - nw * 0.3, ny);
+      c.lineTo(nx + nw * 0.3, ny);
+      c.quadraticCurveTo(nx + nw * 0.35, ny + nh * 0.6, nx + nw / 2, ny + nh);
+      c.lineTo(nx - nw / 2, ny + nh);
+      c.quadraticCurveTo(nx - nw * 0.35, ny + nh * 0.6, nx - nw * 0.3, ny);
+      c.closePath();
+      c.fill();
+      c.stroke();
+    }
+    nozzle(sx + 32, sy + 130, 9, 20);
+    nozzle(sx + 45, sy + 130, 10, 20);
+    nozzle(sx + 58, sy + 130, 9, 20);
     /* Booster thrusters */
-    c.fillRect(sx + 6, sy + 130, 8, 14);
-    c.fillRect(sx + 76, sy + 130, 8, 14);
+    nozzle(sx + 10, sy + 130, 9, 14);
+    nozzle(sx + 80, sy + 130, 9, 14);
 
     /* Exhaust flicker — animated yellow/red puffs from each thruster */
     var flick = Math.sin(this.timer * 0.3) * 2 + 4;

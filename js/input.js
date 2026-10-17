@@ -296,56 +296,33 @@
     c.fillStyle = '#081224';
     c.fillRect(0, 0, cw, ch);
 
-    /* Inner-edge glow framing the game viewport so the bezel reads as a
-       deliberate frame rather than letterboxing. Skip a side if the game
-       viewport is already flush against that edge. */
-    if (gx > 0) paintEdgeGlow(c, gx - 10, 0, 10, ch, 'h', false);
-    if (rEdge < cw) paintEdgeGlow(c, rEdge, 0, 10, ch, 'h', true);
-    if (gy > 0) paintEdgeGlow(c, 0, gy - 10, cw, 10, 'v', false);
-    if (bEdge < ch) paintEdgeGlow(c, 0, bEdge, cw, 10, 'v', true);
+    /* A few faint fixed stars so the bezel reads as more of space
+       rather than empty letterboxing. Seeded so they never jump. */
+    var seed = 7;
+    function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    for (var si = 0; si < 120; si++) {
+      var sx = rnd() * cw, sy = rnd() * ch, sa = 0.15 + rnd() * 0.35, sr = rnd() < 0.15 ? 1.4 : 0.8;
+      if (sx > gx - 6 && sx < rEdge + 6 && sy > gy - 6 && sy < bEdge + 6) continue;
+      c.fillStyle = 'rgba(190, 215, 255, ' + sa + ')';
+      c.beginPath(); c.arc(sx, sy, sr, 0, Math.PI * 2); c.fill();
+    }
 
-    /* Hairline border at the game viewport edges (drawn in bezel space –
-       the state renderer will paint over the inside of the rect). */
+    /* Soft glow and a hairline frame hugging the game viewport. The
+       state renderer paints over the inside of the rect. */
     if (gx > 0 || gy > 0 || rEdge < cw || bEdge < ch) {
+      c.save();
+      c.shadowColor = 'rgba(100, 160, 220, 0.45)';
+      c.shadowBlur = 18;
+      c.fillStyle = '#081224';
+      c.fillRect(gx, gy, GAME_W, GAME_H);
+      c.restore();
       c.strokeStyle = '#1a3a60';
       c.lineWidth = 2;
-      if (gx > 0) {
-        c.beginPath(); c.moveTo(gx + 0.5, 0); c.lineTo(gx + 0.5, ch); c.stroke();
-      }
-      if (rEdge < cw) {
-        c.beginPath(); c.moveTo(rEdge - 0.5, 0); c.lineTo(rEdge - 0.5, ch); c.stroke();
-      }
-      if (gy > 0) {
-        c.beginPath(); c.moveTo(0, gy + 0.5); c.lineTo(cw, gy + 0.5); c.stroke();
-      }
-      if (bEdge < ch) {
-        c.beginPath(); c.moveTo(0, bEdge - 0.5); c.lineTo(cw, bEdge - 0.5); c.stroke();
-      }
+      c.strokeRect(gx - 1, gy - 1, GAME_W + 2, GAME_H + 2);
     }
     c.restore();
 
     if (showButtons) drawTouchButtons(c);
-  }
-
-  /* `dir` is 'h' for a vertical bezel band (gradient runs horizontally)
-     or 'v' for a horizontal bezel band (gradient runs vertically). When
-     `inward` is true the glow brightens toward the game-viewport side. */
-  function paintEdgeGlow(c, x, y, w, h, dir, inward) {
-    var grad;
-    if (dir === 'h') {
-      grad = c.createLinearGradient(x, 0, x + w, 0);
-    } else {
-      grad = c.createLinearGradient(0, y, 0, y + h);
-    }
-    if (inward) {
-      grad.addColorStop(0, 'rgba(100,160,220,0.25)');
-      grad.addColorStop(1, 'rgba(10,22,40,0)');
-    } else {
-      grad.addColorStop(0, 'rgba(10,22,40,0)');
-      grad.addColorStop(1, 'rgba(100,160,220,0.25)');
-    }
-    c.fillStyle = grad;
-    c.fillRect(x, y, w, h);
   }
 
   function drawTouchButtons(c) {

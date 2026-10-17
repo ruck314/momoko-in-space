@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.4.0';
+  Game.VERSION = 'v2.5.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -986,7 +986,7 @@
       npcs[nc].entity.draw(ctx, camera.x, camera.y);
       /* Interaction indicator */
       var npc = npcs[nc].entity;
-      if (!npc.talking) {
+      if (!npc.talking && !PROMPT_KEYS[npcs[nc].type]) {
         var ndist = Math.sqrt(
           Math.pow(player.x - npc.x, 2) + Math.pow(player.y - npc.y, 2)
         );
@@ -1022,6 +1022,8 @@
     if (player && Game.shop && Game.shop.cart && Game.shop.cart.length > 0 && Game.ui && Game.ui.drawCarryOverlay) {
       Game.ui.drawCarryOverlay(ctx, player, camera.x, camera.y);
     }
+
+    drawInteractPrompt();
 
     /* Wolfe (visible near surface) */
     if (wolfe && camera.y <= 20) {
@@ -1167,17 +1169,43 @@
         /* Big sci-fi house silhouette behind the door */
         var hc = d.color || '#8866aa';
         var rc = d.roofColor || '#cc4488';
-        /* Body */
-        ctx.fillStyle = hc;
+        /* Contact shadow so the house sits on the ground */
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.beginPath();
+        ctx.ellipse(dx, dy + 1, 62, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        /* Body — lit from the upper left */
+        var hGrad = ctx.createLinearGradient(dx - 50, 0, dx + 50, 0);
+        hGrad.addColorStop(0, mixHex(hc, '#ffffff', 0.18));
+        hGrad.addColorStop(0.6, hc);
+        hGrad.addColorStop(1, mixHex(hc, '#000000', 0.25));
+        ctx.fillStyle = hGrad;
         ctx.fillRect(dx - 50, dy - 90, 100, 90);
         /* Side trim shading */
         ctx.fillStyle = 'rgba(0,0,0,0.18)';
         ctx.fillRect(dx + 35, dy - 90, 15, 90);
+        ctx.strokeStyle = '#2a1450';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(dx - 50, dy - 90, 100, 90);
         /* Roof — dome plus trim ring */
-        ctx.fillStyle = rc;
+        var rGrad = ctx.createLinearGradient(0, dy - 116, 0, dy - 90);
+        rGrad.addColorStop(0, mixHex(rc, '#ffffff', 0.25));
+        rGrad.addColorStop(1, mixHex(rc, '#000000', 0.15));
+        ctx.fillStyle = rGrad;
         ctx.beginPath();
         ctx.ellipse(dx, dy - 90, 56, 26, 0, Math.PI, 0);
+        ctx.closePath();
         ctx.fill();
+        ctx.stroke();
+        /* Dome highlight */
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.beginPath();
+        ctx.ellipse(dx - 22, dy - 104, 14, 5, -0.35, 0, Math.PI * 2);
+        ctx.fill();
+        /* Trim ring under the dome */
+        ctx.fillStyle = mixHex(rc, '#000000', 0.3);
+        ctx.fillRect(dx - 56, dy - 92, 112, 5);
+        ctx.strokeRect(dx - 56, dy - 92, 112, 5);
         /* Roof antenna */
         ctx.strokeStyle = '#ddddee';
         ctx.lineWidth = 2;
@@ -1192,6 +1220,9 @@
         /* Glowing windows — three across */
         var winColors = ['#ffd24a', '#44ffff', '#ff88cc'];
         for (var hwn = 0; hwn < 3; hwn++) {
+          /* Soft light spill around each window */
+          ctx.fillStyle = hexA(winColors[hwn], 0.18);
+          ctx.fillRect(dx - 41 + hwn * 28, dy - 73, 24, 24);
           ctx.fillStyle = winColors[hwn];
           ctx.fillRect(dx - 38 + hwn * 28, dy - 70, 18, 18);
           /* Cross frames */
@@ -1952,6 +1983,70 @@
         }
         break;
     }
+  }
+
+  /* ---- Interact prompt ----
+     Doors and the rocket don't talk, so instead of the "!" they get a
+     labelled bubble over Momoko's head saying what Space / TALK will do.
+     The range matches the interact check in update(). */
+  var PROMPT_KEYS = { houseDoor: 'promptEnter', cafeDoor: 'promptEnter',
+                      shopDoor: 'promptEnter', rocket: 'promptBoard' };
+
+  function rrect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawInteractPrompt() {
+    if (!player) return;
+    var key = null;
+    for (var i = 0; i < npcs.length; i++) {
+      var k = PROMPT_KEYS[npcs[i].type];
+      if (!k) continue;
+      var e = npcs[i].entity;
+      var dx = player.x - e.x, dy = player.y - e.y;
+      if (dx * dx + dy * dy < 80 * 80) { key = k; break; }
+      /* The boarding hatch is up in the air: hint when she's standing
+         underneath it on the ground. */
+      if (npcs[i].type === 'rocket' && Math.abs(dx) < 160 && dy > 0) key = 'promptFlyUp';
+    }
+    if (!key) return;
+    var label = (key === 'promptFlyUp' ? '\u2191 ' : '') + Game.i18n.t(key);
+    var bob = Math.sin(Date.now() * 0.006) * 2;
+    var lift = (Game.shop && Game.shop.cart && Game.shop.cart.length > 0) ? 26 : 0;
+    var bx = Math.round(player.x - camera.x + player.w / 2);
+    var by = Math.round(player.y - camera.y - 18 - lift + bob);
+    ctx.save();
+    ctx.font = 'bold 13px "M PLUS Rounded 1c", sans-serif';
+    var tw = ctx.measureText(label).width;
+    var pw = tw + 20, ph = 24;
+    var px = Math.max(4, Math.min(W - pw - 4, bx - pw / 2));
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    rrect(px, by - ph + 2, pw, ph, 12); ctx.fill();
+    ctx.fillStyle = '#fff8e8';
+    ctx.strokeStyle = '#2a1450';
+    ctx.lineWidth = 2;
+    rrect(px, by - ph, pw, ph, 12);
+    ctx.fill();
+    ctx.stroke();
+    /* Tail pointing down at Momoko */
+    ctx.beginPath();
+    ctx.moveTo(bx - 5, by - 1); ctx.lineTo(bx, by + 6); ctx.lineTo(bx + 5, by - 1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(bx - 5, by); ctx.lineTo(bx, by + 6); ctx.lineTo(bx + 5, by);
+    ctx.stroke();
+    ctx.fillStyle = '#2a1450';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, px + pw / 2, by - ph / 2 + 1);
+    ctx.restore();
   }
 
   /* ---- Start game ---- */
