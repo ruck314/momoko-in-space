@@ -136,7 +136,7 @@
       ],
 
       npcs: [
-        { type: 'oliver', x: 700, y: 380 },
+        { type: 'oliver', x: 860, y: 300 },
         /* Lila — Momoko's next-door neighbor with the star-gem quest */
         { type: 'lila', x: 1080, y: 400 },
         { type: 'kittycorn', x: 2150, y: 380 },

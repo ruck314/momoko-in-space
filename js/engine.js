@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.9.0';
+  Game.VERSION = 'v2.10.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -973,6 +973,62 @@
     ctx.lineTo(W, H + 10);
     ctx.closePath();
     ctx.fill();
+    /* Surface detail: a pale dusty crust along the rim, a few shallow
+       craters and hairline cracks, and the regolith darkening with depth
+       so the ground reads as a moon surface instead of a flat band. */
+    ctx.save();
+    ctx.strokeStyle = mixHex(floorColorB, '#ffffff', 0.22);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var cx0 = 0; cx0 <= W; cx0 += 4) {
+      var cwx = cx0 + camera.x;
+      var crim = Math.sin(cwx * 0.008) * 6 + Math.sin(cwx * 0.02) * 3 + Math.sin(cwx * 0.05) * 1.5;
+      if (cx0 === 0) ctx.moveTo(cx0, floorBase + crim + 2.5);
+      else ctx.lineTo(cx0, floorBase + crim + 2.5);
+    }
+    ctx.stroke();
+    var depthGrad = ctx.createLinearGradient(0, floorBase + 14, 0, H);
+    depthGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    depthGrad.addColorStop(1, 'rgba(0, 0, 0, 0.32)');
+    ctx.fillStyle = depthGrad;
+    ctx.fillRect(0, floorBase + 14, W, H - floorBase - 14);
+    var craterSeed = 7;
+    for (var cr = 0; cr < 6; cr++) {
+      craterSeed = (craterSeed * 1103515245 + 12345) & 0x7fffffff;
+      var crx = craterSeed % 800;
+      craterSeed = (craterSeed * 1103515245 + 12345) & 0x7fffffff;
+      var cry = 16 + (craterSeed % 18);
+      var crr = 5 + (cr % 3) * 3;
+      var worldCrx = crx + Math.floor(camera.x / 800) * 800;
+      var screenCrx = worldCrx - camera.x;
+      if (screenCrx < -20) screenCrx += 800;
+      if (screenCrx > W + 20) screenCrx -= 800;
+      if (screenCrx < -20 || screenCrx > W + 20) continue;
+      var crBaseY = floorBase + Math.sin((screenCrx + camera.x) * 0.008) * 6 + cry;
+      if (cr < 4) {
+        /* Crater: dark bowl with a pale lip on the far side */
+        ctx.fillStyle = mixHex(floorColorA, '#000000', 0.35);
+        ctx.beginPath();
+        ctx.ellipse(screenCrx, crBaseY, crr, crr * 0.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = mixHex(floorColorB, '#ffffff', 0.25);
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.ellipse(screenCrx, crBaseY - 1, crr, crr * 0.4, 0, Math.PI * 1.1, Math.PI * 1.9);
+        ctx.stroke();
+      } else {
+        /* Hairline crack */
+        ctx.strokeStyle = mixHex(floorColorA, '#000000', 0.4);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(screenCrx - 10, crBaseY - 4);
+        ctx.lineTo(screenCrx - 3, crBaseY);
+        ctx.lineTo(screenCrx + 2, crBaseY - 1);
+        ctx.lineTo(screenCrx + 9, crBaseY + 4);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
     /* Star pebbles on the surface — tiny white specks that read as glinting crystal */
     ctx.save();
     var pebbleSeed = 42;

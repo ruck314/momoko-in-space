@@ -777,62 +777,74 @@
      palette (brown/blue/gold remapped to brown/spotted/golden) or 'none'. */
   function drawCrabPet(c, px, py, variant, frame) {
     if (!variant || variant === 'none') return;
-    var body, accent;
+    var body, accent, muzzle;
     if (variant === 'blue' || variant === 'spotted') {
-      body = '#dddddd'; accent = '#553322';
+      body = '#e6e6e6'; accent = '#4a3a30'; muzzle = '#ffffff';
     } else if (variant === 'gold' || variant === 'golden') {
-      body = '#ffcc66'; accent = '#aa6622';
+      body = '#f0bf5a'; accent = '#a86a22'; muzzle = '#fbe6b4';
     } else {
-      /* red → brown */
-      body = '#8a5a32'; accent = '#5a3818';
+      /* red -> brown */
+      body = '#8a5a32'; accent = '#5a3818'; muzzle = '#c9a070';
     }
-    var wobble = Math.sin((frame || 0) * 0.2) * 0.8;
-    /* Body — plump ellipse */
-    c.fillStyle = body;
-    c.beginPath();
-    c.ellipse(px, py, 6, 4, 0, 0, Math.PI * 2);
-    c.fill();
-    /* Head */
-    c.beginPath();
-    c.arc(px - 5, py - 1, 3, 0, Math.PI * 2);
-    c.fill();
-    /* Ear */
-    c.fillStyle = accent;
-    c.beginPath();
-    c.moveTo(px - 6, py - 3.5);
-    c.lineTo(px - 4.5, py - 4.6);
-    c.lineTo(px - 4, py - 3);
-    c.closePath();
-    c.fill();
-    /* Spots for 'spotted' coat */
-    if (variant === 'blue' || variant === 'spotted') {
-      c.fillStyle = '#443322';
-      c.beginPath(); c.arc(px + 1, py - 1, 0.9, 0, Math.PI * 2); c.fill();
-      c.beginPath(); c.arc(px + 3, py + 1, 0.8, 0, Math.PI * 2); c.fill();
-    }
-    /* Snout */
-    c.fillStyle = accent;
-    c.beginPath(); c.arc(px - 7, py, 0.8, 0, Math.PI * 2); c.fill();
-    /* Eye */
-    c.fillStyle = '#000000';
-    c.beginPath(); c.arc(px - 5.5, py - 1.4, 0.5, 0, Math.PI * 2); c.fill();
+    var t = frame || 0;
+    var wobble = Math.sin(t * 0.2) * 0.8;
+    var step = Math.sin(t * 0.3) * 1;
+    c.save();
+    c.lineCap = 'round';
     /* Tail (wagging) */
     c.strokeStyle = body;
     c.lineWidth = 1.8;
-    c.lineCap = 'round';
     c.beginPath();
     c.moveTo(px + 5, py - 1);
-    c.lineTo(px + 8, py - 2 + wobble * 2);
+    c.quadraticCurveTo(px + 8, py - 3 + wobble * 2, px + 9, py - 5 + wobble * 2);
     c.stroke();
-    /* Legs */
+    /* Far legs */
     c.strokeStyle = accent;
-    c.lineWidth = 0.9;
+    c.lineWidth = 1.6;
     c.beginPath();
-    c.moveTo(px - 3, py + 3); c.lineTo(px - 3, py + 4.8);
-    c.moveTo(px - 1, py + 3); c.lineTo(px - 1, py + 4.8);
-    c.moveTo(px + 1, py + 3); c.lineTo(px + 1, py + 4.8);
-    c.moveTo(px + 3, py + 3); c.lineTo(px + 3, py + 4.8);
+    c.moveTo(px - 3, py + 2.5); c.lineTo(px - 3.5 - step, py + 5.5);
+    c.moveTo(px + 3, py + 2.5); c.lineTo(px + 3.5 + step, py + 5.5);
     c.stroke();
+    /* Body — plump ellipse */
+    c.fillStyle = body;
+    c.beginPath();
+    c.ellipse(px, py, 6.2, 4, 0, 0, Math.PI * 2);
+    c.fill();
+    /* Near legs with paws */
+    c.strokeStyle = body;
+    c.lineWidth = 1.8;
+    c.beginPath();
+    c.moveTo(px - 2, py + 2.5); c.lineTo(px - 1.5 + step, py + 5.5);
+    c.moveTo(px + 4, py + 2.5); c.lineTo(px + 4.5 - step, py + 5.5);
+    c.stroke();
+    /* Spots for 'spotted' coat */
+    if (variant === 'blue' || variant === 'spotted') {
+      c.fillStyle = '#443322';
+      c.beginPath(); c.arc(px + 1, py - 1.5, 1.3, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(px + 3.5, py + 1, 0.9, 0, Math.PI * 2); c.fill();
+    }
+    /* Head */
+    c.fillStyle = body;
+    c.beginPath();
+    c.arc(px - 5.5, py - 2, 3.6, 0, Math.PI * 2);
+    c.fill();
+    /* Muzzle */
+    c.fillStyle = muzzle;
+    c.beginPath(); c.ellipse(px - 7.5, py - 0.8, 2.2, 1.7, 0, 0, Math.PI * 2); c.fill();
+    /* Floppy ear */
+    c.fillStyle = accent;
+    c.beginPath(); c.ellipse(px - 3.2, py - 2.6, 1.3, 2.6, 0.3, 0, Math.PI * 2); c.fill();
+    /* Nose + eye */
+    c.fillStyle = '#1a1a1a';
+    c.beginPath(); c.ellipse(px - 9.2, py - 1.4, 1, 0.8, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(px - 6.2, py - 3, 0.75, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.arc(px - 6.5, py - 3.3, 0.3, 0, Math.PI * 2); c.fill();
+    /* Collar */
+    c.strokeStyle = '#d23a5a';
+    c.lineWidth = 1.1;
+    c.beginPath(); c.arc(px - 5, py - 0.5, 2.8, 0.5, Math.PI - 0.6); c.stroke();
+    c.restore();
   }
 
   Momoko.prototype.draw = function (c, camX, camY) {
@@ -1363,73 +1375,73 @@
   Oliver.prototype.draw = function (c, camX, camY) {
     var sx = Math.round(this.x - camX);
     var sy = Math.round(this.y - camY);
+    var FUR = '#8a5a30', FUR_D = '#5e3a1a', CREAM = '#dcbc8c', INK = '#2a1a10';
+    var wag = Math.sin(this.timer * 0.1) * 3;
 
     c.save();
-    /* Body */
-    c.fillStyle = '#996633';
+    /* Tail — thick at the rump, tapering as it drifts behind */
+    c.lineCap = 'round';
+    c.strokeStyle = FUR_D; c.lineWidth = 5;
     c.beginPath();
-    c.ellipse(sx + 14, sy + 12, 14, 10, 0, 0, Math.PI * 2);
-    c.fill();
-
-    /* Belly */
-    c.fillStyle = '#ccaa77';
+    c.moveTo(sx + 24, sy + 12);
+    c.quadraticCurveTo(sx + 31, sy + 11 + wag, sx + 35, sy + 7 + wag);
+    c.stroke();
+    c.strokeStyle = FUR; c.lineWidth = 2.4;
     c.beginPath();
-    c.ellipse(sx + 14, sy + 14, 8, 6, 0, 0, Math.PI * 2);
-    c.fill();
-
-    /* Head */
-    c.fillStyle = '#996633';
-    c.beginPath();
-    c.arc(sx + 6, sy + 5, 8, 0, Math.PI * 2);
-    c.fill();
-
-    /* Ears */
-    c.fillStyle = '#885522';
-    c.beginPath(); c.arc(sx + 1, sy + 0, 3, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 11, sy + 0, 3, 0, Math.PI * 2); c.fill();
-
-    /* Eyes */
-    c.fillStyle = '#000000';
-    c.beginPath(); c.arc(sx + 4, sy + 5, 2, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 9, sy + 5, 2, 0, Math.PI * 2); c.fill();
-    /* Highlights */
-    c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(sx + 4, sy + 4, 0.8, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 9, sy + 4, 0.8, 0, Math.PI * 2); c.fill();
-
-    /* Nose */
-    c.fillStyle = '#333333';
-    c.beginPath(); c.arc(sx + 6, sy + 7, 1.5, 0, Math.PI * 2); c.fill();
-
-    /* Whiskers */
-    c.strokeStyle = '#664422';
-    c.lineWidth = 0.5;
-    c.beginPath();
-    c.moveTo(sx + 0, sy + 6); c.lineTo(sx - 5, sy + 5);
-    c.moveTo(sx + 0, sy + 8); c.lineTo(sx - 5, sy + 9);
-    c.moveTo(sx + 12, sy + 6); c.lineTo(sx + 17, sy + 5);
-    c.moveTo(sx + 12, sy + 8); c.lineTo(sx + 17, sy + 9);
+    c.moveTo(sx + 30, sy + 10.5 + wag * 0.8);
+    c.lineTo(sx + 35, sy + 7 + wag);
     c.stroke();
 
-    /* Tail – tapered bezier */
-    c.fillStyle = '#885522';
-    var tailWag = Math.sin(this.timer * 0.1) * 3;
-    c.beginPath();
-    c.moveTo(sx + 24, sy + 10);
-    c.quadraticCurveTo(sx + 30, sy + 8 + tailWag, sx + 33, sy + 6 + tailWag);
-    c.quadraticCurveTo(sx + 31, sy + 12 + tailWag, sx + 28, sy + 13);
-    c.closePath();
-    c.fill();
+    /* Body — long sleek otter torpedo, lit from above */
+    var bg = c.createLinearGradient(0, sy + 3, 0, sy + 20);
+    bg.addColorStop(0, FUR); bg.addColorStop(1, FUR_D);
+    c.fillStyle = bg;
+    c.beginPath(); c.ellipse(sx + 16, sy + 12, 13, 7.5, -0.1, 0, Math.PI * 2); c.fill();
+    /* Pale belly */
+    c.fillStyle = CREAM;
+    c.beginPath(); c.ellipse(sx + 15, sy + 14.5, 8.5, 4, -0.1, 0, Math.PI * 2); c.fill();
+    /* Webbed hind foot tucked under the rump */
+    c.fillStyle = FUR_D;
+    c.beginPath(); c.ellipse(sx + 25, sy + 17.5, 3.6, 1.8, 0.5, 0, Math.PI * 2); c.fill();
 
-    /* Paws – rounded */
-    c.fillStyle = '#885522';
+    /* Head — round with small ears set wide */
+    c.fillStyle = FUR;
+    c.beginPath(); c.arc(sx + 6, sy + 7, 7, 0, Math.PI * 2); c.fill();
+    c.fillStyle = FUR_D;
+    c.beginPath(); c.arc(sx + 1.5, sy + 2, 2.2, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 11, sy + 2, 2.2, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#c98a7a';
+    c.beginPath(); c.arc(sx + 1.5, sy + 2, 1, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 11, sy + 2, 1, 0, Math.PI * 2); c.fill();
+    /* Pale muzzle with big otter nose */
+    c.fillStyle = CREAM;
+    c.beginPath(); c.ellipse(sx + 6, sy + 9.5, 4.6, 3.4, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = INK;
+    c.beginPath(); c.ellipse(sx + 6, sy + 8.2, 1.8, 1.3, 0, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = FUR_D; c.lineWidth = 0.7;
     c.beginPath();
-    c.ellipse(sx + 6, sy + 20, 3, 2.5, 0, 0, Math.PI * 2);
-    c.fill();
+    c.moveTo(sx + 6, sy + 9.5); c.lineTo(sx + 6, sy + 10.4);
+    c.moveTo(sx + 4.2, sy + 11); c.quadraticCurveTo(sx + 6, sy + 12.4, sx + 7.8, sy + 11);
+    c.stroke();
+    /* Eyes */
+    c.fillStyle = INK;
+    c.beginPath(); c.arc(sx + 3.2, sy + 6, 1.6, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 8.8, sy + 6, 1.6, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.arc(sx + 2.7, sy + 5.4, 0.6, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 8.3, sy + 5.4, 0.6, 0, Math.PI * 2); c.fill();
+    /* Whiskers */
+    c.strokeStyle = '#f0e0c0'; c.lineWidth = 0.6;
     c.beginPath();
-    c.ellipse(sx + 20, sy + 20, 3, 2.5, 0, 0, Math.PI * 2);
-    c.fill();
-
+    c.moveTo(sx + 2, sy + 9); c.lineTo(sx - 4, sy + 8);
+    c.moveTo(sx + 2, sy + 10); c.lineTo(sx - 4, sy + 11.5);
+    c.moveTo(sx + 10, sy + 9); c.lineTo(sx + 16, sy + 8);
+    c.moveTo(sx + 10, sy + 10); c.lineTo(sx + 16, sy + 11.5);
+    c.stroke();
+    /* Paws clasped on the chest */
+    c.fillStyle = FUR_D;
+    c.beginPath(); c.ellipse(sx + 11.5, sy + 13, 2.4, 1.8, 0.4, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(sx + 15.5, sy + 13.5, 2.4, 1.8, -0.4, 0, Math.PI * 2); c.fill();
     c.restore();
   };
 
@@ -2404,25 +2416,58 @@
   HouseDoor.prototype.draw = function (c, camX, camY) {
     var sx = Math.round(this.x - camX);
     var sy = Math.round(this.y - camY);
-    /* Door frame */
+    /* Door step */
+    c.fillStyle = '#4a3a5e';
+    c.fillRect(sx - 4, sy + 50, 56, 4);
+    c.fillStyle = '#7a6a92';
+    c.fillRect(sx - 4, sy + 50, 56, 1.5);
+    /* Frame and lintel */
     c.fillStyle = '#3a2412';
     c.fillRect(sx, sy, 48, 52);
-    /* Door panel */
-    c.fillStyle = '#8a5a32';
+    c.fillStyle = '#5a3a22';
+    c.fillRect(sx - 3, sy - 4, 54, 6);
+    c.fillStyle = '#7a5232';
+    c.fillRect(sx - 3, sy - 4, 54, 1.5);
+    /* Door panel — lit from the porch lamp above */
+    var dg = c.createLinearGradient(0, sy, 0, sy + 50);
+    dg.addColorStop(0, '#a07040');
+    dg.addColorStop(1, '#774a28');
+    c.fillStyle = dg;
     c.fillRect(sx + 4, sy + 4, 40, 46);
-    /* Door grain */
+    /* Raised panels */
     c.strokeStyle = '#5a3a22';
-    c.lineWidth = 0.8;
-    c.beginPath(); c.moveTo(sx + 24, sy + 6); c.lineTo(sx + 24, sy + 48); c.stroke();
-    c.beginPath(); c.moveTo(sx + 8, sy + 26); c.lineTo(sx + 40, sy + 26); c.stroke();
+    c.lineWidth = 1.2;
+    c.strokeRect(sx + 8.5, sy + 8.5, 13, 15);
+    c.strokeRect(sx + 26.5, sy + 8.5, 13, 15);
+    c.strokeRect(sx + 8.5, sy + 28.5, 13, 17);
+    c.strokeRect(sx + 26.5, sy + 28.5, 13, 17);
+    c.strokeStyle = 'rgba(255, 226, 170, 0.28)';
+    c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(sx + 9.5, sy + 23); c.lineTo(sx + 9.5, sy + 9.5); c.lineTo(sx + 21, sy + 9.5);
+    c.moveTo(sx + 27.5, sy + 23); c.lineTo(sx + 27.5, sy + 9.5); c.lineTo(sx + 39, sy + 9.5);
+    c.stroke();
     /* Handle */
     c.fillStyle = '#ffd24a';
     c.beginPath();
     c.arc(sx + 38, sy + 28, 2.6, 0, Math.PI * 2);
     c.fill();
+    /* Porch lamp: warm glow over the lintel so the entrance reads at 1x */
+    var flick = 0.85 + Math.sin(this.timer * 0.05) * 0.08;
+    c.save();
+    var lg = c.createRadialGradient(sx + 24, sy - 6, 2, sx + 24, sy - 6, 34);
+    lg.addColorStop(0, 'rgba(255, 220, 140, ' + (0.45 * flick) + ')');
+    lg.addColorStop(1, 'rgba(255, 220, 140, 0)');
+    c.fillStyle = lg;
+    c.fillRect(sx - 12, sy - 40, 72, 60);
+    c.restore();
+    c.fillStyle = '#3a3a4a';
+    c.fillRect(sx + 20, sy - 14, 8, 3);
+    c.fillStyle = '#ffe9a0';
+    c.beginPath(); c.arc(sx + 24, sy - 9, 2.6, 0, Math.PI * 2); c.fill();
     /* Welcome heart sign above */
     c.fillStyle = '#ff66cc';
-    var hcx = sx + 24, hcy = sy - 8;
+    var hcx = sx + 24, hcy = sy - 20;
     c.beginPath();
     c.arc(hcx - 2, hcy - 1, 2, 0, Math.PI * 2);
     c.arc(hcx + 2, hcy - 1, 2, 0, Math.PI * 2);
