@@ -83,6 +83,8 @@
     var r = Math.min(12, h / 2);
     var pal = style === 'primary'
       ? { top: '#ff8fd8', bot: '#d63fa6', hTop: '#ffb0e6', hBot: '#ee55bb', edge: '#ffe0f4' }
+      : style === 'danger'
+      ? { top: '#ff7a9a', bot: '#b82a52', hTop: '#ff9ab4', hBot: '#d23e68', edge: '#ffd0dc' }
       : { top: '#6a3aa8', bot: '#3c1868', hTop: '#8a55d0', hBot: '#55259a', edge: '#ff66cc' };
     var oy = pressed ? 2 : 0;
     c.save();
@@ -263,13 +265,260 @@
     c.restore();
   }
 
+  /* ---- Moon-town horizon for the title and victory screens ----
+     A row of dome houses with lit windows, antennas, the WELCOME sign
+     and a parked rocket along the bottom of the view. The static part is
+     rendered once per view layout to an offscreen canvas; only the
+     blinking lights and the shooting star are drawn per frame. */
+  var TOWN_H = 150;
+  var TOWN_GROUND = TOWN_H - 48;
+  var townCanvas = null, townKey = '';
+  /* Buildings in game-x; those outside the view are skipped, so the
+     tablet's wider view picks up the extra ones in the bezel. */
+  var TOWN_ITEMS = [
+    { k: 'dome', x: -250, c: '#3b1d6b', r: '#6a2f8f' },
+    { k: 'ant', x: -150, h: 60 },
+    { k: 'small', x: -110, c: '#2d1550' },
+    { k: 'dome', x: 60, c: '#3b1d6b', r: '#7a3a9e' },
+    { k: 'ant', x: 125, h: 52 },
+    { k: 'small', x: 170, c: '#2d1550' },
+    { k: 'sign', x: 250 },
+    { k: 'ant', x: 522, h: 64 },
+    { k: 'rocket', x: 572 },
+    { k: 'dome', x: 672, c: '#35195f', r: '#6a2f8f' },
+    { k: 'small', x: 768, c: '#2d1550' },
+    { k: 'ant', x: 905, h: 58 },
+    { k: 'dome', x: 980, c: '#3b1d6b', r: '#7a3a9e' },
+    { k: 'small', x: 1090, c: '#2d1550' },
+  ];
+  function titleTownCanvas() {
+    var key = VIEW.x + ',' + VIEW.w;
+    if (townCanvas && key === townKey) return townCanvas;
+    townKey = key;
+    var cv = document.createElement('canvas');
+    cv.width = Math.ceil(VIEW.w);
+    cv.height = TOWN_H;
+    var c = cv.getContext('2d');
+    var ox = -VIEW.x; /* local x of game x = 0 */
+    var gy = TOWN_GROUND;
+    /* Horizon haze */
+    var hz = c.createLinearGradient(0, 0, 0, gy);
+    hz.addColorStop(0, 'rgba(120, 70, 190, 0)');
+    hz.addColorStop(1, 'rgba(120, 70, 190, 0.22)');
+    c.fillStyle = hz;
+    c.fillRect(0, 0, cv.width, gy);
+    /* Far ridge */
+    c.fillStyle = '#1c0d3a';
+    c.beginPath();
+    c.moveTo(0, gy + 4);
+    for (var rx = 0; rx <= cv.width; rx += 8) {
+      var wx = rx - ox;
+      c.lineTo(rx, gy - 22 - Math.sin(wx * 0.012) * 10 - Math.sin(wx * 0.031 + 1) * 5);
+    }
+    c.lineTo(cv.width, gy + 4);
+    c.closePath();
+    c.fill();
+    /* Buildings */
+    for (var i = 0; i < TOWN_ITEMS.length; i++) {
+      var it = TOWN_ITEMS[i];
+      var x = it.x + ox;
+      if (x < -120 || x > cv.width + 120) continue;
+      if (it.k === 'dome') {
+        c.fillStyle = it.c;
+        c.fillRect(x - 50, gy - 86, 100, 86);
+        c.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        c.fillRect(x + 34, gy - 86, 16, 86);
+        c.fillStyle = it.r;
+        c.beginPath();
+        c.ellipse(x, gy - 86, 56, 26, 0, Math.PI, 0);
+        c.closePath();
+        c.fill();
+        c.fillStyle = 'rgba(255, 255, 255, 0.18)';
+        c.beginPath();
+        c.ellipse(x - 22, gy - 100, 14, 5, -0.35, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#261040';
+        c.fillRect(x - 56, gy - 88, 112, 5);
+        /* antenna */
+        c.fillStyle = '#bfb8d8';
+        c.fillRect(x - 1, gy - 128, 2, 16);
+        /* windows with glow */
+        var wc = ['#ffd24a', '#44ffff', '#ff88cc'];
+        for (var w = 0; w < 3; w++) {
+          var wxp = x - 38 + w * 28;
+          var wg = c.createRadialGradient(wxp + 9, gy - 60, 2, wxp + 9, gy - 60, 26);
+          wg.addColorStop(0, hexAlpha(wc[w], 0.35));
+          wg.addColorStop(1, hexAlpha(wc[w], 0));
+          c.fillStyle = wg;
+          c.fillRect(wxp - 18, gy - 88, 54, 54);
+          c.fillStyle = wc[w];
+          c.fillRect(wxp, gy - 69, 18, 18);
+          c.fillStyle = '#221133';
+          c.fillRect(wxp + 8, gy - 69, 2, 18);
+          c.fillRect(wxp, gy - 61, 18, 2);
+        }
+        /* door with porch light */
+        c.fillStyle = '#1a0a2e';
+        c.fillRect(x - 12, gy - 40, 24, 40);
+        c.fillStyle = 'rgba(255, 220, 140, 0.25)';
+        c.beginPath();
+        c.arc(x, gy - 44, 14, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#ffe9a0';
+        c.beginPath();
+        c.arc(x, gy - 44, 2.2, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#44ffff';
+        c.fillRect(x - 50, gy - 5, 100, 2);
+      } else if (it.k === 'small') {
+        c.fillStyle = it.c;
+        c.fillRect(x - 28, gy - 52, 56, 52);
+        c.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        c.fillRect(x + 18, gy - 52, 10, 52);
+        c.fillStyle = '#4a2478';
+        c.beginPath();
+        c.ellipse(x, gy - 52, 32, 14, 0, Math.PI, 0);
+        c.closePath();
+        c.fill();
+        c.fillStyle = '#ffd24a';
+        c.fillRect(x - 16, gy - 40, 12, 12);
+        c.fillStyle = '#44ffff';
+        c.fillRect(x + 4, gy - 40, 12, 12);
+        c.fillStyle = '#221133';
+        c.fillRect(x - 11, gy - 40, 2, 12);
+        c.fillRect(x + 9, gy - 40, 2, 12);
+        c.fillStyle = '#1a0a2e';
+        c.fillRect(x - 7, gy - 20, 14, 20);
+      } else if (it.k === 'ant') {
+        c.strokeStyle = '#6d7686';
+        c.lineWidth = 2;
+        c.beginPath();
+        c.moveTo(x, gy); c.lineTo(x, gy - it.h);
+        c.stroke();
+        c.lineWidth = 1;
+        for (var a = 1; a <= 4; a++) {
+          var ay = gy - it.h * a / 5, aw = 3 + (4 - a) * 2;
+          c.beginPath(); c.moveTo(x - aw, ay); c.lineTo(x + aw, ay); c.stroke();
+        }
+      } else if (it.k === 'sign') {
+        c.fillStyle = '#4a5566';
+        c.fillRect(x - 1.2, gy - 50, 2.4, 50);
+        c.fillStyle = '#0e0e1c';
+        c.fillRect(x - 34, gy - 84, 68, 36);
+        c.fillStyle = '#1a1a2a';
+        c.fillRect(x - 32, gy - 82, 64, 32);
+        c.strokeStyle = '#44ffff';
+        c.lineWidth = 2;
+        c.strokeRect(x - 32, gy - 82, 64, 32);
+        c.fillStyle = '#44ffff';
+        c.font = 'bold 13px ' + FONT;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText('WELCOME', x, gy - 66);
+        c.textBaseline = 'alphabetic';
+      } else if (it.k === 'rocket') {
+        /* Launch pad and a parked rocket (flame clipped away) */
+        c.fillStyle = '#3a3a4e';
+        c.fillRect(x - 30, gy - 5, 60, 5);
+        c.fillStyle = '#ffd24a';
+        for (var st = 0; st < 4; st++) c.fillRect(x - 26 + st * 14, gy - 4, 6, 1.5);
+        c.save();
+        c.translate(x, gy - 5);
+        c.scale(0.95, 0.95);
+        c.translate(0, -24);
+        c.beginPath();
+        c.rect(-30, -40, 60, 64);
+        c.clip();
+        drawRocketShip(c, 0);
+        c.restore();
+        c.fillStyle = '#6d7686';
+        c.fillRect(x + 28, gy - 46, 2, 46);
+        c.fillRect(x + 20, gy - 44, 10, 2);
+      }
+    }
+    /* Ground with a pale crust and dust shading toward the bottom */
+    c.fillStyle = '#241247';
+    c.beginPath();
+    c.moveTo(0, TOWN_H);
+    for (var fx = 0; fx <= cv.width; fx += 6) {
+      var fwx = fx - ox;
+      c.lineTo(fx, gy + Math.sin(fwx * 0.01) * 3 + Math.sin(fwx * 0.027) * 1.5);
+    }
+    c.lineTo(cv.width, TOWN_H);
+    c.closePath();
+    c.fill();
+    c.strokeStyle = 'rgba(190, 160, 240, 0.35)';
+    c.lineWidth = 1.5;
+    c.stroke();
+    var dg = c.createLinearGradient(0, gy, 0, TOWN_H);
+    dg.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    dg.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
+    c.fillStyle = dg;
+    c.fillRect(0, gy, cv.width, TOWN_H - gy);
+    /* Craters and pebbles */
+    for (var cr = 0; cr < cv.width / 70; cr++) {
+      var cx0 = (cr * 173) % cv.width, cy0 = gy + 10 + (cr * 37) % 24, crr = 3 + cr % 4;
+      c.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      c.beginPath(); c.ellipse(cx0, cy0, crr, crr * 0.4, 0, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = 'rgba(200, 170, 255, 0.25)';
+      c.lineWidth = 1;
+      c.beginPath(); c.ellipse(cx0, cy0 - 0.8, crr, crr * 0.4, 0, Math.PI * 1.1, Math.PI * 1.9); c.stroke();
+    }
+    townCanvas = cv;
+    return cv;
+  }
+  function hexAlpha(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + (n >> 16) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255) + ', ' + a + ')';
+  }
+  /* Blit the cached town, then the live bits: blinking antenna tips,
+     pulsing porch lights and an occasional shooting star. */
+  function drawTitleTown(c, t) {
+    var cv = titleTownCanvas();
+    var top = VIEW.y + VIEW.h - TOWN_H;
+    var gy = top + TOWN_GROUND;
+    /* Shooting star every few seconds, high in the sky */
+    var cyc = t % 420;
+    if (cyc < 70) {
+      var sp = cyc / 70;
+      var sxx = VIEW.x + VIEW.w * (0.95 - sp * 0.6);
+      var syy = VIEW.y + 30 + sp * 90;
+      c.save();
+      c.lineCap = 'round';
+      for (var sg = 0; sg < 6; sg++) {
+        c.globalAlpha = (1 - sg / 6) * 0.8 * Math.sin(sp * Math.PI);
+        c.strokeStyle = sg === 0 ? '#ffffff' : '#bfe8ff';
+        c.lineWidth = 2.2 - sg * 0.3;
+        c.beginPath();
+        c.moveTo(sxx + sg * 9, syy - sg * 2.6);
+        c.lineTo(sxx + sg * 9 + 9, syy - sg * 2.6 - 2.6);
+        c.stroke();
+      }
+      c.restore();
+    }
+    c.drawImage(cv, VIEW.x, top);
+    var ox = VIEW.x;
+    for (var i = 0; i < TOWN_ITEMS.length; i++) {
+      var it = TOWN_ITEMS[i];
+      var x = it.x;
+      if (x < ox - 120 || x > ox + VIEW.w + 120) continue;
+      if (it.k === 'ant') {
+        c.fillStyle = Math.sin(t * 0.07 + it.x) > 0 ? '#ff3344' : '#5a1020';
+        c.beginPath(); c.arc(x, gy - it.h - 2, 2, 0, Math.PI * 2); c.fill();
+      } else if (it.k === 'dome') {
+        c.fillStyle = Math.sin(t * 0.05 + it.x) > -0.2 ? '#44ffff' : '#1a7a7a';
+        c.beginPath(); c.arc(x, gy - 130, 2.6, 0, Math.PI * 2); c.fill();
+      } else if (it.k === 'rocket') {
+        c.fillStyle = Math.sin(t * 0.1) > 0 ? '#44ff88' : '#1a5a30';
+        c.beginPath(); c.arc(x + 29, gy - 48, 1.8, 0, Math.PI * 2); c.fill();
+      }
+    }
+  }
+
   function drawTitleScreen(c) {
     titleAnimTimer++;
 
     drawSpaceBackdrop(c, titleAnimTimer);
-    /* Version stamp in the bottom-right corner of the screen (not the
-       viewport) – helps us know which build is running */
-    drawViewStamp(c, '#6a8aaa');
 
     /* On a tablet the view is wider and taller than the viewport, so the
        planets and Momoko move out into the bezel and frame the menu
@@ -279,19 +528,24 @@
       var vr = VIEW.x + VIEW.w, vb = VIEW.y + VIEW.h;
       drawShadedPlanet(c, vr - 150, VIEW.y + 140, 62, '#ffc2ee', '#c43e9a', '#ffd24a');
       drawShadedPlanet(c, vr - 60, VIEW.y + 270, 16, '#c8fbff', '#3a8fb8', null);
-      drawShadedPlanet(c, vr - 170, vb - 120, 34, '#fff1a8', '#d69a1e', null);
+      drawShadedPlanet(c, vr - 170, vb - 250, 34, '#fff1a8', '#d69a1e', null);
     } else {
       clipGame(c);
       /* Ringed home planet and a little moon in the upper-right */
       drawShadedPlanet(c, W - 110, 86, 40, '#ffc2ee', '#c43e9a', '#ffd24a');
       drawShadedPlanet(c, W - 44, 170, 11, '#c8fbff', '#3a8fb8', null);
     }
+    /* Moon town along the bottom of the view */
+    drawTitleTown(c, titleAnimTimer);
+    /* Version stamp in the bottom-right corner of the screen (not the
+       viewport) – drawn after the town so the ground doesn't cover it */
+    drawViewStamp(c, '#9ab4d4');
 
-    /* Momoko drifting by on the left, trailing sparkles */
+    /* Momoko drifting above the town on the left, trailing sparkles */
     var bob = Math.sin(titleAnimTimer * 0.04) * 8;
     /* Halfway between the screen edge and the buttons */
     var mx = wide ? (VIEW.x + W / 2 - 90) / 2 : 150;
-    var my = 300;
+    var my = wide ? 300 : 226;
     var ms = wide ? 3.4 : 2.6;
     for (var sp = 0; sp < 6; sp++) {
       var age = (titleAnimTimer + sp * 12) % 72;
@@ -466,10 +720,27 @@
     c.save();
     c.fillStyle = 'rgba(10, 4, 32, 0.82)';
     c.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
+    /* Card behind the menu, the same violet panel as the travel menu */
+    var pcx = W / 2 - 40, pcy = 78, pcw = 300, pch = 338;
+    c.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    roundRect(c, pcx, pcy + 4, pcw, pch, 16);
+    c.fill();
+    var pcg = c.createLinearGradient(0, pcy, 0, pcy + pch);
+    pcg.addColorStop(0, '#2c125c');
+    pcg.addColorStop(1, '#160834');
+    c.fillStyle = pcg;
+    c.strokeStyle = '#ff66cc';
+    c.lineWidth = 3;
+    roundRect(c, pcx, pcy, pcw, pch, 16);
+    c.fill();
+    c.stroke();
     c.fillStyle = '#44ffff';
     c.font = 'bold 32px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'center';
-    c.fillText(Game.i18n.t('paused'), W / 2 + 100, 130);
+    c.shadowColor = 'rgba(255, 102, 204, 0.6)';
+    c.shadowBlur = 12;
+    c.fillText(Game.i18n.t('paused'), W / 2 + 110, 130);
+    c.shadowBlur = 0;
 
     /* Floss-dance Momoko – phase advances at ~1.7Hz and the pose math
        smooths the beat with a tanh sigmoid so she transitions between
@@ -484,7 +755,7 @@
       c.restore();
     }
 
-    drawButton(c, Game.i18n.t('resume'), W / 2 - 10, 170, 220, 44);
+    drawButton(c, Game.i18n.t('resume'), W / 2 - 10, 170, 220, 44, false, 'primary');
     drawButton(c, Game.i18n.t('language') + ': ' + Game.i18n.t('langLabel'), W / 2 - 10, 230, 220, 44);
     var muteLabel = Game.i18n.t(Game.audio.isMuted() ? 'soundOff' : 'soundOn');
     drawButton(c, muteLabel, W / 2 - 10, 290, 220, 44);
@@ -590,7 +861,7 @@
      inside them; the box floats below the viewport if there's bezel
      room, otherwise it hugs the bottom of the gameplay area with
      reduced height. */
-  function drawDialogue(c, speaker, text, cw, ch, gx, gy) {
+  function drawDialogue(c, speaker, text, cw, ch, gx, gy, portrait) {
     /* Back-compat: if canvas dims aren't supplied, fall back to
        in-viewport rendering at the bottom of the gameplay area. */
     if (cw == null) { cw = W; ch = H; gx = 0; gy = 0; }
@@ -618,10 +889,12 @@
     var boxX = (cw - boxW) / 2;
 
     c.save();
+    /* Speaker portrait sits in a circle at the left; text starts after it. */
+    var textX = boxX + 66;
     /* Size the box to the text so a third line never spills out. The
        bottom edge stays where the layout above put it. */
     c.font = '14px ' + FONT;
-    var lines = layoutLines(c, text, boxW - 32);
+    var lines = layoutLines(c, text, boxX + boxW - 16 - textX);
     var need = 34 + lines.length * 19 + 10;
     if (need > boxH) { if (!topDock) boxY -= need - boxH; boxH = need; }
 
@@ -634,28 +907,72 @@
     c.fillStyle = g;
     roundRect(c, boxX, boxY, boxW, boxH, 12);
     c.fill();
+    /* Tail: points down at the scene when docked on top, up at the game
+       when the box lives in the bottom bezel. */
+    var tx = boxX + boxW / 2;
+    c.beginPath();
+    if (topDock) {
+      c.moveTo(tx - 9, boxY + boxH - 1); c.lineTo(tx, boxY + boxH + 10); c.lineTo(tx + 9, boxY + boxH - 1);
+    } else {
+      c.moveTo(tx - 9, boxY + 1); c.lineTo(tx, boxY - 10); c.lineTo(tx + 9, boxY + 1);
+    }
+    c.closePath();
+    c.fill();
     c.strokeStyle = '#b07cff';
     c.lineWidth = 2;
+    c.lineJoin = 'round';
+    c.beginPath();
+    if (topDock) {
+      c.moveTo(tx - 9, boxY + boxH); c.lineTo(tx, boxY + boxH + 10); c.lineTo(tx + 9, boxY + boxH);
+    } else {
+      c.moveTo(tx - 9, boxY); c.lineTo(tx, boxY - 10); c.lineTo(tx + 9, boxY);
+    }
+    c.stroke();
     roundRect(c, boxX, boxY, boxW, boxH, 12);
     c.stroke();
+    /* Hide the box edge behind the tail base */
+    c.fillStyle = topDock ? 'rgba(18, 8, 44, 1)' : 'rgba(40, 18, 84, 1)';
+    c.fillRect(tx - 7, topDock ? boxY + boxH - 2 : boxY - 1, 14, 3);
+
+    /* Portrait circle */
+    var avx = boxX + 34, avy = boxY + 18 + Math.max(0, (boxH - 44) / 2);
+    c.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    c.beginPath(); c.arc(avx, avy + 2, 22, 0, Math.PI * 2); c.fill();
+    var ag = c.createRadialGradient(avx - 6, avy - 8, 2, avx, avy, 22);
+    ag.addColorStop(0, '#3a1a70');
+    ag.addColorStop(1, '#180838');
+    c.fillStyle = ag;
+    c.beginPath(); c.arc(avx, avy, 22, 0, Math.PI * 2); c.fill();
+    if (portrait && portrait.draw && portrait.w) {
+      c.save();
+      c.beginPath(); c.arc(avx, avy, 20, 0, Math.PI * 2); c.clip();
+      var ps = Math.max(1, Math.min(1.5, 34 / Math.max(portrait.w, portrait.h)));
+      c.translate(avx, avy + 1);
+      c.scale(ps, ps);
+      portrait.draw(c, portrait.x + portrait.w / 2, portrait.y + portrait.h / 2);
+      c.restore();
+    }
+    c.strokeStyle = '#ff66cc';
+    c.lineWidth = 2;
+    c.beginPath(); c.arc(avx, avy, 22, 0, Math.PI * 2); c.stroke();
 
     /* Speaker name tag */
     c.font = 'bold 14px ' + FONT;
     var tagW = c.measureText(speaker).width + 20;
     c.fillStyle = '#ff66cc';
-    roundRect(c, boxX + 14, boxY - 10, tagW, 22, 11);
+    roundRect(c, textX - 2, boxY - 10, tagW, 22, 11);
     c.fill();
     c.fillStyle = '#ffffff';
     c.textAlign = 'left';
     c.textBaseline = 'middle';
-    c.fillText(speaker, boxX + 24, boxY + 1);
+    c.fillText(speaker, textX + 8, boxY + 1);
 
     /* Text */
     c.fillStyle = '#f0e8ff';
     c.font = '14px ' + FONT;
     c.textBaseline = 'alphabetic';
     for (var i = 0; i < lines.length; i++) {
-      c.fillText(lines[i], boxX + 16, boxY + 34 + i * 19);
+      c.fillText(lines[i], textX, boxY + 34 + i * 19);
     }
 
     c.restore();
@@ -693,14 +1010,17 @@
     /* On a tablet the planets sit out toward the screen corners, as on
        the title, so the celebration fills the screen. */
     if (VIEW.w > W + 100) {
-      drawShadedPlanet(c, VIEW.x + 170, VIEW.y + VIEW.h - 150, 62, '#ffc2ee', '#c43e9a', '#ffd24a');
+      drawShadedPlanet(c, VIEW.x + 170, VIEW.y + VIEW.h - 200, 62, '#ffc2ee', '#c43e9a', '#ffd24a');
       drawShadedPlanet(c, VIEW.x + VIEW.w - 140, VIEW.y + 150, 38, '#fff1a8', '#d69a1e', null);
-      clipGame(c);
     } else {
       clipGame(c);
       drawShadedPlanet(c, 110, 380, 46, '#ffc2ee', '#c43e9a', '#ffd24a');
       drawShadedPlanet(c, W - 96, 360, 30, '#fff1a8', '#d69a1e', null);
     }
+    /* The town she saved, along the bottom as on the title (drawn before
+       the clip on tablets so it spans the whole screen) */
+    drawTitleTown(c, victoryTimer);
+    if (VIEW.w > W + 100) clipGame(c);
 
     /* Fireworks: round sparks that glow, fade, and leave short trails */
     if (victoryTimer % 24 === 1) {
@@ -2487,11 +2807,15 @@
 
   function drawDestinationCard(c, x, y, w, h, kind) {
     c.save();
+    var hot = pointerOver(c, x, y, w, h);
+    c.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    roundRect(c, x, y + 4, w, h, 12);
+    c.fill();
     var cg = c.createLinearGradient(0, y, 0, y + h);
-    cg.addColorStop(0, '#33186a');
-    cg.addColorStop(1, '#1e0c44');
+    cg.addColorStop(0, hot ? '#44228a' : '#33186a');
+    cg.addColorStop(1, hot ? '#281258' : '#1e0c44');
     c.fillStyle = cg;
-    c.strokeStyle = '#44ffff';
+    c.strokeStyle = hot ? '#ffffff' : '#44ffff';
     c.lineWidth = 2;
     roundRect(c, x, y, w, h, 12);
     c.fill();
@@ -2643,7 +2967,13 @@
     var to = target === 0 ? home : moon;
     drawShadedPlanet(c, 90 - t * 260, H - 30 + t * 120, 120, from[0], from[1], from[2]);
     var dr = 20 + t * t * 120;
-    drawShadedPlanet(c, W + 60 - t * 230, 150 + t * 60, dr, to[0], to[1], to[2]);
+    var dpx = W + 60 - t * 230, dpy = 150 + t * 60;
+    var dglow = c.createRadialGradient(dpx, dpy, dr * 0.9, dpx, dpy, dr * 1.5);
+    dglow.addColorStop(0, hexAlpha(to[0], 0.12));
+    dglow.addColorStop(1, hexAlpha(to[0], 0));
+    c.fillStyle = dglow;
+    c.fillRect(dpx - dr * 2, dpy - dr * 2, dr * 4, dr * 4);
+    drawShadedPlanet(c, dpx, dpy, dr, to[0], to[1], to[2]);
 
     /* Rocket: rises off the origin, cruises, then dips toward the target */
     var rx = 160 + t * 420;
@@ -2883,24 +3213,19 @@
     c.fillText(Game.i18n.t(nameKey), 20, 40);
 
     /* Palette strip (categories on top, items below) */
-    c.fillStyle = 'rgba(10, 4, 32, 0.78)';
+    c.fillStyle = 'rgba(10, 4, 32, 0.8)';
     c.fillRect(0, 50, W, 144);
+    c.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    c.fillRect(0, 194, W, 3);
+    c.fillStyle = 'rgba(176, 124, 255, 0.5)';
+    c.fillRect(0, 193, W, 1);
     c.fillStyle = '#ffd24a';
     c.font = '12px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'left';
     c.fillText(Game.i18n.t('furnitureTabTitle'), 10, 64);
     /* Clear button (top-right of the palette strip) */
-    var clearW = 84, clearH = 22, clearX = W - clearW - 10, clearY = 54;
-    c.fillStyle = '#cc4466';
-    c.strokeStyle = '#ff99aa';
-    c.lineWidth = 1.5;
-    roundRect(c, clearX, clearY, clearW, clearH, 6);
-    c.fill();
-    c.stroke();
-    c.fillStyle = '#ffffff';
-    c.font = 'bold 11px "M PLUS Rounded 1c", sans-serif';
-    c.textAlign = 'center';
-    c.fillText(Game.i18n.t('furnitureClear'), clearX + clearW / 2, clearY + 14);
+    var clearW = 84, clearH = 26, clearX = W - clearW - 10, clearY = 52;
+    drawButton(c, Game.i18n.t('furnitureClear'), clearX, clearY, clearW, clearH, false, 'danger');
     /* Category tabs */
     var catTabW = Math.min(86, Math.floor((W - 20) / FURNITURE_CATEGORIES.length));
     for (var ci = 0; ci < FURNITURE_CATEGORIES.length; ci++) {
@@ -4112,7 +4437,7 @@
       return 'exit';
     }
     /* Clear button — wipes all furniture for this house in one shot */
-    var clearW = 84, clearH = 22, clearX = W - clearW - 10, clearY = 54;
+    var clearW = 84, clearH = 26, clearX = W - clearW - 10, clearY = 52;
     if (hitButton(mx, my, clearX, clearY, clearW, clearH)) {
       var st0 = loadFurnitureState();
       st0[houseId] = [];
@@ -5270,24 +5595,7 @@
      planet, no matter where they are in the room. */
   var EXIT_BTN = { x: W - 80, y: 8, w: 72, h: 30 };
   function drawExitButton(c) {
-    c.save();
-    c.fillStyle = '#cc4466';
-    c.strokeStyle = '#ff99aa';
-    c.lineWidth = 2;
-    roundRect(c, EXIT_BTN.x, EXIT_BTN.y, EXIT_BTN.w, EXIT_BTN.h, 8);
-    c.fill();
-    c.stroke();
-    c.fillStyle = '#fff';
-    c.font = 'bold 13px "M PLUS Rounded 1c", sans-serif';
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    c.fillText(
-      Game.i18n.t('exitButton') + ' ✕',
-      EXIT_BTN.x + EXIT_BTN.w / 2,
-      EXIT_BTN.y + EXIT_BTN.h / 2
-    );
-    c.textBaseline = 'alphabetic';
-    c.restore();
+    drawButton(c, Game.i18n.t('exitButton') + ' ✕', EXIT_BTN.x, EXIT_BTN.y, EXIT_BTN.w, EXIT_BTN.h, false, 'danger');
   }
   function hitExitButton(mx, my) {
     return hitButton(mx, my, EXIT_BTN.x, EXIT_BTN.y, EXIT_BTN.w, EXIT_BTN.h);

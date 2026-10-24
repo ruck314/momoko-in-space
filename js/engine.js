@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.11.0';
+  Game.VERSION = 'v2.12.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -119,6 +119,51 @@
   /* World-space x of the background UFO. Persisted across frames so the UFO
      glides smoothly. Reset whenever a level loads. */
   var bgUfoX = 0;
+  /* Surface detail laid out once per level: craters, dust drifts,
+     footprints, pebbles, critters and glowing crystals along the ground. */
+  var groundDetails = [];
+  var GROUND_CRYSTAL_COLORS = ['#88ddff', '#ff66cc', '#ffd24a'];
+
+  /* Soft radial glow discs, rendered once per colour/radius and blitted
+     so the per-frame ground pass never builds gradients in a loop. */
+  var glowSprites = {};
+  function glowSprite(color, r) {
+    var key = color + r;
+    if (glowSprites[key]) return glowSprites[key];
+    var cv = document.createElement('canvas');
+    cv.width = cv.height = r * 2;
+    var g = cv.getContext('2d');
+    var rg = g.createRadialGradient(r, r, 0, r, r, r);
+    rg.addColorStop(0, hexA(color, 0.55));
+    rg.addColorStop(0.5, hexA(color, 0.18));
+    rg.addColorStop(1, hexA(color, 0));
+    g.fillStyle = rg;
+    g.fillRect(0, 0, r * 2, r * 2);
+    glowSprites[key] = cv;
+    return cv;
+  }
+
+  /* Height of the dusty surface crust relative to level.floorY at a
+     world x -- the same wave the ground fill is drawn with, so shadows
+     and details sit exactly on the visible rim. */
+  function surfaceUndulation(worldX) {
+    return Math.sin(worldX * 0.008) * 6 + Math.sin(worldX * 0.02) * 3 + Math.sin(worldX * 0.05) * 1.5;
+  }
+
+  /* Soft contact shadow under a character, fading and shrinking as she
+     floats higher so it reads as cast onto the ground. */
+  function drawGroundShadow(e) {
+    var wx = e.x + e.w / 2;
+    var ground = level.floorY + surfaceUndulation(wx) + 2;
+    var lift = ground - (e.y + e.h);
+    if (lift < -8 || lift > 240) return;
+    if (lift < 0) lift = 0;
+    var k = 1 - lift / 240;
+    ctx.fillStyle = 'rgba(6, 2, 20, ' + (0.4 * k * k).toFixed(3) + ')';
+    ctx.beginPath();
+    ctx.ellipse(wx - camera.x, ground - camera.y + 1, e.w * (0.5 + 0.12 * k), 2.5 + 2 * k, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   /* '#rrggbb' -> 'rgba(r, g, b, a)' */
   function hexA(hex, a) {
@@ -151,6 +196,24 @@
       });
     }
     bgLayers.push({ items: layer0, parallax: 0.15 });
+
+    /* Far layer – a few big, faint planets that barely move, so the mid
+       planets read as nearer and the sky gets a second depth step. */
+    var farLayer = [];
+    var bgColorsFar = level && level.bgLayer1 ? level.bgLayer1 : ['#4a2878', '#5a2888', '#3a1868'];
+    for (var fp = 0; fp < 4; fp++) {
+      farLayer.push({
+        x: fp * 1300 + 200 + Math.random() * 300,
+        y: 40 + Math.random() * 70,
+        w: 50 + Math.random() * 40,
+        h: 60,
+        color: bgColorsFar[fp % bgColorsFar.length],
+        blobSeed: Math.random() * 100,
+        isPlanet: true,
+        far: true,
+      });
+    }
+    bgLayers.push({ items: farLayer, parallax: 0.06 });
 
     /* Layer 1 – mid-distance planets & moons */
     var layer1 = [];
@@ -192,6 +255,31 @@
         school.fish.push({ ox: fi * 14 - count * 7, oy: Math.random() * 10 - 5, phase: Math.random() * Math.PI * 2 });
       }
       bgFishSchools.push(school);
+    }
+
+    /* Ground details, spaced along the whole level with a fixed seed so
+       the surface looks the same every visit. */
+    groundDetails = [];
+    var lw = level ? level.width : 5600;
+    var gSeed = 1234 + lw;
+    var gx = 40;
+    while (gx < lw) {
+      gSeed = (gSeed * 1103515245 + 12345) & 0x7fffffff;
+      var roll = gSeed % 100;
+      var kind = roll < 34 ? 'crater' : roll < 52 ? 'dust' : roll < 64 ? 'prints'
+               : roll < 80 ? 'pebbles' : roll < 88 ? 'critter' : 'crystal';
+      gSeed = (gSeed * 1103515245 + 12345) & 0x7fffffff;
+      var off = 9 + gSeed % 20;
+      gSeed = (gSeed * 1103515245 + 12345) & 0x7fffffff;
+      var r = 4 + gSeed % 8;
+      groundDetails.push({
+        x: gx, kind: kind,
+        off: (kind === 'crystal' || kind === 'critter') ? 3 : off,
+        r: kind === 'dust' ? r * 2.2 : r,
+        color: GROUND_CRYSTAL_COLORS[gSeed % 3],
+      });
+      gSeed = (gSeed * 1103515245 + 12345) & 0x7fffffff;
+      gx += 44 + gSeed % 64;
     }
 
     /* Twinkling stars – dense field, per-star twinkle phase */
@@ -715,7 +803,7 @@
             else if (name === 'moonMouse') speakerName = Game.i18n.t('mouseName');
             else speakerName = name;
             var text = npc.currentJoke || npc.currentText || '';
-            pendingDialogue = { speaker: speakerName, text: text };
+            pendingDialogue = { speaker: speakerName, text: text, entity: npc };
           }
         }
         break;
@@ -792,7 +880,8 @@
         ctx,
         pendingDialogue.speaker,
         pendingDialogue.text,
-        CANVAS_W, CANVAS_H, GAME_X, GAME_Y
+        CANVAS_W, CANVAS_H, GAME_X, GAME_Y,
+        pendingDialogue.entity
       );
     }
   }
@@ -861,7 +950,7 @@
             ctx.fillRect(-item.w, -item.w, item.w * 2, item.w * 2);
             ctx.restore();
           } else if (item.isPlanet) {
-            ctx.globalAlpha = 0.8;
+            ctx.globalAlpha = item.far ? 0.3 : 0.8;
             Game.ui.drawShadedPlanet(ctx, bx + item.w / 2, item.y, item.w / 2,
               mixHex(item.color, '#ffffff', 0.45), mixHex(item.color, '#000000', 0.35),
               item.blobSeed > 70 ? hexA(mixHex(item.color, '#ffffff', 0.6), 0.8) : null);
@@ -943,13 +1032,43 @@
       ambientBubbles[ab].draw(ctx, camera.x * 0.6, 0);
     }
 
+    /* Distant crater ridges: two bands of rolling hills behind the town
+       that scroll slower than the ground, plus a haze band where they
+       meet the sky, so the horizon has depth instead of a hard edge. */
+    var floorBase = level.floorY - camera.y;
+    var floorColorA = level.floorColorA || '#2d1a0a';
+    var floorColorB = level.floorColorB || '#3d2b12';
+    var haze = ctx.createLinearGradient(0, floorBase - 70, 0, floorBase);
+    haze.addColorStop(0, hexA(mixHex(level.bgBottom, '#ffffff', 0.35), 0));
+    haze.addColorStop(1, hexA(mixHex(level.bgBottom, '#ffffff', 0.35), 0.16));
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, floorBase - 70, W, 70);
+    var ridgeCols = [mixHex(level.bgBottom, floorColorA, 0.4), mixHex(level.bgBottom, floorColorA, 0.8)];
+    var ridgePar = [0.18, 0.32];
+    for (var rg = 0; rg < 2; rg++) {
+      var rpx = camera.x * ridgePar[rg];
+      ctx.beginPath();
+      ctx.moveTo(0, floorBase + 20);
+      for (var rx0 = 0; rx0 <= W; rx0 += 8) {
+        var rwx = rx0 + rpx;
+        var rh = rg === 0
+          ? 28 + Math.sin(rwx * 0.011) * 12 + Math.sin(rwx * 0.027 + 1.3) * 6 + Math.sin(rwx * 0.061) * 2
+          : 14 + Math.sin(rwx * 0.016 + 2) * 8 + Math.sin(rwx * 0.043) * 4;
+        ctx.lineTo(rx0, floorBase - rh);
+      }
+      ctx.lineTo(W, floorBase + 20);
+      ctx.closePath();
+      ctx.fillStyle = ridgeCols[rg];
+      ctx.fill();
+      ctx.strokeStyle = hexA(mixHex(ridgeCols[rg], '#ffffff', 0.4), 0.16);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
     /* Decorations */
     renderDecorations();
 
     /* Asteroid/moon surface – undulating contour */
-    var floorBase = level.floorY - camera.y;
-    var floorColorA = level.floorColorA || '#2d1a0a';
-    var floorColorB = level.floorColorB || '#3d2b12';
     ctx.fillStyle = floorColorA;
     ctx.beginPath();
     ctx.moveTo(0, H + 10);
@@ -992,69 +1111,142 @@
     depthGrad.addColorStop(1, 'rgba(0, 0, 0, 0.32)');
     ctx.fillStyle = depthGrad;
     ctx.fillRect(0, floorBase + 14, W, H - floorBase - 14);
-    var craterSeed = 7;
-    for (var cr = 0; cr < 6; cr++) {
-      craterSeed = (craterSeed * 1103515245 + 12345) & 0x7fffffff;
-      var crx = craterSeed % 800;
-      craterSeed = (craterSeed * 1103515245 + 12345) & 0x7fffffff;
-      var cry = 16 + (craterSeed % 18);
-      var crr = 5 + (cr % 3) * 3;
-      var worldCrx = crx + Math.floor(camera.x / 800) * 800;
-      var screenCrx = worldCrx - camera.x;
-      if (screenCrx < -20) screenCrx += 800;
-      if (screenCrx > W + 20) screenCrx -= 800;
-      if (screenCrx < -20 || screenCrx > W + 20) continue;
-      var crBaseY = floorBase + Math.sin((screenCrx + camera.x) * 0.008) * 6 + cry;
-      if (cr < 4) {
-        /* Crater: dark bowl with a pale lip on the far side */
-        ctx.fillStyle = mixHex(floorColorA, '#000000', 0.35);
-        ctx.beginPath();
-        ctx.ellipse(screenCrx, crBaseY, crr, crr * 0.4, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = mixHex(floorColorB, '#ffffff', 0.25);
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.ellipse(screenCrx, crBaseY - 1, crr, crr * 0.4, 0, Math.PI * 1.1, Math.PI * 1.9);
-        ctx.stroke();
-      } else {
-        /* Hairline crack */
-        ctx.strokeStyle = mixHex(floorColorA, '#000000', 0.4);
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(screenCrx - 10, crBaseY - 4);
-        ctx.lineTo(screenCrx - 3, crBaseY);
-        ctx.lineTo(screenCrx + 2, crBaseY - 1);
-        ctx.lineTo(screenCrx + 9, crBaseY + 4);
-        ctx.stroke();
-      }
-    }
     ctx.restore();
-    /* Star pebbles on the surface — tiny white specks that read as glinting crystal */
+    /* Ground detail pass */
     ctx.save();
-    var pebbleSeed = 42;
-    for (var pb = 0; pb < 20; pb++) {
-      pebbleSeed = (pebbleSeed * 1103515245 + 12345) & 0x7fffffff;
-      var pbx = (pebbleSeed % 800);
-      var worldPbx = pbx + Math.floor(camera.x / 800) * 800;
-      var screenPbx = worldPbx - camera.x;
-      if (screenPbx < -10 || screenPbx > W + 10) { screenPbx += 800; worldPbx += 800; }
-      if (screenPbx < -10 || screenPbx > W + 10) continue;
-      var pby = floorBase + Math.sin(worldPbx * 0.008) * 6 + 4;
-      if (pb < 3) {
+    for (var gd = 0; gd < groundDetails.length; gd++) {
+      var det = groundDetails[gd];
+      var gsx = det.x - camera.x;
+      if (gsx < -30 || gsx > W + 30) continue;
+      var gsy = floorBase + surfaceUndulation(det.x) + det.off;
+      if (det.kind === 'crater') {
+        /* Bowl in shadow, far wall catching light, soft rim */
+        var crr = det.r;
+        ctx.fillStyle = mixHex(floorColorA, '#000000', 0.42);
+        ctx.beginPath();
+        ctx.ellipse(gsx, gsy, crr, crr * 0.42, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = mixHex(floorColorB, '#000000', 0.1);
+        ctx.beginPath();
+        ctx.ellipse(gsx, gsy + crr * 0.12, crr * 0.7, crr * 0.24, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = mixHex(floorColorB, '#ffffff', 0.32);
+        ctx.beginPath();
+        ctx.ellipse(gsx, gsy - 0.8, crr, crr * 0.42, 0, Math.PI * 1.1, Math.PI * 1.9);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.beginPath();
+        ctx.ellipse(gsx, gsy + 0.8, crr, crr * 0.42, 0, Math.PI * 0.15, Math.PI * 0.85);
+        ctx.stroke();
+      } else if (det.kind === 'dust') {
+        ctx.fillStyle = hexA(mixHex(floorColorB, '#ffffff', 0.3), 0.13);
+        ctx.beginPath();
+        ctx.ellipse(gsx, gsy, det.r, det.r * 0.28, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (det.kind === 'prints') {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.26)';
+        for (var fpi = 0; fpi < 4; fpi++) {
+          ctx.beginPath();
+          ctx.ellipse(gsx + fpi * 7, gsy + (fpi % 2 ? 2.2 : -1), 2.2, 1.3, 0.25, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (det.kind === 'pebbles') {
+        ctx.fillStyle = mixHex(floorColorB, '#ffffff', 0.38);
+        ctx.beginPath();
+        ctx.arc(gsx, gsy, 1.3, 0, Math.PI * 2);
+        ctx.arc(gsx + 5, gsy + 2, 0.9, 0, Math.PI * 2);
+        ctx.arc(gsx - 4, gsy + 1.5, 1, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (det.kind === 'critter') {
         /* Tardigrade alien — little plump critter */
         ctx.fillStyle = '#aaccff';
         ctx.beginPath();
-        ctx.ellipse(screenPbx, pby - 1, 3.5, 2.2, 0, 0, Math.PI * 2);
+        ctx.ellipse(gsx, gsy - 1, 3.5, 2.2, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#222244';
         ctx.beginPath();
-        ctx.arc(screenPbx - 1.2, pby - 1, 0.6, 0, Math.PI * 2);
-        ctx.arc(screenPbx + 1.2, pby - 1, 0.6, 0, Math.PI * 2);
+        ctx.arc(gsx - 1.2, gsy - 1, 0.6, 0, Math.PI * 2);
+        ctx.arc(gsx + 1.2, gsy - 1, 0.6, 0, Math.PI * 2);
         ctx.fill();
       } else {
-        ctx.fillStyle = pb % 2 === 0 ? '#e8dfff' : '#ffd24a';
+        /* Glowing crystal shards with a cached halo */
+        var cc = det.color;
+        ctx.globalAlpha = 0.55 + Math.sin(Date.now() * 0.003 + det.x) * 0.2;
+        ctx.drawImage(glowSprite(cc, 18), gsx - 18, gsy - 20);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = mixHex(cc, '#000000', 0.25);
         ctx.beginPath();
-        ctx.arc(screenPbx, pby, 0.8 + (pb % 2) * 0.6, 0, Math.PI * 2);
+        ctx.moveTo(gsx - 5, gsy + 1); ctx.lineTo(gsx - 3.5, gsy - 7); ctx.lineTo(gsx - 1, gsy + 1);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = cc;
+        ctx.beginPath();
+        ctx.moveTo(gsx - 1.5, gsy + 1); ctx.lineTo(gsx + 1.5, gsy - 12); ctx.lineTo(gsx + 4.5, gsy + 1);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.beginPath();
+        ctx.moveTo(gsx + 0.5, gsy); ctx.lineTo(gsx + 1.5, gsy - 10); ctx.lineTo(gsx + 2.2, gsy);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    /* Light spilling onto the ground from windows, lamps and signs, and
+       contact shadows under poles -- drawn after the ground so they sit
+       on top of the surface. */
+    ctx.save();
+    for (var gl = 0; gl < level.decorations.length; gl++) {
+      var ld = level.decorations[gl];
+      var ldx = ld.x - camera.x;
+      if (ldx < -120 || ldx > W + 120) continue;
+      var ldy = floorBase + surfaceUndulation(ld.x) + 3;
+      if (ld.type === 'houseDecor') {
+        ctx.fillStyle = 'rgba(6, 2, 20, 0.28)';
+        ctx.beginPath();
+        ctx.ellipse(ldx, ldy, 64, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        var spill = ['#ffd24a', '#44ffff', '#ff88cc'];
+        for (var sw = 0; sw < 3; sw++) {
+          ctx.fillStyle = hexA(spill[sw], 0.13);
+          ctx.beginPath();
+          ctx.ellipse(ldx - 29 + sw * 28, ldy + 2, 17, 3.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = 'rgba(255, 220, 140, 0.16)';
+        ctx.beginPath();
+        ctx.ellipse(ldx - 24, ldy + 3, 30, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (ld.type === 'lampPost') {
+        ctx.fillStyle = hexA(ld.color || '#44ffff', 0.12);
+        ctx.beginPath();
+        ctx.ellipse(ldx, ldy + 2, 26, 4.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(6, 2, 20, 0.35)';
+        ctx.beginPath();
+        ctx.ellipse(ldx, ldy, 5, 1.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (ld.type === 'neonSign' || ld.type === 'antenna' || ld.type === 'robotStatue') {
+        ctx.fillStyle = 'rgba(6, 2, 20, 0.35)';
+        ctx.beginPath();
+        ctx.ellipse(ldx, ldy, ld.type === 'robotStatue' ? 16 : 6, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        if (ld.type === 'neonSign') {
+          ctx.fillStyle = hexA(ld.color || '#44ffff', 0.1);
+          ctx.beginPath();
+          ctx.ellipse(ldx, ldy + 2, 34, 4, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (ld.type === 'cafeBuilding' || ld.type === 'shopBuilding') {
+        ctx.fillStyle = 'rgba(6, 2, 20, 0.3)';
+        ctx.beginPath();
+        ctx.ellipse(ldx, ldy, 78, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = ld.type === 'cafeBuilding' ? 'rgba(255, 200, 120, 0.16)' : 'rgba(255, 220, 90, 0.14)';
+        ctx.beginPath();
+        ctx.ellipse(ldx - 20, ldy + 2, 44, 5, 0, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -1066,6 +1258,14 @@
     for (var pk = 0; pk < pickups.length; pk++) {
       pickups[pk].draw(ctx, camera.x, camera.y);
     }
+
+    /* Ground shadows for everyone standing or floating over the surface */
+    for (var sh = 0; sh < npcs.length; sh++) {
+      var sht = npcs[sh].type;
+      if (sht === 'rocket' || sht === 'houseDoor' || sht === 'cafeDoor' || sht === 'shopDoor') continue;
+      drawGroundShadow(npcs[sh].entity);
+    }
+    if (player) drawGroundShadow(player);
 
     /* NPCs */
     for (var nc = 0; nc < npcs.length; nc++) {
@@ -1316,12 +1516,49 @@
           ctx.fillRect(dx - 38 + hwn * 28 + 8, dy - 70, 2, 18);
           ctx.fillRect(dx - 38 + hwn * 28, dy - 62, 18, 2);
         }
+        /* Dome overhang shadow and wall seams */
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.14)';
+        ctx.fillRect(dx - 50, dy - 87, 100, 6);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+        ctx.fillRect(dx - 50, dy - 44, 100, 1.5);
+        ctx.fillRect(dx - 50, dy - 22, 100, 1.5);
+        /* Chimney with a lazy curl of smoke */
+        ctx.fillStyle = mixHex(hc, '#000000', 0.3);
+        ctx.fillRect(dx + 28, dy - 126, 11, 22);
+        ctx.fillStyle = mixHex(rc, '#000000', 0.2);
+        ctx.fillRect(dx + 26, dy - 129, 15, 4);
+        var smT = Date.now() * 0.0012 + d.x;
+        for (var sm = 0; sm < 3; sm++) {
+          var smP = (smT + sm * 0.33) % 1;
+          ctx.fillStyle = 'rgba(230, 220, 255, ' + (0.32 * (1 - smP)).toFixed(2) + ')';
+          ctx.beginPath();
+          ctx.arc(dx + 33 + Math.sin(smP * 6 + sm) * 4, dy - 134 - smP * 26, 2.5 + smP * 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
         /* Glowing trim along the base */
         ctx.fillStyle = '#44ffff';
         ctx.fillRect(dx - 50, dy - 6, 100, 2);
-        /* Door arch outline above the actual door entity */
+        /* Door recess, frame posts and a little awning over the entrance */
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.fillRect(dx - 26, dy - 50, 52, 50);
+        ctx.fillStyle = mixHex(hc, '#ffffff', 0.35);
+        ctx.fillRect(dx - 31, dy - 54, 5, 54);
+        ctx.fillRect(dx + 26, dy - 54, 5, 54);
+        ctx.fillStyle = mixHex(hc, '#000000', 0.3);
+        ctx.fillRect(dx - 31, dy - 54, 62, 2);
+        var awG = mixHex(rc, '#ffffff', 0.15);
+        ctx.fillStyle = awG;
+        ctx.beginPath();
+        ctx.moveTo(dx - 36, dy - 54);
+        ctx.lineTo(dx + 36, dy - 54);
+        ctx.lineTo(dx + 30, dy - 62);
+        ctx.lineTo(dx - 30, dy - 62);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.fillRect(dx - 30, dy - 62, 60, 1.5);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.fillRect(dx - 36, dy - 54, 72, 2);
       } else if (d.type === 'cafeBuilding') {
         /* COSMIC CAFÉ — pink storefront, striped awning, big window with
            espresso machine + tiny patron, drifting steam. */
@@ -1686,15 +1923,30 @@
         /* Holographic billboard on a stand */
         var nsC = d.color || '#44ffff';
         var nsTxt = d.text || 'SHOP';
-        /* Pole */
+        /* Pole and foot plate */
         ctx.fillStyle = '#556677';
         ctx.fillRect(dx - 1.2, dy - 60, 2.4, 60);
-        /* Frame */
+        ctx.fillStyle = '#7d8896';
+        ctx.fillRect(dx - 1.2, dy - 60, 0.8, 60);
+        ctx.fillStyle = '#3a3a4a';
+        ctx.fillRect(dx - 7, dy - 3, 14, 3);
+        /* Halo behind the board */
+        ctx.save();
+        ctx.globalAlpha = 0.5 + Math.sin(Date.now() * 0.004 + d.x * 0.01) * 0.08;
+        ctx.drawImage(glowSprite(nsC, 60), dx - 60, dy - 138);
+        ctx.restore();
+        /* Frame with a bevelled edge */
+        ctx.fillStyle = '#0e0e1c';
+        ctx.fillRect(dx - 38, dy - 98, 76, 40);
         ctx.fillStyle = '#1a1a2a';
         ctx.fillRect(dx - 36, dy - 96, 72, 36);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.fillRect(dx - 36, dy - 96, 72, 10);
         ctx.strokeStyle = nsC;
         ctx.lineWidth = 2;
         ctx.strokeRect(dx - 36, dy - 96, 72, 36);
+        ctx.fillStyle = nsC;
+        ctx.fillRect(dx - 2, dy - 62, 4, 4);
         /* Flicker */
         ctx.save();
         ctx.globalAlpha = 0.85 + Math.sin(Date.now() * 0.012 + d.x * 0.03) * 0.15;
@@ -1753,17 +2005,31 @@
         ctx.globalAlpha = 1;
       } else if (d.type === 'robotStatue') {
         /* Cute mascot robot statue on a small pedestal */
-        /* Pedestal */
+        /* Pedestal, lit from the left */
         ctx.fillStyle = '#445566';
         ctx.fillRect(dx - 12, dy - 8, 24, 8);
+        ctx.fillStyle = '#2e3a46';
+        ctx.fillRect(dx + 4, dy - 8, 8, 8);
         ctx.fillStyle = '#5a6a78';
         ctx.fillRect(dx - 14, dy - 10, 28, 3);
-        /* Body */
+        ctx.fillStyle = '#8899aa';
+        ctx.fillRect(dx - 14, dy - 10, 28, 1);
+        /* Body with a shaded right side and a chest panel */
         ctx.fillStyle = '#aabbcc';
         ctx.fillRect(dx - 8, dy - 26, 16, 18);
+        ctx.fillStyle = '#7d8fa0';
+        ctx.fillRect(dx + 4, dy - 26, 4, 18);
+        ctx.fillStyle = '#c8d6e0';
+        ctx.fillRect(dx - 8, dy - 26, 2, 18);
+        ctx.fillStyle = '#5a6a78';
+        ctx.fillRect(dx - 5, dy - 23, 8, 3);
         /* Head */
         ctx.fillStyle = '#ccdde8';
         ctx.fillRect(dx - 7, dy - 38, 14, 12);
+        ctx.fillStyle = '#9fb1c0';
+        ctx.fillRect(dx + 4, dy - 38, 3, 12);
+        ctx.fillStyle = '#e8f2f8';
+        ctx.fillRect(dx - 7, dy - 38, 14, 1.5);
         /* Antenna */
         ctx.strokeStyle = '#ccdde8';
         ctx.lineWidth = 1;
