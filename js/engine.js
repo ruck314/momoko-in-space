@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.12.0';
+  Game.VERSION = 'v2.13.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -180,22 +180,293 @@
     return '#' + ((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1);
   }
 
+  /* ---- Render layers and post effects ----
+     The scene is lit from the upper left by the level's sun. The static
+     parts of the sky (gradient, horizon glow, sun, nebula, star dust,
+     planet rings) are painted once per level into offscreen canvases and
+     blitted, and the effects below work from cached sprites, gradients
+     and canvases. Each effect can be switched off through
+     Game.FX; with `auto` set the game loop switches them off by itself
+     when frames stay slow (see gameLoop). */
+  Game.FX = { bloom: true, grade: true, vignette: true, rim: true, auto: true };
+  var DPR = 1;
+
+  function offscreen(w, h) {
+    var cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(w));
+    cv.height = Math.max(1, Math.round(h));
+    return cv;
+  }
+
+  /* Small deterministic generator so cached layers look the same on
+     every visit. */
+  function lcg(seed) {
+    return function () {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+  }
+
+  var NEB_W = 1200;
+  var skyCv = null, nebCv = null, ringCv = null, skyKey = '';
+  var RING_W = 1000, RING_H = 300;
+
+  function buildSky() {
+    var s = Math.min(2, DPR);
+    var key = level.name + '@' + s;
+    if (key === skyKey) return;
+    skyKey = key;
+    var glow = level.horizonGlow || mixHex(level.bgBottom, '#ffffff', 0.35);
+    var sunC = level.keyLight || '#ffffff';
+    var rnd = lcg(977 + level.width);
+    var i;
+
+    /* Screen-fixed sky: gradient, glow rising from the horizon, sun. */
+    skyCv = offscreen(W * s, H * s);
+    var g = skyCv.getContext('2d');
+    g.scale(s, s);
+    var grad = g.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, level.bgTop);
+    grad.addColorStop(0.5, level.bgMid);
+    grad.addColorStop(1, level.bgBottom);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, W, H);
+    var hz = g.createLinearGradient(0, level.floorY - 300, 0, level.floorY);
+    hz.addColorStop(0, hexA(glow, 0));
+    hz.addColorStop(0.55, hexA(glow, 0.16));
+    hz.addColorStop(1, hexA(glow, 0.58));
+    g.fillStyle = hz;
+    g.fillRect(0, level.floorY - 300, W, 300);
+    var sun = level.sun || { x: 92, y: 96 };
+    g.globalCompositeOperation = 'lighter';
+    var sg = g.createRadialGradient(sun.x, sun.y, 0, sun.x, sun.y, 300);
+    sg.addColorStop(0, hexA(sunC, 0.5));
+    sg.addColorStop(0.12, hexA(sunC, 0.24));
+    sg.addColorStop(0.45, hexA(sunC, 0.07));
+    sg.addColorStop(1, hexA(sunC, 0));
+    g.fillStyle = sg;
+    g.fillRect(0, 0, W, H);
+    /* Flare spikes */
+    g.translate(sun.x, sun.y);
+    for (i = 0; i < 4; i++) {
+      var len = i % 2 ? 46 : 78;
+      var fg = g.createLinearGradient(-len, 0, len, 0);
+      fg.addColorStop(0, hexA(sunC, 0));
+      fg.addColorStop(0.5, hexA(sunC, 0.5));
+      fg.addColorStop(1, hexA(sunC, 0));
+      g.fillStyle = fg;
+      g.beginPath();
+      g.ellipse(0, 0, len, 1.6, 0, 0, Math.PI * 2);
+      g.fill();
+      g.rotate(Math.PI / 4);
+    }
+    g.setTransform(s, 0, 0, s, 0, 0);
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = mixHex(sunC, '#ffffff', 0.75);
+    g.beginPath();
+    g.arc(sun.x, sun.y, 9, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#ffffff';
+    g.beginPath();
+    g.arc(sun.x, sun.y, 6, 0, Math.PI * 2);
+    g.fill();
+
+    /* Wrapping nebula tile: glowing clouds strung along a wavy band,
+       dark dust lanes, and a dense field of faint static stars. */
+    nebCv = offscreen(NEB_W * s, H * s);
+    var n = nebCv.getContext('2d');
+    n.scale(s, s);
+    Game.ui.paintNebula(n, NEB_W, H, level.floorY - 40,
+      level.nebula || ['#ff4fb8', '#7a5cff', '#35c8ff', '#b04ac8'], rnd);
+
+    /* The home planet's own rings, seen from its surface: a broad arc of
+       fine bands with a dark gap, fading out toward both ends. */
+    ringCv = null;
+    if (level.showRings) {
+      ringCv = offscreen(RING_W * s, RING_H * s);
+      var r = ringCv.getContext('2d');
+      r.scale(s, s);
+      r.translate(RING_W / 2, 150);
+      r.rotate(-0.2);
+      var ringCols = ['#ffd24a', '#ffb0d8', '#fff0c0', '#c8a0ff', '#ffd24a', '#ff9ad0'];
+      for (i = 0; i < 26; i++) {
+        var f = i / 25;
+        /* Gap two thirds of the way out, soft inner and outer edges */
+        var a = (f > 0.62 && f < 0.7) ? 0.04 : 0.16 + 0.34 * Math.sin(f * Math.PI) * (0.6 + rnd() * 0.4);
+        r.strokeStyle = hexA(ringCols[i % ringCols.length], a);
+        r.lineWidth = 2.6;
+        r.beginPath();
+        r.ellipse(0, 0, 330 + f * 140, 34 + f * 24, 0, Math.PI * 1.02, Math.PI * 1.98);
+        r.stroke();
+      }
+      r.setTransform(1, 0, 0, 1, 0, 0);
+      r.globalCompositeOperation = 'destination-in';
+      var fade = r.createLinearGradient(0, 0, RING_W * s, 0);
+      fade.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      fade.addColorStop(0.3, 'rgba(0, 0, 0, 1)');
+      fade.addColorStop(0.75, 'rgba(0, 0, 0, 1)');
+      fade.addColorStop(1, 'rgba(0, 0, 0, 0.2)');
+      r.fillStyle = fade;
+      r.fillRect(0, 0, RING_W * s, RING_H * s);
+    }
+  }
+
+  /* Bloom: additive halos blitted from one cached sprite per colour over
+     everything that emits light. Reading the frame back and blurring it
+     costs a full-frame scaled blit; this costs only the lit area. */
+  function bloomHalo(x, y, r, color, a, squash) {
+    var ry = r * (squash || 1);
+    ctx.globalAlpha = a;
+    ctx.drawImage(glowSprite(color, 32), x - r, y - ry, r * 2, ry * 2);
+  }
+
+  var WINDOW_GLOWS = ['#ffd24a', '#44ffff', '#ff88cc'];
+  function drawBloom() {
+    if (!Game.FX.bloom) return;
+    var now = Date.now(), i;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (i = 0; i < level.decorations.length; i++) {
+      var d = level.decorations[i];
+      var dx = d.x - camera.x;
+      if (dx < -140 || dx > W + 140) continue;
+      var dy = d.y - camera.y;
+      if (d.type === 'lampPost') {
+        var lc = d.color || '#44ffff';
+        bloomHalo(dx, dy - 80, 56, lc, 0.55 + Math.sin(now * 0.003 + d.x * 0.01) * 0.1);
+        bloomHalo(dx, dy - 80, 14, '#ffffff', 0.7);
+        /* Cone of light down the pole onto the ground */
+        bloomHalo(dx, dy - 36, 60, lc, 0.16, 0.9);
+      } else if (d.type === 'houseDecor') {
+        for (var w = 0; w < 3; w++) bloomHalo(dx - 29 + w * 28, dy - 61, 26, WINDOW_GLOWS[w], 0.5);
+        bloomHalo(dx, dy - 136, 12, '#44ffff', 0.8);
+        bloomHalo(dx, dy - 4, 70, '#44ffff', 0.22, 0.16);
+      } else if (d.type === 'neonSign') {
+        bloomHalo(dx, dy - 78, 74, d.color || '#44ffff', 0.4, 0.6);
+      } else if (d.type === 'rooftopSign') {
+        bloomHalo(dx, dy - 147, 70, d.color || '#44ffff', 0.45, 0.5);
+      } else if (d.type === 'cafeBuilding' || d.type === 'shopBuilding') {
+        bloomHalo(dx - 10, dy - 40, 84, d.type === 'cafeBuilding' ? '#ffb0a0' : '#ffe08a', 0.3, 0.6);
+      } else if (d.type === 'crystal') {
+        bloomHalo(dx, dy - 6, 20, GROUND_CRYSTAL_COLORS[(d.variant || 0) % 3], 0.6);
+      } else if (d.type === 'antenna') {
+        bloomHalo(dx, dy - (d.h || 80), 10, '#ff4466', 0.45 + Math.sin(now * 0.004 + d.x) * 0.3);
+      }
+    }
+    for (i = 0; i < pickups.length; i++) {
+      var pk = pickups[i];
+      if (!pk.active) continue;
+      bloomHalo(pk.x - camera.x + 8, pk.y - camera.y + 8, 22, '#ff66cc', 0.6);
+    }
+    ctx.restore();
+  }
+
+  /* Finish for the rect (x, y, w, h) in game coordinates: a colour grade
+     (a warm wash where the sun is, cool in the far corner) and a
+     vignette, rendered together once at device resolution so each frame
+     pays for a single unscaled blit. Blend-mode gradient fills cost
+     several times more. Callers clip where the bezel must stay dark. */
+  var finishCv = null, finishKey = '';
+  function postFX(x, y, w, h) {
+    var fx = Game.FX;
+    if (!fx.grade && !fx.vignette) return;
+    var key = w + 'x' + h + '@' + DPR + fx.grade + fx.vignette;
+    if (key !== finishKey) {
+      finishKey = key;
+      if (!finishCv || finishCv.width !== Math.round(w * DPR) || finishCv.height !== Math.round(h * DPR)) {
+        finishCv = offscreen(w * DPR, h * DPR);
+      }
+      var g = finishCv.getContext('2d');
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, finishCv.width, finishCv.height);
+      g.scale(finishCv.width, finishCv.height);
+      if (fx.grade) {
+        var lg = g.createLinearGradient(0, 0, 1, 1);
+        lg.addColorStop(0, 'rgba(255, 176, 150, 0.16)');
+        lg.addColorStop(0.45, 'rgba(255, 176, 150, 0)');
+        lg.addColorStop(0.6, 'rgba(40, 70, 190, 0)');
+        lg.addColorStop(1, 'rgba(40, 70, 190, 0.2)');
+        g.fillStyle = lg;
+        g.fillRect(0, 0, 1, 1);
+      }
+      if (fx.vignette) {
+        var rg = g.createRadialGradient(0.5, 0.5, 0.25, 0.5, 0.5, 0.8);
+        rg.addColorStop(0, 'rgba(8, 3, 26, 0)');
+        rg.addColorStop(0.6, 'rgba(8, 3, 26, 0.16)');
+        rg.addColorStop(1, 'rgba(8, 3, 26, 0.6)');
+        g.fillStyle = rg;
+        g.fillRect(0, 0, 1, 1);
+      }
+    }
+    ctx.drawImage(finishCv, x, y, w, h);
+  }
+
+  /* Character lighting: the sprite is painted to a scratch canvas and
+     given a rim of sunlight along its upper-left edge (the sprite minus
+     a copy of itself nudged away from the light). Only the sprite's own
+     box is touched, so the cost follows the size of the character. */
+  var LIT_PAD = 18, LIT_W = 100, LIT_H = 72;
+  var LIT_TYPES = { oliver: 1, kittycorn: 1, bob: 1, crab: 1, lila: 1, migword: 1, moonMouse: 1 };
+  var litCv = null, litCtx = null, rimCv = null, rimCtx = null, outCv = null, outCtx = null, litKey = '';
+  function drawLit(e) {
+    if (!Game.FX.rim) { e.draw(ctx, camera.x, camera.y); return; }
+    var key = DPR + level.name;
+    if (key !== litKey) {
+      litKey = key;
+      litCv = offscreen(LIT_W * DPR, LIT_H * DPR);
+      rimCv = offscreen(LIT_W * DPR, LIT_H * DPR);
+      litCtx = litCv.getContext('2d');
+      rimCtx = rimCv.getContext('2d');
+      litCtx.scale(DPR, DPR);
+      rimCtx.fillStyle = mixHex(level.keyLight || '#ffffff', '#ffffff', 0.55);
+      outCv = offscreen(LIT_W * DPR, LIT_H * DPR);
+      outCtx = outCv.getContext('2d');
+      outCtx.fillStyle = '#2a0c52';
+    }
+    var sx = Math.round(e.x - camera.x) - LIT_PAD, sy = Math.round(e.y - camera.y) - LIT_PAD;
+    var w = e.w + LIT_PAD * 2, h = e.h + LIT_PAD * 2;
+    /* Backlight so the character separates from the scenery */
+    if (Game.FX.bloom) {
+      ctx.globalCompositeOperation = 'lighter';
+      bloomHalo(sx + w / 2, sy + h / 2, Math.max(e.w, e.h) * 1.15, level.keyLight || '#ffffff', e === player ? 0.5 : 0.32);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    var pw = w * DPR, ph = h * DPR;
+    litCtx.clearRect(0, 0, w, h);
+    e.draw(litCtx, e.x - LIT_PAD, e.y - LIT_PAD);
+    rimCtx.clearRect(0, 0, pw, ph);
+    rimCtx.globalCompositeOperation = 'source-over';
+    rimCtx.drawImage(litCv, 0, 0, pw, ph, 0, 0, pw, ph);
+    rimCtx.globalCompositeOperation = 'destination-out';
+    rimCtx.drawImage(litCv, 0, 0, pw, ph, 1.5 * DPR, 1.6 * DPR, pw, ph);
+    rimCtx.globalCompositeOperation = 'source-in';
+    rimCtx.fillRect(0, 0, pw, ph);
+    /* The player also gets a dark violet outline (her silhouette nudged
+       four ways) so she holds her edge against the pink house fronts. */
+    if (e === player) {
+      var o = 1.3 * DPR;
+      outCtx.clearRect(0, 0, pw, ph);
+      outCtx.globalCompositeOperation = 'source-over';
+      outCtx.drawImage(litCv, 0, 0, pw, ph, -o, 0, pw, ph);
+      outCtx.drawImage(litCv, 0, 0, pw, ph, o, 0, pw, ph);
+      outCtx.drawImage(litCv, 0, 0, pw, ph, 0, -o, pw, ph);
+      outCtx.drawImage(litCv, 0, 0, pw, ph, 0, o, pw, ph);
+      outCtx.globalCompositeOperation = 'source-in';
+      outCtx.fillRect(0, 0, pw, ph);
+      ctx.globalAlpha = 0.8;
+      ctx.drawImage(outCv, 0, 0, pw, ph, sx, sy, w, h);
+      ctx.globalAlpha = 1;
+    }
+    ctx.drawImage(litCv, 0, 0, pw, ph, sx, sy, w, h);
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(rimCv, 0, 0, pw, ph, sx, sy, w, h);
+    ctx.globalAlpha = 1;
+  }
+
   function initBgLayers() {
     bgLayers = [];
-    /* Layer 0 – distant nebula clouds (soft violet/magenta blobs) */
-    var layer0 = [];
-    var bgColors0 = level && level.bgLayer0 ? level.bgLayer0 : ['#3a1860', '#2a1050', '#4a1a70'];
-    for (var i = 0; i < 30; i++) {
-      layer0.push({
-        x: i * 200 + Math.random() * 100,
-        y: 120 + Math.random() * 200,
-        w: 120 + Math.random() * 180,
-        h: 60 + Math.random() * 80,
-        color: bgColors0[Math.floor(Math.random() * bgColors0.length)],
-        blobSeed: Math.random() * 100,
-      });
-    }
-    bgLayers.push({ items: layer0, parallax: 0.15 });
+    buildSky();
 
     /* Far layer – a few big, faint planets that barely move, so the mid
        planets read as nearer and the sky gets a second depth step. */
@@ -904,63 +1175,76 @@
   function renderGame() {
     if (!level) return;
 
-    /* Background gradient */
-    var grad = ctx.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, level.bgTop);
-    grad.addColorStop(0.5, level.bgMid);
-    grad.addColorStop(1, level.bgBottom);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
+    /* Sky: cached gradient + horizon glow + sun, then the nebula and
+       star-dust tile drifting slowly behind everything. */
+    ctx.drawImage(skyCv, 0, 0, W, H);
+    var nebX = -Math.round((camera.x * 0.05) % NEB_W * DPR) / DPR;
+    ctx.drawImage(nebCv, nebX, 0, NEB_W, H);
+    if (nebX + NEB_W < W) ctx.drawImage(nebCv, nebX + NEB_W, 0, NEB_W, H);
 
-    /* Distant planet rings arcing across the sky (home planet only) */
-    if (level.showRings) {
-      ctx.save();
-      ctx.globalAlpha = 0.22;
-      ctx.strokeStyle = '#ffd24a';
-      ctx.lineWidth = 3;
-      var ringCx = W * 0.8 - camera.x * 0.08;
-      var ringCy = 60;
-      for (var ri = 0; ri < 3; ri++) {
+    /* Twinkling stars (in screen-space so they stay still while camera scrolls) */
+    ctx.save();
+    for (var mi = 0; mi < currentMotes.length; mi++) {
+      var mote = currentMotes[mi];
+      mote.twinkle += mote.twinkleSpeed;
+      var pulse = 0.5 + 0.5 * Math.sin(mote.twinkle);
+      ctx.globalAlpha = mote.alpha * (0.4 + pulse * 0.6);
+      ctx.fillStyle = mote.color || '#ffffff';
+      ctx.beginPath();
+      ctx.arc(mote.x, mote.y, mote.size * (0.6 + pulse * 0.4), 0, Math.PI * 2);
+      ctx.fill();
+      /* Plus-cross sparkle and a halo for brighter stars */
+      if (mote.size > 1.6) {
+        if (Game.FX.bloom) {
+          ctx.globalAlpha = mote.alpha * pulse * 0.8;
+          ctx.drawImage(glowSprite(mote.color || '#ffffff', 32), mote.x - 9, mote.y - 9, 18, 18);
+        }
+        ctx.globalAlpha = mote.alpha * pulse * 0.7;
+        ctx.strokeStyle = mote.color || '#ffffff';
+        ctx.lineWidth = 0.6;
         ctx.beginPath();
-        ctx.ellipse(ringCx, ringCy, 420 - ri * 40, 40 - ri * 8, -0.2, Math.PI * 1.05, Math.PI * 1.95);
+        ctx.moveTo(mote.x - mote.size * 2.5, mote.y);
+        ctx.lineTo(mote.x + mote.size * 2.5, mote.y);
+        ctx.moveTo(mote.x, mote.y - mote.size * 2.5);
+        ctx.lineTo(mote.x, mote.y + mote.size * 2.5);
         ctx.stroke();
       }
-      ctx.restore();
+    }
+    ctx.restore();
+
+    /* The home planet's rings arcing across the sky */
+    if (ringCv) {
+      ctx.drawImage(ringCv, W * 0.8 - camera.x * 0.08 - RING_W / 2, -90, RING_W, RING_H);
     }
 
-    /* Parallax background – nebula glows, distant planets, asteroid ridges */
+    /* Parallax background – distant planets and drifting asteroids */
+    var hazeC = level.horizonGlow || mixHex(level.bgBottom, '#ffffff', 0.35);
     for (var li = 0; li < bgLayers.length; li++) {
       var layer = bgLayers[li];
-      ctx.save();
       for (var it = 0; it < layer.items.length; it++) {
         var item = layer.items[it];
         var bx = item.x - camera.x * layer.parallax;
-        var pad = li === 0 ? item.w : 0;
-        if (bx + item.w + pad > 0 && bx - pad < W) {
-          if (li === 0) {
-            /* Soft nebula glow: radial falloff squashed into an ellipse */
-            var ncx = bx + item.w / 2;
-            ctx.save();
-            ctx.translate(ncx, item.y);
-            ctx.scale(1, item.h / item.w);
-            var ng = ctx.createRadialGradient(0, 0, 0, 0, 0, item.w);
-            ng.addColorStop(0, hexA(item.color, 0.55));
-            ng.addColorStop(1, hexA(item.color, 0));
-            ctx.fillStyle = ng;
-            ctx.fillRect(-item.w, -item.w, item.w * 2, item.w * 2);
-            ctx.restore();
-          } else if (item.isPlanet) {
-            ctx.globalAlpha = item.far ? 0.3 : 0.8;
-            Game.ui.drawShadedPlanet(ctx, bx + item.w / 2, item.y, item.w / 2,
-              mixHex(item.color, '#ffffff', 0.45), mixHex(item.color, '#000000', 0.35),
+        if (bx + item.w * 2 > 0 && bx - item.w < W) {
+          if (item.isPlanet) {
+            /* Atmosphere halo, then the lit sphere */
+            var pr = item.w / 2;
+            ctx.globalAlpha = item.far ? 0.3 : 0.75;
+            ctx.drawImage(glowSprite(mixHex(item.color, '#ffffff', 0.3), 48),
+              bx + pr - pr * 1.9, item.y - pr * 1.9, pr * 3.8, pr * 3.8);
+            ctx.globalAlpha = item.far ? 0.42 : 1;
+            Game.ui.drawShadedPlanet(ctx, bx + pr, item.y, pr,
+              mixHex(item.color, '#ffffff', 0.55), mixHex(item.color, '#000000', 0.5),
               item.blobSeed > 70 ? hexA(mixHex(item.color, '#ffffff', 0.6), 0.8) : null);
             ctx.globalAlpha = 1;
           } else {
-            ctx.beginPath();
+            /* Floating rock: sunlit crown, shadowed belly, rim light on
+               the upper-left shoulder, hazed toward the horizon colour. */
             var cx = bx + item.w / 2;
             var hw = item.w / 2;
             var hh = item.h / 2;
             var seed = item.blobSeed || 0;
+            var rockC = mixHex(item.color, hazeC, 0.3);
+            ctx.beginPath();
             ctx.moveTo(cx - hw, item.y);
             ctx.bezierCurveTo(
               cx - hw, item.y - hh - Math.sin(seed) * 8,
@@ -972,23 +1256,31 @@
               cx + hw, item.y - hh - Math.cos(seed) * 6,
               cx + hw, item.y
             );
+            ctx.bezierCurveTo(
+              cx + hw * 0.7, item.y + hh * 0.75,
+              cx - hw * 0.2, item.y + hh * (0.9 + Math.sin(seed * 5) * 0.3),
+              cx - hw, item.y
+            );
             ctx.closePath();
-            var rg = ctx.createLinearGradient(0, item.y - hh - 12, 0, item.y);
-            rg.addColorStop(0, mixHex(item.color, '#ffffff', 0.12));
-            rg.addColorStop(1, mixHex(item.color, '#000000', 0.2));
-            ctx.globalAlpha = 0.7;
+            var rg = ctx.createLinearGradient(cx - hw * 0.5, item.y - hh - 12, cx + hw * 0.3, item.y + hh * 0.8);
+            rg.addColorStop(0, mixHex(rockC, '#ffffff', 0.3));
+            rg.addColorStop(0.45, rockC);
+            rg.addColorStop(1, mixHex(rockC, '#0a0420', 0.6));
             ctx.fillStyle = rg;
             ctx.fill();
-            /* Rim light along the top edge */
-            ctx.globalAlpha = 0.35;
-            ctx.strokeStyle = mixHex(item.color, '#ffffff', 0.5);
+            ctx.strokeStyle = hexA(mixHex(rockC, '#ffffff', 0.65), 0.55);
             ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(cx - hw, item.y);
+            ctx.bezierCurveTo(
+              cx - hw, item.y - hh - Math.sin(seed) * 8,
+              cx - hw * 0.3, item.y - hh - Math.cos(seed * 2) * 12,
+              cx, item.y - hh
+            );
             ctx.stroke();
-            ctx.globalAlpha = 1;
           }
         }
       }
-      ctx.restore();
     }
 
     /* Background drifting UFO — large hero-friendly one floating across the sky */
@@ -1038,30 +1330,37 @@
     var floorBase = level.floorY - camera.y;
     var floorColorA = level.floorColorA || '#2d1a0a';
     var floorColorB = level.floorColorB || '#3d2b12';
-    var haze = ctx.createLinearGradient(0, floorBase - 70, 0, floorBase);
-    haze.addColorStop(0, hexA(mixHex(level.bgBottom, '#ffffff', 0.35), 0));
-    haze.addColorStop(1, hexA(mixHex(level.bgBottom, '#ffffff', 0.35), 0.16));
-    ctx.fillStyle = haze;
-    ctx.fillRect(0, floorBase - 70, W, 70);
-    var ridgeCols = [mixHex(level.bgBottom, floorColorA, 0.4), mixHex(level.bgBottom, floorColorA, 0.8)];
-    var ridgePar = [0.18, 0.32];
-    for (var rg = 0; rg < 2; rg++) {
+    var lightC = mixHex(level.keyLight || '#ffffff', '#ffffff', 0.5);
+    /* Three bands with atmospheric perspective: the farthest is pale and
+       close to the horizon glow, the nearest dark and close to the ground
+       colour; each is lit along its crest. */
+    var ridgeMix = [0.42, 0.66, 0.88];
+    var ridgePar = [0.1, 0.18, 0.32];
+    for (var rg = 0; rg < 3; rg++) {
       var rpx = camera.x * ridgePar[rg];
+      var ridgeC = mixHex(hazeC, mixHex(floorColorA, '#0a0420', 0.25), ridgeMix[rg]);
+      var ridgeTop = 0;
       ctx.beginPath();
       ctx.moveTo(0, floorBase + 20);
       for (var rx0 = 0; rx0 <= W; rx0 += 8) {
         var rwx = rx0 + rpx;
         var rh = rg === 0
+          ? 52 + Math.sin(rwx * 0.007 + 4) * 20 + Math.sin(rwx * 0.019) * 9 + Math.sin(rwx * 0.047 + 2) * 3
+          : rg === 1
           ? 28 + Math.sin(rwx * 0.011) * 12 + Math.sin(rwx * 0.027 + 1.3) * 6 + Math.sin(rwx * 0.061) * 2
           : 14 + Math.sin(rwx * 0.016 + 2) * 8 + Math.sin(rwx * 0.043) * 4;
+        if (rh > ridgeTop) ridgeTop = rh;
         ctx.lineTo(rx0, floorBase - rh);
       }
       ctx.lineTo(W, floorBase + 20);
       ctx.closePath();
-      ctx.fillStyle = ridgeCols[rg];
+      var ridgeG = ctx.createLinearGradient(0, floorBase - ridgeTop, 0, floorBase + 10);
+      ridgeG.addColorStop(0, mixHex(ridgeC, '#ffffff', 0.1));
+      ridgeG.addColorStop(1, mixHex(ridgeC, hazeC, 0.35));
+      ctx.fillStyle = ridgeG;
       ctx.fill();
-      ctx.strokeStyle = hexA(mixHex(ridgeCols[rg], '#ffffff', 0.4), 0.16);
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = hexA(mixHex(ridgeC, '#ffffff', 0.55), 0.4);
+      ctx.lineWidth = 1.2;
       ctx.stroke();
     }
 
@@ -1080,8 +1379,12 @@
     ctx.lineTo(W, H + 10);
     ctx.closePath();
     ctx.fill();
-    /* Dust layer */
-    ctx.fillStyle = floorColorB;
+    /* Dust layer, sunlit along the top and falling into shadow below */
+    var dustG = ctx.createLinearGradient(0, floorBase - 8, 0, H);
+    dustG.addColorStop(0, mixHex(floorColorB, lightC, 0.42));
+    dustG.addColorStop(0.5, mixHex(floorColorB, lightC, 0.1));
+    dustG.addColorStop(1, floorColorA);
+    ctx.fillStyle = dustG;
     ctx.beginPath();
     ctx.moveTo(0, H + 10);
     for (var sx = 0; sx <= W; sx += 4) {
@@ -1096,7 +1399,7 @@
        craters and hairline cracks, and the regolith darkening with depth
        so the ground reads as a moon surface instead of a flat band. */
     ctx.save();
-    ctx.strokeStyle = mixHex(floorColorB, '#ffffff', 0.22);
+    ctx.strokeStyle = mixHex(floorColorB, lightC, 0.55);
     ctx.lineWidth = 2;
     ctx.beginPath();
     for (var cx0 = 0; cx0 <= W; cx0 += 4) {
@@ -1108,7 +1411,7 @@
     ctx.stroke();
     var depthGrad = ctx.createLinearGradient(0, floorBase + 14, 0, H);
     depthGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    depthGrad.addColorStop(1, 'rgba(0, 0, 0, 0.32)');
+    depthGrad.addColorStop(1, 'rgba(0, 0, 0, 0.22)');
     ctx.fillStyle = depthGrad;
     ctx.fillRect(0, floorBase + 14, W, H - floorBase - 14);
     ctx.restore();
@@ -1210,19 +1513,19 @@
         ctx.fill();
         var spill = ['#ffd24a', '#44ffff', '#ff88cc'];
         for (var sw = 0; sw < 3; sw++) {
-          ctx.fillStyle = hexA(spill[sw], 0.13);
+          ctx.fillStyle = hexA(spill[sw], 0.22);
           ctx.beginPath();
           ctx.ellipse(ldx - 29 + sw * 28, ldy + 2, 17, 3.5, 0, 0, Math.PI * 2);
           ctx.fill();
         }
-        ctx.fillStyle = 'rgba(255, 220, 140, 0.16)';
+        ctx.fillStyle = 'rgba(255, 220, 140, 0.26)';
         ctx.beginPath();
         ctx.ellipse(ldx - 24, ldy + 3, 30, 5, 0, 0, Math.PI * 2);
         ctx.fill();
       } else if (ld.type === 'lampPost') {
-        ctx.fillStyle = hexA(ld.color || '#44ffff', 0.12);
+        ctx.fillStyle = hexA(ld.color || '#44ffff', 0.24);
         ctx.beginPath();
-        ctx.ellipse(ldx, ldy + 2, 26, 4.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(ldx, ldy + 2, 30, 5, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = 'rgba(6, 2, 20, 0.35)';
         ctx.beginPath();
@@ -1234,7 +1537,7 @@
         ctx.ellipse(ldx, ldy, ld.type === 'robotStatue' ? 16 : 6, 2, 0, 0, Math.PI * 2);
         ctx.fill();
         if (ld.type === 'neonSign') {
-          ctx.fillStyle = hexA(ld.color || '#44ffff', 0.1);
+          ctx.fillStyle = hexA(ld.color || '#44ffff', 0.2);
           ctx.beginPath();
           ctx.ellipse(ldx, ldy + 2, 34, 4, 0, 0, Math.PI * 2);
           ctx.fill();
@@ -1251,6 +1554,8 @@
       }
     }
     ctx.restore();
+
+    drawBloom();
 
     /* (No collision platforms — Momoko floats freely through open space.) */
 
@@ -1269,7 +1574,8 @@
 
     /* NPCs */
     for (var nc = 0; nc < npcs.length; nc++) {
-      npcs[nc].entity.draw(ctx, camera.x, camera.y);
+      if (LIT_TYPES[npcs[nc].type]) drawLit(npcs[nc].entity);
+      else npcs[nc].entity.draw(ctx, camera.x, camera.y);
       /* Interaction indicator */
       var npc = npcs[nc].entity;
       if (!npc.talking && !PROMPT_KEYS[npcs[nc].type]) {
@@ -1301,7 +1607,7 @@
     }
 
     /* Player */
-    if (player) player.draw(ctx, camera.x, camera.y);
+    if (player) drawLit(player);
 
     /* Shop-cart carry overlay — bobbing item icons floating above Momoko's
        head while she walks her purchases home. */
@@ -1321,38 +1627,8 @@
       particles[pa].draw(ctx, camera.x, camera.y);
     }
 
-    /* Twinkling stars (in screen-space so they stay still while camera scrolls) */
-    ctx.save();
-    for (var mi = 0; mi < currentMotes.length; mi++) {
-      var mote = currentMotes[mi];
-      mote.twinkle += mote.twinkleSpeed;
-      var pulse = 0.5 + 0.5 * Math.sin(mote.twinkle);
-      ctx.globalAlpha = mote.alpha * (0.4 + pulse * 0.6);
-      ctx.fillStyle = mote.color || '#ffffff';
-      ctx.beginPath();
-      ctx.arc(mote.x, mote.y, mote.size * (0.6 + pulse * 0.4), 0, Math.PI * 2);
-      ctx.fill();
-      /* Plus-cross sparkle for brighter stars */
-      if (mote.size > 1.6) {
-        ctx.globalAlpha = mote.alpha * pulse * 0.7;
-        ctx.strokeStyle = mote.color || '#ffffff';
-        ctx.lineWidth = 0.6;
-        ctx.beginPath();
-        ctx.moveTo(mote.x - mote.size * 2.5, mote.y);
-        ctx.lineTo(mote.x + mote.size * 2.5, mote.y);
-        ctx.moveTo(mote.x, mote.y - mote.size * 2.5);
-        ctx.lineTo(mote.x, mote.y + mote.size * 2.5);
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
-
-    /* Space vignette – subtle deep-purple darkening at edges */
-    var fogGrad = ctx.createRadialGradient(W / 2, H / 2, 120, W / 2, H / 2, W * 0.7);
-    fogGrad.addColorStop(0, 'rgba(10, 4, 32, 0)');
-    fogGrad.addColorStop(1, 'rgba(10, 4, 32, 0.3)');
-    ctx.fillStyle = fogGrad;
-    ctx.fillRect(0, 0, W, H);
+    /* Colour grade and vignette over the finished scene */
+    postFX(0, 0, W, H);
   }
 
   function renderDecorations() {
@@ -1431,15 +1707,8 @@
         ctx.fill();
       } else if (d.type === 'planetRing') {
         /* Small ringed planet in foreground */
-        ctx.fillStyle = d.color || '#cc88ff';
-        ctx.beginPath();
-        ctx.arc(dx, dy, d.r || 18, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#ffd24a';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.ellipse(dx, dy, (d.r || 18) + 8, 4, -0.3, 0, Math.PI * 2);
-        ctx.stroke();
+        Game.ui.drawShadedPlanet(ctx, dx, dy, d.r || 18,
+          mixHex(d.color || '#cc88ff', '#ffffff', 0.45), mixHex(d.color || '#cc88ff', '#1a0840', 0.55), '#ffd24a');
       } else if (d.type === 'rocketPad') {
         /* Static pad — the actual Rocket NPC draws the ship */
         ctx.fillStyle = '#4a4a5a';
@@ -2222,25 +2491,51 @@
         /* Big cheese moon in the parallax sky */
         ctx.save();
         var cmX = dx - camera.x * 0.15;
-        ctx.fillStyle = '#ffd64a';
+        var cmR = d.r || 90;
+        /* Warm halo, then a sphere lit from the sun's side */
+        ctx.drawImage(glowSprite('#ffd64a', 48), cmX - cmR * 1.7, dy - cmR * 1.7, cmR * 3.4, cmR * 3.4);
+        var cmG = ctx.createRadialGradient(cmX - cmR * 0.4, dy - cmR * 0.45, cmR * 0.1, cmX, dy, cmR);
+        cmG.addColorStop(0, '#fff3a8');
+        cmG.addColorStop(0.55, '#ffd64a');
+        cmG.addColorStop(1, '#e09a2a');
+        ctx.fillStyle = cmG;
         ctx.beginPath();
-        ctx.arc(cmX, dy, d.r || 90, 0, Math.PI * 2);
+        ctx.arc(cmX, dy, cmR, 0, Math.PI * 2);
         ctx.fill();
-        /* Crescent shadow */
+        /* Terminator: the far side falls into warm shadow */
         ctx.save();
-        ctx.globalAlpha = 0.25;
-        ctx.fillStyle = '#7a4818';
-        ctx.beginPath();
-        ctx.arc(cmX + (d.r || 90) * 0.25, dy, (d.r || 90) * 0.85, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.clip();
+        var cmS = ctx.createRadialGradient(cmX - cmR * 0.35, dy - cmR * 0.35, cmR * 0.75, cmX - cmR * 0.35, dy - cmR * 0.35, cmR * 1.5);
+        cmS.addColorStop(0, 'rgba(122, 56, 24, 0)');
+        cmS.addColorStop(1, 'rgba(122, 56, 24, 0.6)');
+        ctx.fillStyle = cmS;
+        ctx.fillRect(cmX - cmR, dy - cmR, cmR * 2, cmR * 2);
         ctx.restore();
+        ctx.strokeStyle = 'rgba(255, 250, 210, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cmX, dy, cmR - 0.8, Math.PI * 0.85, Math.PI * 1.65);
+        ctx.stroke();
         /* Holes */
-        ctx.fillStyle = '#a86820';
         var moonHoles = [[-30, -20, 8], [10, 30, 6], [-20, 18, 5], [25, -10, 7], [0, -38, 4]];
+        var mhS = cmR / 90;
         for (var mh = 0; mh < moonHoles.length; mh++) {
+          var mhx = cmX + moonHoles[mh][0] * mhS, mhy = dy + moonHoles[mh][1] * mhS, mhr = moonHoles[mh][2] * mhS;
+          ctx.fillStyle = '#a86820';
           ctx.beginPath();
-          ctx.arc(cmX + moonHoles[mh][0], dy + moonHoles[mh][1], moonHoles[mh][2], 0, Math.PI * 2);
+          ctx.arc(mhx, mhy, mhr, 0, Math.PI * 2);
           ctx.fill();
+          /* Shadowed upper lip, lit lower lip */
+          ctx.fillStyle = '#7a4818';
+          ctx.beginPath();
+          ctx.arc(mhx, mhy, mhr, Math.PI * 0.9, Math.PI * 1.9);
+          ctx.arc(mhx + mhr * 0.25, mhy + mhr * 0.3, mhr, Math.PI * 1.75, Math.PI * 1.05, true);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255, 244, 170, 0.7)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(mhx, mhy, mhr, Math.PI * 0.05, Math.PI * 0.75);
+          ctx.stroke();
         }
         ctx.restore();
       }
@@ -2507,11 +2802,32 @@
   var lastTime = 0;
   var accumulator = 0;
   var FIXED_DT = 1000 / 60;
+  var frameEma = 16, slowFrames = 0;
 
   function gameLoop(timestamp) {
     if (!lastTime) lastTime = timestamp;
     var delta = timestamp - lastTime;
     lastTime = timestamp;
+
+    /* Adaptive quality: when frames stay slow (smoothed rAF interval
+       above 28 ms for about two seconds) drop the costliest effect still
+       on, then the next, until the game keeps up. Long gaps are a
+       backgrounded tab, not a slow device, and are ignored. */
+    if (Game.FX.auto && delta > 0 && delta < 100) {
+      frameEma += (delta - frameEma) * 0.05;
+      if (frameEma > 28) {
+        if (++slowFrames > 120) {
+          var fx = Game.FX;
+          if (fx.rim) fx.rim = false;
+          else if (fx.bloom) fx.bloom = false;
+          else { fx.grade = false; fx.vignette = false; }
+          slowFrames = 0;
+          frameEma = 16;
+        }
+      } else {
+        slowFrames = 0;
+      }
+    }
 
     /* Cap delta to avoid spiral of death */
     if (delta > 100) delta = 100;
@@ -2589,6 +2905,7 @@
      logical CANVAS_W × CANVAS_H coordinates. */
   function resizeBackingStore() {
     var dpr = Math.min(3, window.devicePixelRatio || 1);
+    DPR = dpr;
     canvas.width = CANVAS_W * dpr;
     canvas.height = CANVAS_H * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

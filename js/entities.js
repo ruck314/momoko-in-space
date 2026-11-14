@@ -2135,10 +2135,14 @@
     var cx = sx + 45; /* horizontal centerline */
     /* Outer drop shadow on the pad */
     c.save();
-    c.globalAlpha = 0.35;
-    c.fillStyle = '#000';
+    c.fillStyle = '#0a0220';
+    c.globalAlpha = 0.22;
     c.beginPath();
-    c.ellipse(cx, sy + 150, 50, 6, 0, 0, Math.PI * 2);
+    c.ellipse(cx + 4, sy + 150, 62, 8, 0, 0, Math.PI * 2);
+    c.fill();
+    c.globalAlpha = 0.4;
+    c.beginPath();
+    c.ellipse(cx + 2, sy + 150, 48, 5.5, 0, 0, Math.PI * 2);
     c.fill();
     c.restore();
 
@@ -2150,10 +2154,11 @@
     c.strokeStyle = INK;
     function tankGrad(x0, x1) {
       var g = c.createLinearGradient(sx + x0, sy, sx + x1, sy);
-      g.addColorStop(0, '#6c7a8c');
-      g.addColorStop(0.35, '#e4ecf4');
-      g.addColorStop(0.6, '#c3cfdb');
-      g.addColorStop(1, '#5e6b7d');
+      /* Lit from the upper left: pale rim, bright band, violet shadow */
+      g.addColorStop(0, '#b8c2d8');
+      g.addColorStop(0.3, '#f4f7fc');
+      g.addColorStop(0.6, '#b4b8d6');
+      g.addColorStop(1, '#55527e');
       return g;
     }
 
@@ -2203,10 +2208,16 @@
 
     /* ----- Main body ----- */
     var mGrad = c.createLinearGradient(sx + 24, sy, sx + 66, sy);
-    mGrad.addColorStop(0, '#9aa6b6');
-    mGrad.addColorStop(0.3, '#ffffff');
-    mGrad.addColorStop(0.55, '#eef3f8');
-    mGrad.addColorStop(1, '#8592a4');
+    /* Cylinder lit from the upper left: a pale rim, the bright band a
+       quarter of the way across, falling to a violet shadow side with a
+       little pink bounce from the fin on the far edge */
+    mGrad.addColorStop(0, '#c4cee2');
+    mGrad.addColorStop(0.06, '#aab4cc');
+    mGrad.addColorStop(0.27, '#ffffff');
+    mGrad.addColorStop(0.5, '#dfe3f2');
+    mGrad.addColorStop(0.8, '#8a8cbc');
+    mGrad.addColorStop(0.95, '#5c5a90');
+    mGrad.addColorStop(1, '#8a6aa8');
     c.fillStyle = mGrad;
     c.beginPath();
     c.moveTo(cx, sy + 0);                 /* tip */
@@ -2218,15 +2229,30 @@
     c.closePath();
     c.fill();
     c.stroke();
-    /* Long specular streak down the lit side */
-    c.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    c.fillRect(sx + 32, sy + 44, 2, 84);
+    /* Vertical panel seams (the cockpit window covers their middle) */
+    c.fillStyle = 'rgba(40, 30, 90, 0.22)';
+    c.fillRect(sx + 38, sy + 41, 0.3, 89);
+    c.fillRect(sx + 54, sy + 41, 0.3, 89);
+    c.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    c.fillRect(sx + 38.3, sy + 41, 0.25, 89);
+    /* Long specular streak down the lit side, fading at both ends */
+    var spec = c.createLinearGradient(0, sy + 44, 0, sy + 128);
+    spec.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    spec.addColorStop(0.15, 'rgba(255, 255, 255, 0.85)');
+    spec.addColorStop(0.7, 'rgba(255, 255, 255, 0.5)');
+    spec.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    c.fillStyle = spec;
+    c.fillRect(sx + 31.5, sy + 44, 1.6, 84);
+    /* Rim light along the sunward edge */
+    c.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    c.fillRect(sx + 24.3, sy + 41, 0.6, 89);
 
     /* Nose cone — pink with stripes */
     var nGrad = c.createLinearGradient(sx + 24, sy, sx + 66, sy);
-    nGrad.addColorStop(0, '#d92f73');
-    nGrad.addColorStop(0.35, '#ff6aa6');
-    nGrad.addColorStop(1, '#c4245f');
+    nGrad.addColorStop(0, '#e84a8a');
+    nGrad.addColorStop(0.28, '#ff9cc8');
+    nGrad.addColorStop(0.6, '#e03c80');
+    nGrad.addColorStop(1, '#8e1648');
     c.fillStyle = nGrad;
     c.beginPath();
     c.moveTo(cx, sy + 0);
@@ -2236,6 +2262,15 @@
     c.closePath();
     c.fill();
     c.stroke();
+    /* Shadow the cone casts onto the hull below it */
+    var coneAO = c.createLinearGradient(0, sy + 40, 0, sy + 50);
+    coneAO.addColorStop(0, 'rgba(40, 30, 90, 0.38)');
+    coneAO.addColorStop(1, 'rgba(40, 30, 90, 0)');
+    c.fillStyle = coneAO;
+    c.fillRect(sx + 24.2, sy + 40.2, 41.6, 10);
+    /* Glint on the lit shoulder of the cone */
+    c.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    c.beginPath(); c.ellipse(sx + 35, sy + 19, 1.6, 9, 0.42, 0, Math.PI * 2); c.fill();
     /* Cone stripe */
     c.fillStyle = '#ffd24a';
     c.beginPath();
@@ -2255,14 +2290,13 @@
     c.globalAlpha = 1;
 
     /* Body horizontal bands (riveted plates) */
-    c.strokeStyle = 'rgba(0,0,0,0.18)';
-    c.lineWidth = 1;
     var bandYs = [55, 80, 105];
     for (var ib = 0; ib < bandYs.length; ib++) {
-      c.beginPath();
-      c.moveTo(sx + 24, sy + bandYs[ib]);
-      c.lineTo(sx + 66, sy + bandYs[ib]);
-      c.stroke();
+      /* Recessed seam: dark groove with a lit lip under it */
+      c.fillStyle = 'rgba(40, 30, 90, 0.32)';
+      c.fillRect(sx + 24.2, sy + bandYs[ib] - 0.35, 41.6, 0.7);
+      c.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      c.fillRect(sx + 24.2, sy + bandYs[ib] + 0.35, 30, 0.3);
     }
     /* Rivets */
     c.fillStyle = '#7a8896';
@@ -2277,8 +2311,18 @@
     /* Big circular cockpit window */
     c.fillStyle = '#001a33';
     c.beginPath(); c.arc(cx, sy + 64, 14, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#44ccff';
+    var glass = c.createRadialGradient(cx - 4, sy + 59, 1, cx, sy + 64, 12);
+    glass.addColorStop(0, '#c8f6ff');
+    glass.addColorStop(0.45, '#44ccff');
+    glass.addColorStop(1, '#1670c0');
+    c.fillStyle = glass;
     c.beginPath(); c.arc(cx, sy + 64, 11, 0, Math.PI * 2); c.fill();
+    /* Bezel: lit on the sunward arc, in shadow on the far one */
+    c.lineWidth = 0.9;
+    c.strokeStyle = 'rgba(190, 220, 255, 0.85)';
+    c.beginPath(); c.arc(cx, sy + 64, 12.6, Math.PI * 0.85, Math.PI * 1.6); c.stroke();
+    c.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+    c.beginPath(); c.arc(cx, sy + 64, 12.6, Math.PI * 1.9, Math.PI * 2.6); c.stroke();
     /* Window cross frame */
     c.strokeStyle = '#001a33';
     c.lineWidth = 1.6;
@@ -2286,7 +2330,8 @@
     c.beginPath(); c.moveTo(cx, sy + 53); c.lineTo(cx, sy + 75); c.stroke();
     /* Reflection */
     c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(cx - 4, sy + 60, 3, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 0.85;
+    c.beginPath(); c.ellipse(cx - 5, sy + 59.5, 1.8, 4.6, 0.7, 0, Math.PI * 2); c.fill();
     c.globalAlpha = 0.6;
     c.beginPath(); c.arc(cx + 5, sy + 68, 1.6, 0, Math.PI * 2); c.fill();
     c.globalAlpha = 1;
@@ -2298,6 +2343,8 @@
       c.beginPath(); c.arc(cx, phy, 4, 0, Math.PI * 2); c.fill();
       c.fillStyle = '#44ccff';
       c.beginPath(); c.arc(cx, phy, 3, 0, Math.PI * 2); c.fill();
+      c.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      c.beginPath(); c.arc(cx - 1, phy - 1, 0.8, 0, Math.PI * 2); c.fill();
     }
 
     /* "MOMOKO" mission badge below the window */
@@ -2326,7 +2373,11 @@
     /* Big fins at the base */
     c.strokeStyle = INK;
     c.lineWidth = 0.35;
-    c.fillStyle = '#ff66cc';
+    /* Sunward fin bright, far fin in shadow */
+    var finL = c.createLinearGradient(sx + 6, sy + 110, sx + 24, sy + 144);
+    finL.addColorStop(0, '#ff9ae0');
+    finL.addColorStop(1, '#f050b8');
+    c.fillStyle = finL;
     c.beginPath();
     c.moveTo(sx + 24, sy + 110);
     c.quadraticCurveTo(sx + 8, sy + 128, sx + 6, sy + 144);
@@ -2334,6 +2385,10 @@
     c.closePath();
     c.fill();
     c.stroke();
+    var finR = c.createLinearGradient(sx + 66, sy + 110, sx + 84, sy + 144);
+    finR.addColorStop(0, '#e04cae');
+    finR.addColorStop(1, '#8e2478');
+    c.fillStyle = finR;
     c.beginPath();
     c.moveTo(sx + 66, sy + 110);
     c.quadraticCurveTo(sx + 82, sy + 128, sx + 84, sy + 144);
@@ -2342,13 +2397,14 @@
     c.fill();
     c.stroke();
     /* Fin highlights */
-    c.fillStyle = '#ff99dd';
+    c.fillStyle = '#ffc0ec';
     c.beginPath();
     c.moveTo(sx + 24, sy + 116);
     c.lineTo(sx + 14, sy + 140);
     c.lineTo(sx + 22, sy + 140);
     c.closePath();
     c.fill();
+    c.fillStyle = 'rgba(255, 153, 221, 0.4)';
     c.beginPath();
     c.moveTo(sx + 66, sy + 116);
     c.lineTo(sx + 76, sy + 140);
@@ -2384,12 +2440,14 @@
     var flick = Math.sin(this.timer * 0.3) * 2 + 4;
     var flick2 = Math.cos(this.timer * 0.27) * 2 + 4;
     function plume(thx, thy, sz, alt) {
-      c.fillStyle = '#fff4a8';
-      c.beginPath(); c.arc(thx, thy + sz, sz, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#ffd24a';
-      c.beginPath(); c.arc(thx, thy + sz, sz * 0.7, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#ff6644';
-      c.beginPath(); c.arc(thx, thy + sz - 1, sz * 0.4, 0, Math.PI * 2); c.fill();
+      /* Hot core fading out through yellow and orange */
+      var pg = c.createRadialGradient(thx, thy + sz * 0.6, 0, thx, thy + sz, sz * 1.7);
+      pg.addColorStop(0, 'rgba(255, 255, 240, 1)');
+      pg.addColorStop(0.3, 'rgba(255, 226, 110, 0.95)');
+      pg.addColorStop(0.6, 'rgba(255, 130, 60, 0.55)');
+      pg.addColorStop(1, 'rgba(255, 80, 80, 0)');
+      c.fillStyle = pg;
+      c.beginPath(); c.arc(thx, thy + sz, sz * 1.7, 0, Math.PI * 2); c.fill();
     }
     plume(sx + 32, sy + 150, flick * 0.7);
     plume(sx + 45, sy + 150, flick);

@@ -19,6 +19,9 @@
    *   spawns.pickups[]  – { type: 'heart' (star gem), x, y }
    *   bgTop/Mid/Bottom  – background gradient stops
    *   showRings         – true on hero's ringed home planet
+   *   keyLight          – colour of the sun (rim light, lit ground)
+   *   horizonGlow       – colour of the glow along the horizon
+   *   nebula[]          – colours of the nebula clouds in the sky
    */
 
   /* ========== LEVEL 1 — HERO'S RINGED HOME PLANET ========== */
@@ -39,7 +42,12 @@
     bgLayer2: ['#2d1a4a', '#321d52', '#28154a'],
 
     floorColorA: '#2d1a4a',
-    floorColorB: '#42247a',
+    floorColorB: '#4a2a8a',
+
+    /* Lighting: sun colour, glow along the horizon, nebula palette */
+    keyLight: '#ffc4e8',
+    horizonGlow: '#a04ad8',
+    nebula: ['#ff4fb8', '#7a5cff', '#35c8ff', '#b04ac8'],
 
     showRings: true,
 
@@ -188,6 +196,10 @@
 
     floorColorA: '#8a6220',
     floorColorB: '#b98a28',
+
+    keyLight: '#ffd27a',
+    horizonGlow: '#e0783a',
+    nebula: ['#ff8a3a', '#ffd24a', '#d84a8a', '#8a4ae0'],
 
     showRings: false,
 
