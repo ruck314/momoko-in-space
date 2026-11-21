@@ -14,14 +14,17 @@
    *   spawns.enemies[]  – { type: 'alien', x, y, pattern?, dir?, species? }
    *   spawns.npcs[]     – { type: 'oliver' | 'kittycorn' | 'bob' | 'crab'
    *                              | 'lila' | 'migword' | 'rocket' | 'houseDoor'
-   *                              | 'cafeDoor' | 'shopDoor' | 'moonMouse',
+   *                              | 'cafeDoor' | 'shopDoor' | 'moonMouse'
+   *                              | 'chefMouse' | 'telescope',
    *                              x, y, houseId?, mouseId? }
-   *   spawns.pickups[]  – { type: 'heart' (star gem), x, y }
+   *   spawns.pickups[]  – { type: 'heart' (star gem) | 'crumb' (golden
+   *                         cheese crumb, with a unique id), x, y }
    *   bgTop/Mid/Bottom  – background gradient stops
    *   showRings         – true on hero's ringed home planet
    *   keyLight          – colour of the sun (rim light, lit ground)
    *   horizonGlow       – colour of the glow along the horizon
    *   nebula[]          – colours of the nebula clouds in the sky
+   *   dustColors[]      – optional pair of colours for the drifting dust
    */
 
   /* ========== LEVEL 1 — HERO'S RINGED HOME PLANET ========== */
@@ -181,7 +184,7 @@
   var LEVEL_2 = {
     name: 'Cheese Moon',
     music: 'moon',      /* variant of the 'bgm' type in songs.js */
-    width: 3200,
+    width: 4000,
     height: 480,
     waterSurface: 60,
     floorY: 440,
@@ -201,93 +204,116 @@
     keyLight: '#ffd27a',
     horizonGlow: '#e0783a',
     nebula: ['#ff8a3a', '#ffd24a', '#d84a8a', '#8a4ae0'],
+    /* Drifting dust becomes floating golden cheese crumbs */
+    dustColors: ['#ffd24a', '#fff0b8'],
 
     showRings: false,
 
     /* Background UFO that drifts across the sky. */
     bgUfo: { y: 80, speed: 0.5, dir: -1 },
 
+    /* Layout, left to right: landing field and Pip, the bounce craters,
+       Sprout, the big cheese arch, MigWord's cottage, the mouse village
+       with Chef Brie's bakery, Tilly, a second arch, the telescope hill
+       (home is in the sky above it) and the return rocket. */
     decorations: [
-      /* Big cheese moon in the parallax sky */
-      { type: 'cheeseMoonBg', x: 800, y: 130, r: 110 },
-      { type: 'cheeseMoonBg', x: 2400, y: 100, r: 70 },
+      /* Sky (parallax 0.15): a big and a small cheese moon, and the
+         hero's ringed home planet that the telescope looks at */
+      { type: 'cheeseMoonBg', x: 620, y: 130, r: 110 },
+      { type: 'cheeseMoonBg', x: 330, y: 56, r: 36 },
+      { type: 'homePlanetBg', x: 1010, y: 96, r: 30 },
 
-      /* Cheese-hole craters on the surface (denser) */
+      /* Cheese-hole craters on the surface */
       { type: 'cheeseCrater', x: 140, y: 432, r: 14 },
       { type: 'cheeseCrater', x: 220, y: 434, r: 8 },
-      { type: 'cheeseCrater', x: 340, y: 432, r: 10 },
       { type: 'cheeseCrater', x: 440, y: 434, r: 7 },
-      { type: 'cheeseCrater', x: 540, y: 432, r: 16 },
       { type: 'cheeseCrater', x: 660, y: 434, r: 9 },
-      { type: 'cheeseCrater', x: 760, y: 432, r: 12 },
-      { type: 'cheeseCrater', x: 870, y: 434, r: 7 },
       { type: 'cheeseCrater', x: 980, y: 432, r: 14 },
-      { type: 'cheeseCrater', x: 1120, y: 434, r: 8 },
-      { type: 'cheeseCrater', x: 1240, y: 432, r: 18 },
-      { type: 'cheeseCrater', x: 1380, y: 434, r: 9 },
+      { type: 'cheeseCrater', x: 1180, y: 434, r: 8 },
       { type: 'cheeseCrater', x: 1480, y: 432, r: 10 },
-      { type: 'cheeseCrater', x: 1580, y: 434, r: 6 },
-      { type: 'cheeseCrater', x: 1700, y: 432, r: 16 },
-      { type: 'cheeseCrater', x: 1820, y: 434, r: 9 },
-      { type: 'cheeseCrater', x: 1920, y: 432, r: 12 },
-      { type: 'cheeseCrater', x: 2080, y: 434, r: 7 },
-      { type: 'cheeseCrater', x: 2180, y: 432, r: 14 },
-      { type: 'cheeseCrater', x: 2330, y: 434, r: 10 },
-      { type: 'cheeseCrater', x: 2450, y: 432, r: 18 },
+      { type: 'cheeseCrater', x: 1880, y: 434, r: 9 },
       { type: 'cheeseCrater', x: 2700, y: 434, r: 9 },
+      { type: 'cheeseCrater', x: 2860, y: 432, r: 14 },
+      { type: 'cheeseCrater', x: 3080, y: 434, r: 7 },
+      { type: 'cheeseCrater', x: 3380, y: 432, r: 12 },
 
-      /* Towering cheese wedges scattered around the moon */
+      /* Big holey cheese arches you can float through */
+      { type: 'cheeseArch', x: 1330, y: 440, size: 1 },
+      { type: 'cheeseArch', x: 2980, y: 440, size: 0.8 },
+
+      /* Towering cheese wedges */
       { type: 'cheeseWedge', x: 240, y: 440, size: 1.0 },
-      { type: 'cheeseWedge', x: 720, y: 440, size: 1.4 },
-      { type: 'cheeseWedge', x: 1180, y: 440, size: 1.0 },
+      { type: 'cheeseWedge', x: 1000, y: 440, size: 1.4 },
       { type: 'cheeseWedge', x: 1820, y: 440, size: 1.6 },
-      { type: 'cheeseWedge', x: 2400, y: 440, size: 1.2 },
-      { type: 'cheeseWedge', x: 2780, y: 440, size: 1.0 },
+      { type: 'cheeseWedge', x: 2720, y: 440, size: 1.2 },
+      { type: 'cheeseWedge', x: 3440, y: 440, size: 1.0 },
 
       /* Cheese-fondue palm trees */
       { type: 'cheeseTree', x: 100, y: 440 },
       { type: 'cheeseTree', x: 600, y: 440 },
-      { type: 'cheeseTree', x: 1300, y: 440 },
-      { type: 'cheeseTree', x: 2000, y: 440 },
-      { type: 'cheeseTree', x: 2550, y: 440 },
+      { type: 'cheeseTree', x: 1150, y: 440 },
+      { type: 'cheeseTree', x: 2620, y: 440 },
+      { type: 'cheeseTree', x: 3290, y: 440 },
 
       /* Cheese chunks on the ground */
       { type: 'cheeseChunk', x: 460, y: 432 },
       { type: 'cheeseChunk', x: 920, y: 432 },
       { type: 'cheeseChunk', x: 1530, y: 432 },
-      { type: 'cheeseChunk', x: 2200, y: 432 },
-      { type: 'cheeseChunk', x: 2620, y: 432 },
+      { type: 'cheeseChunk', x: 2250, y: 432 },
+      { type: 'cheeseChunk', x: 3160, y: 432 },
 
       /* Melted cheese drips off the surface ledge */
       { type: 'cheeseDrip', x: 380, y: 440 },
       { type: 'cheeseDrip', x: 1080, y: 440 },
       { type: 'cheeseDrip', x: 1700, y: 440 },
-      { type: 'cheeseDrip', x: 2300, y: 440 },
+      { type: 'cheeseDrip', x: 2560, y: 440 },
+      { type: 'cheeseDrip', x: 3240, y: 440 },
 
       /* Welcome / cottage signs */
       { type: 'cheeseSign', x: 200, y: 440, text: 'CHEESE' },
       { type: 'cheeseSign', x: 1500, y: 440, text: 'COTTAGE' },
-      { type: 'cheeseSign', x: 2750, y: 440, text: 'PAD' },
+      { type: 'cheeseSign', x: 3560, y: 440, text: 'PAD' },
 
       /* MigWord's cheese cottage silhouette */
       { type: 'houseDecor', x: 1650, y: 440, color: '#ddbb44', roofColor: '#ff9933' },
 
+      /* Mouse village: cheese-wheel houses, bunting, warm lamps and
+         Chef Brie's bakery stall with its oven */
+      { type: 'bunting', x: 1990, y: 440, x2: 2480, h: 96 },
+      { type: 'mouseHouse', x: 1990, y: 440, door: '#ff66cc' },
+      { type: 'lampPost', x: 2080, y: 440, color: '#ffd24a' },
+      { type: 'cheeseStall', x: 2200, y: 440 },
+      { type: 'mouseHouse', x: 2350, y: 440, door: '#44bbff', small: true },
+      { type: 'lampPost', x: 2420, y: 440, color: '#ffb066' },
+      { type: 'mouseHouse', x: 2480, y: 440, door: '#88dd66' },
+
       /* Mouse hidey-holes (small mound markers near each mouse) */
       { type: 'mouseHole', x: 320, y: 432 },
       { type: 'mouseHole', x: 1080, y: 432 },
-      { type: 'mouseHole', x: 2280, y: 432 },
+      { type: 'mouseHole', x: 2620, y: 432 },
 
       /* A couple antennas for signal from home */
       { type: 'antenna', x: 500, y: 440, h: 60 },
-      { type: 'antenna', x: 2200, y: 440, h: 70 },
+      { type: 'antenna', x: 3330, y: 440, h: 70 },
 
       /* Crystals */
       { type: 'crystal', x: 800, y: 432, variant: 2 },
       { type: 'crystal', x: 1400, y: 432, variant: 0 },
-      { type: 'crystal', x: 2600, y: 432, variant: 1 },
+      { type: 'crystal', x: 3120, y: 432, variant: 1 },
+
+      /* Bouncy cheese craters: stand on one and BOING */
+      { type: 'cheeseBounce', x: 540, y: 440 },
+      { type: 'cheeseBounce', x: 820, y: 440 },
+      { type: 'cheeseBounce', x: 2800, y: 440 },
+
+      /* Shy crater critters that peek out and duck when Momoko comes near */
+      { type: 'craterPeeker', x: 700, y: 440, color: '#c8a8ff' },
+      { type: 'craterPeeker', x: 1560, y: 440, color: '#9fe8c8' },
+      { type: 'craterPeeker', x: 2900, y: 440, color: '#ffb0c8' },
+      { type: 'craterPeeker', x: 3360, y: 440, color: '#a8d8ff' },
 
       /* Return rocket pad */
-      { type: 'rocketPad', x: 2900, y: 440 },
+      { type: 'rocketPad', x: 3820, y: 440 },
     ],
 
     spawns: {
@@ -299,6 +325,7 @@
         { type: 'alien', x: 1000, y: 240, pattern: 'linear', dir: -1, species: 'tropical' },
         { type: 'alien', x: 1400, y: 180, pattern: 'sine', dir: 1, species: 'clownfish' },
         { type: 'alien', x: 2300, y: 200, pattern: 'sine', dir: -1, species: 'blowfish' },
+        { type: 'alien', x: 3100, y: 190, pattern: 'sine', dir: 1, species: 'clownfish' },
       ],
 
       npcs: [
@@ -308,15 +335,25 @@
         /* Three moon mice scattered around — must be greeted to count for the quest */
         { type: 'moonMouse', x: 320, y: 410, mouseId: 'pip', color: '#dddddd' },
         { type: 'moonMouse', x: 1080, y: 410, mouseId: 'sprout', color: '#ffcc88' },
-        { type: 'moonMouse', x: 2280, y: 410, mouseId: 'tilly', color: '#bbaaff' },
+        { type: 'moonMouse', x: 2620, y: 410, mouseId: 'tilly', color: '#bbaaff' },
+        /* Chef Brie at her bakery stall — the golden-crumb quest */
+        { type: 'chefMouse', x: 2120, y: 402 },
+        /* Telescope on the hill, pointed at home */
+        { type: 'telescope', x: 3180, y: 390 },
         /* Return rocket */
-        { type: 'rocket', x: 2870, y: 290 },
+        { type: 'rocket', x: 3790, y: 290 },
       ],
 
       pickups: [
         /* A couple of star gems on the moon for the home-quest */
         { type: 'heart', x: 600, y: 220 },
         { type: 'heart', x: 1800, y: 200 },
+        /* Chef Brie's golden crumbs: only out while her quest runs */
+        { type: 'crumb', id: 'c1', x: 812, y: 170 },
+        { type: 'crumb', id: 'c2', x: 1322, y: 380 },
+        { type: 'crumb', id: 'c3', x: 1676, y: 250 },
+        { type: 'crumb', id: 'c4', x: 2472, y: 318 },
+        { type: 'crumb', id: 'c5', x: 3172, y: 300 },
       ],
     },
   };

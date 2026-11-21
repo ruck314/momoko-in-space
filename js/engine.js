@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.16.0';
+  Game.VERSION = 'v2.17.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -47,6 +47,7 @@
     HOUSE_INTERIOR: 'houseInterior',
     CAFE_INTERIOR: 'cafeInterior',
     SHOP_INTERIOR: 'shopInterior',
+    TELESCOPE: 'telescope',
   };
   var state = State.TITLE;
   var prevState = null;
@@ -73,7 +74,8 @@
   Game.quests = {
     lila: 'notStarted',      /* 'notStarted' | 'inProgress' | 'done' */
     migword: 'notStarted',
-    progress: { gems: 0, cheese: 0 },
+    brie: 'notStarted',      /* Chef Brie's golden crumbs (cheese moon) */
+    progress: { gems: 0, cheese: 0, crumbs: {} },
   };
 
   /* Shop delivery state – items the hero has purchased and is carrying.
@@ -108,6 +110,10 @@
   var rocketTarget = 0;
   /* House interior state. */
   var currentHouseId = null;
+  /* Bounce craters on this level, and when the telescope view opened
+     (the tap that opened it must not also close it). */
+  var bouncers = [];
+  var telescopeAt = 0;
 
   /* Door and rocket transitions: the state still switches at once, but
      the screen irises shut on the old scene around Momoko and opens on
@@ -117,6 +123,7 @@
   var renderedState = null, iris = null, irisCv = null, heroAt = { x: 0, y: 0 };
   var IRIS_STATES = {};
   IRIS_STATES[State.HOUSE_INTERIOR] = 1; IRIS_STATES[State.CAFE_INTERIOR] = 1; IRIS_STATES[State.SHOP_INTERIOR] = 1;
+  IRIS_STATES[State.TELESCOPE] = 1;
   function irisPair(a, b) {
     return (a === State.PLAYING && IRIS_STATES[b]) || (IRIS_STATES[a] && b === State.PLAYING) ||
            (a === State.TRAVEL_MENU && b === State.ROCKET_ANIM) || (a === State.ROCKET_ANIM && b === State.PLAYING);
@@ -615,11 +622,22 @@
         bloomHalo(dx, dy - 6, 20, GROUND_CRYSTAL_COLORS[(d.variant || 0) % 3], 0.6);
       } else if (d.type === 'antenna') {
         bloomHalo(dx, dy - (d.h || 80), 10, '#ff4466', 0.45 + Math.sin(now * 0.004 + d.x) * 0.3);
+      } else if (d.type === 'mouseHouse') {
+        var hk = d.small ? 0.8 : 1;
+        bloomHalo(dx - 19 * hk, dy - 42 * hk, 22 * hk, '#ffcf6a', 0.5);
+        bloomHalo(dx + 20 * hk, dy - 40 * hk, 17 * hk, '#ffcf6a', 0.42);
+      } else if (d.type === 'cheeseStall') {
+        bloomHalo(dx + 76, dy - 6, 36, '#ff8a2a', 0.42 + Math.sin(now * 0.013) * 0.06);
+        if (Game.quests && Game.quests.brie === 'done') bloomHalo(dx, dy - 78, 26, '#ffd24a', 0.5);
       }
     }
     for (i = 0; i < pickups.length; i++) {
       var pk = pickups[i];
       if (!pk.active) continue;
+      if (pk.crumbId) {
+        if (crumbOut(pk)) bloomHalo(pk.x - camera.x + 8, pk.y - camera.y + 8, 24, '#ffd24a', 0.7);
+        continue;
+      }
       bloomHalo(pk.x - camera.x + 8, pk.y - camera.y + 8, 22, '#ff66cc', 0.6);
     }
     ctx.restore();
@@ -673,7 +691,7 @@
   /* The player's box gets a wider margin: her hops, tails, cape and
      balloon reach well past her collision box. */
   var HERO_PAD = 44, HERO_LIT_W = 28 + HERO_PAD * 2, HERO_LIT_H = 34 + HERO_PAD * 2;
-  var LIT_TYPES = { oliver: 1, kittycorn: 1, bob: 1, crab: 1, lila: 1, migword: 1, moonMouse: 1 };
+  var LIT_TYPES = { oliver: 1, kittycorn: 1, bob: 1, crab: 1, lila: 1, migword: 1, moonMouse: 1, chefMouse: 1 };
   var litCv = null, litCtx = null, rimCv = null, rimCtx = null, outCv = null, outCtx = null, litKey = '';
   var lampCv = null, lampCtx = null;
   /* Street lamps and neon signs also light whoever walks past: a wash of
@@ -711,7 +729,11 @@
       lampCtx = lampCv.getContext('2d');
     }
     var pad = e === player ? HERO_PAD : LIT_PAD;
-    var sx = Math.round(e.x - camera.x) - pad, sy = Math.round(e.y - camera.y) - pad;
+    /* Momoko is placed to the sub-pixel so her blended position glides;
+       the NPCs stay snapped to whole pixels. */
+    var sx = e.x - camera.x, sy = e.y - camera.y;
+    if (e === player) { sx -= pad; sy -= pad; }
+    else { sx = Math.round(sx) - pad; sy = Math.round(sy) - pad; }
     var w = e.w + pad * 2, h = e.h + pad * 2;
     /* Backlight so the character separates from the scenery */
     if (Game.FX.bloom) {
@@ -883,7 +905,8 @@
     for (var i = 0; i < 70; i++) {
       ambientBubbles.push(new Game.entities.AmbientBubble(
         Math.random() * (level ? level.width : W),
-        Math.random() * H
+        Math.random() * H,
+        level && level.dustColors
       ));
     }
   }
@@ -919,6 +942,8 @@
       else if (nd.type === 'lila' && Game.entities.Lila) npcEntity = new Game.entities.Lila(nd.x, nd.y);
       else if (nd.type === 'migword' && Game.entities.MigWord) npcEntity = new Game.entities.MigWord(nd.x, nd.y);
       else if (nd.type === 'moonMouse' && Game.entities.MoonMouse) npcEntity = new Game.entities.MoonMouse(nd.x, nd.y, nd.mouseId, nd.color);
+      else if (nd.type === 'chefMouse') npcEntity = new Game.entities.ChefMouse(nd.x, nd.y);
+      else if (nd.type === 'telescope') npcEntity = new Game.entities.Telescope(nd.x, nd.y);
       else if (nd.type === 'rocket' && Game.entities.RocketShip) npcEntity = new Game.entities.RocketShip(nd.x, nd.y);
       else if (nd.type === 'houseDoor' && Game.entities.HouseDoor) npcEntity = new Game.entities.HouseDoor(nd.x, nd.y, nd.houseId);
       else if (nd.type === 'cafeDoor' && Game.entities.CafeDoor) npcEntity = new Game.entities.CafeDoor(nd.x, nd.y);
@@ -930,7 +955,8 @@
     pickups = [];
     for (var p = 0; p < level.spawns.pickups.length; p++) {
       var pd = level.spawns.pickups[p];
-      pickups.push(new Game.entities.HeartPickup(pd.x, pd.y));
+      if (pd.type === 'crumb') pickups.push(new Game.entities.CrumbPickup(pd.x, pd.y, pd.id));
+      else pickups.push(new Game.entities.HeartPickup(pd.x, pd.y));
     }
 
     /* Wolfe */
@@ -943,6 +969,8 @@
     /* Bubbles & particles */
     bubbles = [];
     particles = [];
+
+    bouncers = level.decorations.filter(function (d) { return d.type === 'cheeseBounce'; });
 
     initBgLayers();
     initAmbientBubbles();
@@ -1023,6 +1051,22 @@
     }
   }
 
+  /* Chef Brie's golden crumbs are out while her quest runs, until
+     each one is picked up. */
+  function crumbCount() {
+    var got = Game.quests.progress.crumbs || {}, n = 0;
+    for (var k in got) if (got[k]) n++;
+    return n;
+  }
+  function crumbOut(p) {
+    return Game.quests.brie === 'inProgress' && !(Game.quests.progress.crumbs || {})[p.crumbId];
+  }
+
+  function closeTelescope() {
+    Game.audio.play('select');
+    state = State.PLAYING;
+  }
+
   /* ---- Collision helpers ---- */
   function aabb(a, b) {
     return a.x < b.x + b.w && a.x + a.w > b.x &&
@@ -1061,6 +1105,26 @@
 
         /* Player */
         player.update(keys, level);
+
+        /* Bounce craters: landing on (or standing on) one boings her up
+           well past her normal float speed. */
+        for (var bo = 0; bo < bouncers.length; bo++) {
+          var bc = bouncers[bo];
+          if (bc.cool > 0) bc.cool--;
+          bc.squish = (bc.squish || 0) * 0.9;
+          if (!(bc.cool > 0) && Math.abs(player.x + player.w / 2 - bc.x) < 26 &&
+              player.y + player.h >= level.floorY - 3 && player.vy >= -0.5) {
+            player.vy = -9;
+            player.boost = 6;
+            bc.squish = 1;
+            bc.cool = 24;
+            particles = particles.concat(
+              Game.entities.spawnBurst(bc.x, level.floorY - 4, 7, ['#ffd24a', '#fff0b8', '#ffb238'])
+            );
+            if (player.react) player.react('cheer');
+            Game.audio.play('boing');
+          }
+        }
 
         /* Bubbles (still ticked so any in-flight effects fade out
            cleanly; the action button no longer spawns new ones — it
@@ -1131,6 +1195,20 @@
         for (var pk = 0; pk < pickups.length; pk++) {
           var pick = pickups[pk];
           if (!pick.active) continue;
+          /* Golden crumbs count for Chef Brie and stay picked up. */
+          if (pick.crumbId) {
+            if (crumbOut(pick) && aabb(player, pick)) {
+              pick.active = false;
+              Game.quests.progress.crumbs[pick.crumbId] = true;
+              savePersistent();
+              particles = particles.concat(
+                Game.entities.spawnBurst(pick.x + 8, pick.y + 8, 8, ['#ffd24a', '#fff0b8', '#ff9a3a'])
+              );
+              if (player.react) player.react('cheer');
+              Game.audio.play('pickup');
+            }
+            continue;
+          }
           if (aabb(player, pick)) {
             pick.active = false;
             if (Game.quests && Game.quests.lila === 'inProgress') {
@@ -1209,6 +1287,37 @@
                 savePersistent();
               }
               npcCooldowns[npcType] = 300;
+            } else if (npcType === 'telescope') {
+              if (interact) {
+                state = State.TELESCOPE;
+                telescopeAt = performance.now();
+                Game.audio.play('select');
+                npcCooldowns[npcType] = 300;
+              }
+            } else if (npcType === 'chefMouse') {
+              /* Chef Brie: asks for 5 golden crumbs, bakes the moon cheese
+                 cake when Momoko brings them all back. */
+              var bq = Game.quests, line;
+              if (bq.brie === 'done') {
+                line = 'brieThanks';
+              } else if (bq.brie === 'inProgress' && crumbCount() >= 5) {
+                bq.brie = 'done';
+                line = 'brieBake';
+                savePersistent();
+                particles = particles.concat(
+                  Game.entities.spawnBurst(npc.x + 80, npc.y - 20, 18, ['#ff66cc', '#ffd24a', '#44ddff', '#88dd66'])
+                );
+                Game.audio.play('victory');
+              } else {
+                line = bq.brie === 'inProgress' ? 'brieMore' : 'brieGreet';
+                if (bq.brie !== 'inProgress') {
+                  bq.brie = 'inProgress';
+                  savePersistent();
+                }
+              }
+              npc.interact(line);
+              if (player.react) player.react(line === 'brieBake' ? 'cheer' : 'wave');
+              npcCooldowns[npcType] = 360;
             } else if (npcType === 'moonMouse') {
               if (npc.interact) npc.interact();
               if (player.react) player.react('wave');
@@ -1297,6 +1406,10 @@
         if (jp.pause) { exitShop(); }
         if (Game.ui.updateShopInterior) Game.ui.updateShopInterior(keys, jp);
         break;
+
+      case State.TELESCOPE:
+        if (jp.action || jp.pause) closeTelescope();
+        break;
     }
   }
 
@@ -1332,7 +1445,7 @@
     var fullBleed = Game.input.isTouch() && (
       state === State.TITLE || state === State.CUSTOMIZE ||
       state === State.INTRO || state === State.VICTORY ||
-      state === State.ROCKET_ANIM);
+      state === State.ROCKET_ANIM || state === State.TELESCOPE);
     /* Pause and game-over dim the whole screen, bezel included, so the
        menu floats over the frozen game instead of a bright island. */
     var dimAll = Game.input.isTouch() && (
@@ -1389,6 +1502,7 @@
             else if (name === 'lila') speakerName = 'Lila';
             else if (name === 'migword') speakerName = 'MigWord';
             else if (name === 'moonMouse') speakerName = Game.i18n.t('mouseName');
+            else if (name === 'chefMouse') speakerName = Game.i18n.t('brieName');
             else speakerName = name;
             var text = npc.currentJoke || npc.currentText || '';
             pendingDialogue = { speaker: speakerName, text: text, entity: npc };
@@ -1415,6 +1529,10 @@
 
       case State.SHOP_INTERIOR:
         if (Game.ui.drawShopInterior) Game.ui.drawShopInterior(ctx);
+        break;
+
+      case State.TELESCOPE:
+        if (Game.ui.drawTelescopeView) Game.ui.drawTelescopeView(ctx);
         break;
 
       case State.PAUSED:
@@ -1884,9 +2002,23 @@
         ctx.beginPath();
         ctx.ellipse(ldx - 20, ldy + 2, 44, 5, 0, 0, Math.PI * 2);
         ctx.fill();
+      } else if (ld.type === 'cheeseArch' || ld.type === 'mouseHouse' || ld.type === 'cheeseStall') {
+        var lsk = ld.type === 'cheeseArch' ? 100 * (ld.size || 1) : (ld.type === 'cheeseStall' ? 64 : 40 * (ld.small ? 0.8 : 1));
+        ctx.fillStyle = 'rgba(6, 2, 20, 0.28)';
+        ctx.beginPath();
+        ctx.ellipse(ldx + 4, ldy, lsk, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        if (ld.type !== 'cheeseArch') {
+          ctx.fillStyle = 'rgba(255, 190, 90, 0.2)';
+          ctx.beginPath();
+          ctx.ellipse(ld.type === 'cheeseStall' ? ldx + 76 : ldx - 12, ldy + 3, 28, 4.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
     ctx.restore();
+
+    renderGroundDecor(floorBase);
 
     drawBloom();
 
@@ -1894,6 +2026,7 @@
 
     /* Pickups */
     for (var pk = 0; pk < pickups.length; pk++) {
+      if (pickups[pk].crumbId && !crumbOut(pickups[pk])) continue;
       pickups[pk].draw(ctx, camera.x, camera.y);
     }
 
@@ -2159,12 +2292,456 @@
     g.fillRect(-36, -54, 72, 3);
   }
 
-  function renderDecorations() {
-    if (!level) return;
+  /* ---- Cheese-moon landmark sprites ----
+     The arches, mouse houses and bakery stall are static, so each is
+     painted once at device resolution (like the houses) and blitted;
+     only smoke, oven fire, the cake and the bunting move per frame. */
+  var decoSprites = {};
+  function decoSprite(key, w, h, ox, oy, paint) {
+    var s = Math.min(2, DPR);
+    var k = key + '@' + s;
+    var spr = decoSprites[k];
+    if (!spr) {
+      var cv = offscreen(w * s, h * s), g = cv.getContext('2d');
+      g.scale(s, s);
+      g.translate(ox, oy);
+      g.lineJoin = 'round';
+      g.lineCap = 'round';
+      paint(g);
+      spr = decoSprites[k] = { cv: cv, w: w, h: h, ox: ox, oy: oy };
+    }
+    return spr;
+  }
+  function blitDeco(spr, x, y, k) {
+    ctx.drawImage(spr.cv, x - spr.ox * k, y - spr.oy * k, spr.w * k, spr.h * k);
+  }
+
+  /* A cheese hole: shadowed upper lip, sunlit lower lip. */
+  function cheeseHole(g, x, y, r) {
+    g.fillStyle = '#a86820';
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#7a4818';
+    g.beginPath();
+    g.arc(x, y, r, Math.PI * 0.9, Math.PI * 1.9);
+    g.arc(x + r * 0.25, y + r * 0.3, r, Math.PI * 1.75, Math.PI * 1.05, true);
+    g.fill();
+    g.strokeStyle = 'rgba(255, 244, 170, 0.75)';
+    g.lineWidth = 1;
+    g.beginPath(); g.arc(x, y, r, Math.PI * 0.05, Math.PI * 0.75); g.stroke();
+  }
+
+  /* Smooth closed blob through the given points (midpoint quadratics). */
+  function blobPath(g, pts) {
+    var n = pts.length;
+    g.moveTo((pts[n - 1][0] + pts[0][0]) / 2, (pts[n - 1][1] + pts[0][1]) / 2);
+    for (var i = 0; i < n; i++) {
+      var a = pts[i], b = pts[(i + 1) % n];
+      g.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    }
+    g.closePath();
+  }
+
+  var ARCH_OUT = [[-98, 8], [-102, -40], [-90, -96], [-60, -128], [-18, -142], [26, -136], [66, -120], [94, -84], [102, -30], [98, 8]];
+  function archPath(g, ox, oy) {
+    g.beginPath();
+    var pts = [];
+    for (var i = 0; i < ARCH_OUT.length; i++) pts.push([ARCH_OUT[i][0] + ox, ARCH_OUT[i][1] + oy]);
+    blobPath(g, pts);
+    /* The opening: straight jambs and a round top */
+    g.moveTo(-44 + ox, 10 + oy);
+    g.lineTo(-44 + ox, -56 + oy);
+    g.arc(ox, -56 + oy, 44, Math.PI, 0);
+    g.lineTo(44 + ox, 10 + oy);
+    g.closePath();
+  }
+  function paintCheeseArch(g) {
+    /* Back face nudged down-right gives the arch its thickness; it
+       shows through the opening as the shaded inner wall. */
+    archPath(g, 9, 3);
+    g.fillStyle = '#a8641c';
+    g.fill('evenodd');
+    archPath(g, 0, 0);
+    var fg = g.createLinearGradient(-80, -140, 90, 10);
+    fg.addColorStop(0, '#fff09a');
+    fg.addColorStop(0.45, '#ffd04a');
+    fg.addColorStop(1, '#d8902a');
+    g.fillStyle = fg;
+    g.fill('evenodd');
+    g.strokeStyle = '#7a4818';
+    g.lineWidth = 2;
+    g.stroke();
+    /* Sunlit rind along the upper-left crown */
+    g.save();
+    g.strokeStyle = 'rgba(255, 252, 220, 0.8)';
+    g.lineWidth = 2.2;
+    g.beginPath();
+    g.moveTo(-97, -30);
+    g.quadraticCurveTo(-96, -80, -72, -114);
+    g.quadraticCurveTo(-44, -140, 4, -139);
+    g.stroke();
+    g.restore();
+    var holes = [[-72, -28, 9], [-62, -84, 7], [-30, -112, 9], [14, -120, 6], [52, -98, 9], [76, -56, 7], [72, -14, 5], [-82, -62, 4], [-64, -4, 3.5], [34, -128, 3]];
+    for (var i = 0; i < holes.length; i++) cheeseHole(g, holes[i][0], holes[i][1], holes[i][2]);
+    /* Melted drip hanging from the top of the opening */
+    g.fillStyle = '#ffc23a';
+    g.beginPath();
+    g.moveTo(4, -101); g.quadraticCurveTo(8, -88, 10, -86); g.quadraticCurveTo(13, -88, 16, -100);
+    g.closePath();
+    g.fill();
+    g.beginPath(); g.arc(10, -83, 2.6, 0, Math.PI * 2); g.fill();
+  }
+
+  function paintMouseHouse(g, door) {
+    var INK = '#6a3a10';
+    /* Depth, then the wheel face with its rind */
+    g.fillStyle = '#b8761e';
+    g.beginPath(); g.arc(6, -32, 36, 0, Math.PI * 2); g.fill();
+    var wg = g.createRadialGradient(-14, -50, 4, 0, -34, 38);
+    wg.addColorStop(0, '#fff0a0');
+    wg.addColorStop(0.6, '#ffd04a');
+    wg.addColorStop(1, '#d8902a');
+    g.fillStyle = wg;
+    g.beginPath(); g.arc(0, -34, 36, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#c47a22';
+    g.lineWidth = 5;
+    g.beginPath(); g.arc(0, -34, 33, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = INK;
+    g.lineWidth = 1.6;
+    g.beginPath(); g.arc(0, -34, 36, 0, Math.PI * 2); g.stroke();
+    cheeseHole(g, 18, -16, 3.4);
+    cheeseHole(g, -24, -18, 2.6);
+    cheeseHole(g, 8, -50, 2.4);
+    /* Wedge roof with holes, sunlit front edge */
+    g.fillStyle = '#e09a2a';
+    g.beginPath(); g.moveTo(-40, -58); g.lineTo(40, -58); g.lineTo(44, -62); g.lineTo(-2, -98); g.closePath(); g.fill();
+    g.fillStyle = '#ffd860';
+    g.beginPath(); g.moveTo(-40, -58); g.lineTo(40, -58); g.lineTo(-4, -96); g.closePath(); g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(-40, -58); g.lineTo(40, -58); g.lineTo(44, -62); g.lineTo(-2, -98); g.lineTo(-4, -96); g.closePath(); g.stroke();
+    g.strokeStyle = 'rgba(255, 252, 220, 0.85)';
+    g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(-37, -60); g.lineTo(-5, -93); g.stroke();
+    cheeseHole(g, -8, -72, 3);
+    cheeseHole(g, 10, -66, 2.2);
+    /* Thimble chimney */
+    g.fillStyle = '#9aa0b8';
+    g.fillRect(16, -92, 8, 14);
+    g.fillStyle = '#c8cee0';
+    g.fillRect(15, -94, 10, 3);
+    g.strokeStyle = INK;
+    g.lineWidth = 1;
+    g.strokeRect(16, -92, 8, 14);
+    /* Round windows, warm inside */
+    var wins = [[-19, -42, 6.5], [20, -40, 5]];
+    for (var i = 0; i < wins.length; i++) {
+      var wx = wins[i][0], wy = wins[i][1], wr = wins[i][2];
+      var lg = g.createRadialGradient(wx - 1, wy - 1, 0, wx, wy, wr);
+      lg.addColorStop(0, '#fff6c8');
+      lg.addColorStop(1, '#ffb84a');
+      g.fillStyle = lg;
+      g.beginPath(); g.arc(wx, wy, wr, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = '#8a4a18';
+      g.lineWidth = 1.6;
+      g.stroke();
+      g.lineWidth = 1;
+      g.beginPath(); g.moveTo(wx - wr, wy); g.lineTo(wx + wr, wy); g.moveTo(wx, wy - wr); g.lineTo(wx, wy + wr); g.stroke();
+    }
+    /* Round-topped door with a gold knob and a step */
+    g.fillStyle = door;
+    g.beginPath(); g.moveTo(-10, 2); g.lineTo(-10, -22); g.arc(0, -22, 10, Math.PI, 0); g.lineTo(10, 2); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(0, 0, 0, 0.18)';
+    g.fillRect(2, -24, 8, 26);
+    g.strokeStyle = INK;
+    g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(-10, 2); g.lineTo(-10, -22); g.arc(0, -22, 10, Math.PI, 0); g.lineTo(10, 2); g.stroke();
+    g.fillStyle = '#ffe27a';
+    g.beginPath(); g.arc(5, -10, 1.6, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#8a5a30';
+    g.fillRect(-13, 0, 26, 3);
+    /* Flower pot by the door */
+    g.fillStyle = '#c8643a';
+    g.fillRect(-24, -6, 7, 6);
+    g.fillStyle = '#5ac85a';
+    g.beginPath(); g.arc(-20.5, -8, 3, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ff88cc';
+    g.beginPath(); g.arc(-21.5, -10, 1.6, 0, Math.PI * 2); g.arc(-18.5, -8.5, 1.4, 0, Math.PI * 2); g.fill();
+  }
+
+  function paintCheeseStall(g) {
+    var INK = '#4a2410';
+    /* Brick oven on the right */
+    g.fillStyle = '#b8583a';
+    g.beginPath(); g.moveTo(52, 2); g.arc(76, 2, 24, Math.PI, 0); g.closePath(); g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 1.5;
+    g.stroke();
+    g.strokeStyle = 'rgba(80, 30, 16, 0.5)';
+    g.lineWidth = 0.8;
+    for (var br = 0; br < 3; br++) {
+      g.beginPath(); g.arc(76, 2, 8 + br * 6, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
+    }
+    g.fillStyle = '#2a120a';
+    g.beginPath(); g.moveTo(66, 2); g.lineTo(66, -8); g.arc(76, -8, 10, Math.PI, 0); g.lineTo(86, 2); g.closePath(); g.fill();
+    g.fillStyle = '#8a8ea8';
+    g.fillRect(84, -38, 6, 18);
+    g.fillStyle = '#b8bcd0';
+    g.fillRect(83, -40, 8, 3);
+    /* Posts */
+    g.fillStyle = '#8a4a20';
+    g.fillRect(-48, -88, 5, 88);
+    g.fillRect(43, -88, 5, 88);
+    g.fillStyle = 'rgba(255, 220, 170, 0.4)';
+    g.fillRect(-48, -88, 1.5, 88);
+    /* Counter: planks, a lit top board */
+    var cg = g.createLinearGradient(0, -36, 0, 0);
+    cg.addColorStop(0, '#c4803e');
+    cg.addColorStop(1, '#7a4420');
+    g.fillStyle = cg;
+    g.fillRect(-50, -36, 100, 36);
+    g.strokeStyle = 'rgba(60, 24, 8, 0.45)';
+    g.lineWidth = 1;
+    for (var pl = -30; pl < 50; pl += 20) { g.beginPath(); g.moveTo(pl, -34); g.lineTo(pl, 0); g.stroke(); }
+    g.fillStyle = '#e0a868';
+    g.fillRect(-54, -40, 108, 6);
+    g.strokeStyle = INK;
+    g.lineWidth = 1.4;
+    g.strokeRect(-54, -40, 108, 6);
+    g.strokeRect(-50, -34, 100, 34);
+    /* Cheese wedge emblem on the counter front */
+    g.fillStyle = '#ffd24a';
+    g.beginPath(); g.moveTo(-10, -8); g.lineTo(12, -8); g.lineTo(8, -26); g.closePath(); g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 1;
+    g.stroke();
+    g.fillStyle = '#c88a2a';
+    g.beginPath(); g.arc(3, -14, 2, 0, Math.PI * 2); g.arc(7, -20, 1.3, 0, Math.PI * 2); g.fill();
+    /* Wares on the counter: cheese wheels and a wedge */
+    var wh = [[-36, -46, 7], [-24, -46, 6]];
+    for (var w = 0; w < wh.length; w++) {
+      g.fillStyle = '#ffcf48';
+      g.beginPath(); g.ellipse(wh[w][0], wh[w][1], wh[w][2], wh[w][2] * 0.85, 0, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = '#a8641c';
+      g.lineWidth = 1.4;
+      g.stroke();
+      g.fillStyle = '#fff0a0';
+      g.beginPath(); g.ellipse(wh[w][0] - 2, wh[w][1] - 2, wh[w][2] * 0.4, wh[w][2] * 0.25, -0.4, 0, Math.PI * 2); g.fill();
+    }
+    g.fillStyle = '#ffd860';
+    g.beginPath(); g.moveTo(24, -40); g.lineTo(40, -40); g.lineTo(38, -52); g.closePath(); g.fill();
+    g.strokeStyle = '#a8641c';
+    g.stroke();
+    /* Striped scalloped awning and its roof board */
+    var AW_T = -100, AW_B = -80;
+    for (var st = 0; st < 8; st++) {
+      var x0 = -58 + st * 14.5;
+      g.fillStyle = st % 2 ? '#fff4d8' : '#ffc23a';
+      g.beginPath();
+      g.moveTo(x0, AW_T);
+      g.lineTo(x0 + 14.5, AW_T);
+      g.lineTo(x0 + 14.5, AW_B);
+      g.arc(x0 + 7.25, AW_B, 7.25, 0, Math.PI);
+      g.closePath();
+      g.fill();
+    }
+    g.fillStyle = 'rgba(120, 50, 10, 0.18)';
+    g.fillRect(-58, AW_B - 6, 116, 6);
+    g.strokeStyle = INK;
+    g.lineWidth = 1.2;
+    g.beginPath();
+    g.moveTo(-58, AW_T);
+    for (var sc = 0; sc < 8; sc++) g.arc(-58 + sc * 14.5 + 7.25, AW_B, 7.25, Math.PI, 0, true);
+    g.lineTo(58, AW_T);
+    g.stroke();
+    g.fillStyle = '#e8445a';
+    g.fillRect(-61, AW_T - 7, 122, 7);
+    g.strokeRect(-61, AW_T - 7, 122, 7);
+    g.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    g.fillRect(-60, AW_T - 6, 120, 2);
+    /* Round plaque with a little cake on it */
+    g.fillStyle = '#fff4d8';
+    g.beginPath(); g.arc(0, AW_T - 18, 13, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 1.4;
+    g.stroke();
+    g.fillStyle = '#ffd24a';
+    g.fillRect(-7, AW_T - 18, 14, 7);
+    g.fillStyle = '#ff88bb';
+    g.fillRect(-5, AW_T - 24, 10, 6);
+    g.fillStyle = '#e8344a';
+    g.beginPath(); g.arc(0, AW_T - 26, 2, 0, Math.PI * 2); g.fill();
+  }
+
+  /* Moon Cheese Cake on Brie's counter once her quest is done, with
+     flickering candles. */
+  function drawCheeseCake(x, y, t) {
+    var tiers = [[30, 12, '#ffd24a'], [22, 11, '#ffe27a'], [14, 10, '#fff0a8']];
+    var ty = y;
+    ctx.save();
+    ctx.strokeStyle = '#8a5418';
+    ctx.lineWidth = 1.2;
+    for (var i = 0; i < tiers.length; i++) {
+      var tw = tiers[i][0], th = tiers[i][1];
+      ctx.fillStyle = tiers[i][2];
+      ctx.fillRect(x - tw / 2, ty - th, tw, th);
+      ctx.strokeRect(x - tw / 2, ty - th, tw, th);
+      /* Pink icing drips along the top of each tier */
+      ctx.fillStyle = '#ff9ac8';
+      ctx.fillRect(x - tw / 2, ty - th, tw, 2.5);
+      for (var dpI = 0; dpI < tw / 5; dpI++) {
+        ctx.beginPath(); ctx.arc(x - tw / 2 + 2.5 + dpI * 5, ty - th + 2.5, 1.4 + (dpI % 2) * 0.6, 0, Math.PI); ctx.fill();
+      }
+      ctx.fillStyle = '#c88a2a';
+      ctx.beginPath(); ctx.arc(x - tw / 4, ty - th / 2 + 1, 1.3, 0, Math.PI * 2); ctx.arc(x + tw / 5, ty - th / 2 + 2, 1, 0, Math.PI * 2); ctx.fill();
+      ty -= th;
+    }
+    for (var cd = -1; cd <= 1; cd++) {
+      var cx = x + cd * 4;
+      ctx.fillStyle = cd ? '#44ddff' : '#ff66cc';
+      ctx.fillRect(cx - 0.8, ty - 6, 1.6, 6);
+      var fl = 1 + Math.sin(t * 0.02 + cd * 2) * 0.25;
+      ctx.fillStyle = '#ffb030';
+      ctx.beginPath(); ctx.ellipse(cx, ty - 8, 1.4 * fl, 2.4 * fl, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff6c0';
+      ctx.beginPath(); ctx.ellipse(cx, ty - 7.6, 0.6, 1.1, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  var BUNTING_COLS = ['#ff66cc', '#ffd24a', '#44ddff', '#88dd66'];
+  function drawBunting(d, dx, dy, t, party) {
+    var span = d.x2 - d.x, top = dy - (d.h || 90), sag = 26;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(70, 40, 20, 0.8)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(dx, top);
+    ctx.quadraticCurveTo(dx + span / 2, top + sag * 2, dx + span, top);
+    ctx.stroke();
+    var n = Math.floor(span / 22);
+    for (var i = 1; i < n; i++) {
+      var u = i / n;
+      var fx = dx + span * u;
+      if (fx < -10 || fx > W + 10) continue;
+      var fy = top + sag * 2 * 2 * u * (1 - u);
+      var sw = Math.sin(t * (party ? 0.006 : 0.002) + i * 0.9) * (party ? 0.35 : 0.15);
+      ctx.save();
+      ctx.translate(fx, fy);
+      ctx.rotate(sw);
+      ctx.fillStyle = BUNTING_COLS[i % 4];
+      ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(6, 0); ctx.lineTo(0, 12); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(0, 0); ctx.lineTo(-1.5, 6); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      if (party) {
+        var on = 0.5 + 0.5 * Math.sin(t * 0.005 + i * 1.7);
+        ctx.globalAlpha = 0.5 + on * 0.5;
+        ctx.drawImage(glowSprite(BUNTING_COLS[(i + 2) % 4], 12), fx + 11 - 8, fy - 7, 16, 16);
+        ctx.fillStyle = '#fffbe0';
+        ctx.beginPath(); ctx.arc(fx + 11, fy + 1, 1.6, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+    ctx.restore();
+  }
+
+  /* Bounce craters and crater critters sit on the ground, so they draw
+     after the surface instead of behind it with the other scenery. */
+  function renderGroundDecor(floorBase) {
+    var t = Date.now();
     for (var i = 0; i < level.decorations.length; i++) {
       var d = level.decorations[i];
+      if (d.type !== 'cheeseBounce' && d.type !== 'craterPeeker') continue;
       var dx = d.x - camera.x;
-      if (dx < -100 || dx > W + 100) continue;
+      if (dx < -60 || dx > W + 60) continue;
+      var gy = floorBase + surfaceUndulation(d.x) + 2;
+      if (d.type === 'cheeseBounce') {
+        var sq = d.squish || 0;
+        var rx = 30 * (1 + sq * 0.08);
+        ctx.fillStyle = '#b8761e';
+        ctx.beginPath(); ctx.ellipse(dx, gy, rx, 9, 0, 0, Math.PI * 2); ctx.fill();
+        var mg = ctx.createLinearGradient(0, gy - 6, 0, gy + 6);
+        mg.addColorStop(0, '#fff0a0');
+        mg.addColorStop(1, '#ffae30');
+        ctx.fillStyle = mg;
+        ctx.beginPath(); ctx.ellipse(dx, gy + sq * 3.5, rx - 6, 5.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.beginPath(); ctx.ellipse(dx - 8, gy - 1.5 + sq * 3, 7, 1.6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#7a4818';
+        ctx.lineWidth = 2.4;
+        ctx.beginPath(); ctx.ellipse(dx, gy, rx, 9, 0, Math.PI * 0.05, Math.PI * 0.95); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255, 244, 190, 0.8)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.ellipse(dx, gy, rx, 9, 0, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+        /* Rising chevrons hint that it springs */
+        ctx.strokeStyle = '#fff4c0';
+        ctx.lineWidth = 2;
+        for (var cv = 0; cv < 2; cv++) {
+          var ph = ((t * 0.0012) + cv * 0.5) % 1;
+          ctx.globalAlpha = Math.sin(ph * Math.PI) * 0.75;
+          var cy = gy - 12 - ph * 16;
+          ctx.beginPath(); ctx.moveTo(dx - 5, cy + 3); ctx.lineTo(dx, cy - 1); ctx.lineTo(dx + 5, cy + 3); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      } else {
+        /* Peeks out of its hole and ducks when Momoko comes close; now
+           and then it pops down by itself, then back up. */
+        var near = player && Math.abs(player.x + player.w / 2 - d.x) < 110 && player.y + player.h > level.floorY - 140;
+        var nap = ((t * 0.001 + d.x * 0.013) % 9) < 1.2;
+        d.peek = (d.peek || 0) + (((near || nap) ? 0 : 1) - (d.peek || 0)) * 0.08;
+        ctx.fillStyle = '#3a1a08';
+        ctx.beginPath(); ctx.ellipse(dx, gy, 12, 4, 0, 0, Math.PI * 2); ctx.fill();
+        if (d.peek > 0.03) {
+          var hy = gy + 9 - d.peek * 13;
+          ctx.save();
+          ctx.beginPath(); ctx.rect(dx - 14, gy - 30, 28, 30); ctx.clip();
+          ctx.fillStyle = d.color || '#c8a8ff';
+          ctx.beginPath(); ctx.ellipse(dx, hy, 8, 7.5, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = 'rgba(40, 16, 60, 0.6)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          /* Little tuft */
+          ctx.strokeStyle = d.color || '#c8a8ff';
+          ctx.lineWidth = 1.4;
+          ctx.beginPath(); ctx.moveTo(dx, hy - 7); ctx.quadraticCurveTo(dx + 2, hy - 12, dx + 4, hy - 11); ctx.stroke();
+          var look = player ? Math.max(-1.2, Math.min(1.2, (player.x - d.x) * 0.01)) : 0;
+          var blink = ((t * 0.001 + d.x) % 3.3) < 0.13;
+          for (var ey = -1; ey <= 1; ey += 2) {
+            var ex = dx + ey * 3.4;
+            if (blink) {
+              ctx.strokeStyle = '#2a1030';
+              ctx.lineWidth = 1;
+              ctx.beginPath(); ctx.moveTo(ex - 2, hy - 1); ctx.lineTo(ex + 2, hy - 1); ctx.stroke();
+            } else {
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath(); ctx.ellipse(ex, hy - 1, 2.6, 3, 0, 0, Math.PI * 2); ctx.fill();
+              ctx.fillStyle = '#2a1030';
+              ctx.beginPath(); ctx.arc(ex + look, hy - 0.6, 1.4, 0, Math.PI * 2); ctx.fill();
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath(); ctx.arc(ex + look - 0.5, hy - 1.3, 0.5, 0, Math.PI * 2); ctx.fill();
+            }
+          }
+          ctx.restore();
+        }
+        /* Front lip of the hole over its body */
+        ctx.strokeStyle = 'rgba(255, 236, 170, 0.7)';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.ellipse(dx, gy, 12, 4, 0, Math.PI * 0.05, Math.PI * 0.95); ctx.stroke();
+      }
+    }
+  }
+
+  function renderDecorations() {
+    if (!level) return;
+    var party = Game.quests && Game.quests.brie === 'done';
+    for (var i = 0; i < level.decorations.length; i++) {
+      var d = level.decorations[i];
+      /* Sky bodies scroll with the far parallax; everything else sits on
+         the ground. Wide pieces (arches, bunting) cull on their span. */
+      var sky = d.type === 'cheeseMoonBg' || d.type === 'homePlanetBg';
+      var dx = d.x - camera.x * (sky ? 0.15 : 1);
+      var cull = sky ? (d.r || 90) * 1.7 : 130;
+      if (dx + (d.x2 ? d.x2 - d.x : 0) < -cull || dx > W + cull) continue;
       var dy = d.y - camera.y;
 
       if (d.type === 'antenna') {
@@ -2936,10 +3513,55 @@
         ctx.textBaseline = 'middle';
         ctx.fillText(signText, dx + 8, dy - 44);
         ctx.textBaseline = 'alphabetic';
+      } else if (d.type === 'homePlanetBg') {
+        /* Momoko's ringed home planet, far off in the moon's sky */
+        ctx.drawImage(glowSprite('#ff88cc', 32), dx - d.r * 2.2, dy - d.r * 2.2, d.r * 4.4, d.r * 4.4);
+        if (Game.ui.drawShadedPlanet) Game.ui.drawShadedPlanet(ctx, dx, dy, d.r, '#ffc0e4', '#8a2a80', '#ffd24a');
+      } else if (d.type === 'cheeseArch') {
+        blitDeco(decoSprite('arch', 230, 172, 112, 160, paintCheeseArch), dx, dy, d.size || 1);
+      } else if (d.type === 'mouseHouse') {
+        var mk = d.small ? 0.8 : 1;
+        blitDeco(decoSprite('mouse' + d.door, 112, 128, 50, 116, function (g) { paintMouseHouse(g, d.door); }), dx, dy, mk);
+        var mT = Date.now() * 0.0011 + d.x;
+        for (var ms = 0; ms < 3; ms++) {
+          var mP = (mT + ms * 0.33) % 1;
+          ctx.fillStyle = 'rgba(255, 244, 220, ' + (0.36 * (1 - mP)).toFixed(2) + ')';
+          ctx.beginPath();
+          ctx.arc(dx + (20 + Math.sin(mP * 6 + ms) * 3) * mk, dy - (96 + mP * 22) * mk, (2 + mP * 3.5) * mk, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (d.type === 'cheeseStall') {
+        blitDeco(decoSprite('stall', 200, 152, 70, 140, paintCheeseStall), dx, dy, 1);
+        /* Oven fire */
+        var ofl = 0.75 + Math.sin(Date.now() * 0.013) * 0.12 + Math.sin(Date.now() * 0.031) * 0.08;
+        ctx.fillStyle = 'rgba(255, 140, 40, ' + ofl.toFixed(2) + ')';
+        ctx.beginPath(); ctx.ellipse(dx + 76, dy - 2, 7, 6 * ofl, 0, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = 'rgba(255, 230, 120, ' + ofl.toFixed(2) + ')';
+        ctx.beginPath(); ctx.ellipse(dx + 76, dy - 1, 3.5, 3.5 * ofl, 0, Math.PI, 0); ctx.fill();
+        if (party) {
+          drawCheeseCake(dx, dy - 40, Date.now() * 0.06);
+          /* Confetti drifting down around the bakery */
+          var cT = Date.now() * 0.001;
+          for (var cf = 0; cf < 14; cf++) {
+            var cfp = (cT * (0.25 + (cf % 5) * 0.04) + cf * 0.37) % 1;
+            var cfx = dx - 70 + ((cf * 53) % 160) + Math.sin(cT * 2 + cf) * 6;
+            var cfy = dy - 150 + cfp * 150;
+            ctx.fillStyle = BUNTING_COLS[cf % 4];
+            ctx.globalAlpha = Math.min(1, (1 - cfp) * 3);
+            ctx.save();
+            ctx.translate(cfx, cfy);
+            ctx.rotate(cT * 3 + cf);
+            ctx.fillRect(-2, -1, 4, 2);
+            ctx.restore();
+          }
+          ctx.globalAlpha = 1;
+        }
+      } else if (d.type === 'bunting') {
+        drawBunting(d, dx, dy, Date.now(), party);
       } else if (d.type === 'cheeseMoonBg') {
         /* Big cheese moon in the parallax sky */
         ctx.save();
-        var cmX = dx - camera.x * 0.15;
+        var cmX = dx;
         var cmR = d.r || 90;
         /* Warm halo, then a sphere lit from the sun's side */
         ctx.drawImage(glowSprite('#ffd64a', 48), cmX - cmR * 1.7, dy - cmR * 1.7, cmR * 3.4, cmR * 3.4);
@@ -3058,6 +3680,10 @@
         }
         break;
 
+      case State.TELESCOPE:
+        if (performance.now() - telescopeAt > 400) closeTelescope();
+        break;
+
       case State.SHOP_INTERIOR:
         if (Game.ui.handleShopInteriorClick) {
           var siResult = Game.ui.handleShopInteriorClick(mx, my);
@@ -3086,7 +3712,7 @@
      labelled bubble over Momoko's head saying what Space / TALK will do.
      The range matches the interact check in update(). */
   var PROMPT_KEYS = { houseDoor: 'promptEnter', cafeDoor: 'promptEnter',
-                      shopDoor: 'promptEnter', rocket: 'promptBoard' };
+                      shopDoor: 'promptEnter', rocket: 'promptBoard', telescope: 'promptLook' };
 
   function rrect(x, y, w, h, r) {
     ctx.beginPath();
@@ -3257,6 +3883,10 @@
       var qs = localStorage.getItem('momoko-space-quests');
       if (qs) {
         Game.quests = JSON.parse(qs);
+        /* Saves from before the cheese-moon bakery lack Brie's quest. */
+        if (!Game.quests.brie) Game.quests.brie = 'notStarted';
+        Game.quests.progress = Game.quests.progress || {};
+        if (!Game.quests.progress.crumbs) Game.quests.progress.crumbs = {};
       }
     } catch (e) { /* corrupted storage – ignore */ }
   }
@@ -3265,6 +3895,8 @@
   var lastTime = 0;
   var accumulator = 0;
   var FIXED_DT = 1000 / 60;
+  var prevPlayer = null, prevCam = null, prevPX = 0, prevPY = 0, prevCX = 0, prevCY = 0;
+  Game.renderAlpha = 1;
   var frameEma = 16, slowFrames = 0;
 
   function gameLoop(timestamp) {
@@ -3297,11 +3929,41 @@
 
     accumulator += delta;
     while (accumulator >= FIXED_DT) {
+      /* Where Momoko and the camera were before this step, so the frame
+         drawn between two steps can sit part way between them. */
+      prevPlayer = player; prevCam = camera;
+      if (player) { prevPX = player.x; prevPY = player.y; }
+      prevCX = camera.x; prevCY = camera.y;
       update();
       accumulator -= FIXED_DT;
     }
 
-    render();
+    /* Render interpolation: the game steps at a fixed 60 Hz, but rAF
+       runs at 120 Hz on ProMotion iPads and jitters at 60, so drawing
+       the latest step as-is repeats or skips a step now and then and
+       her walk and the scroll judder. Draw her and the camera blended
+       between the last two steps (not across a teleport or a level
+       change), then put the real values back. */
+    var alpha = accumulator / FIXED_DT;
+    Game.renderAlpha = alpha;
+    var blend = player && player === prevPlayer && camera === prevCam &&
+      Math.abs(player.x - prevPX) < 48 && Math.abs(player.y - prevPY) < 48;
+    var curPX = 0, curPY = 0, curCX = camera.x, curCY = camera.y;
+    if (blend) {
+      curPX = player.x; curPY = player.y;
+      player.x = prevPX + (curPX - prevPX) * alpha;
+      player.y = prevPY + (curPY - prevPY) * alpha;
+      camera.x = prevCX + (curCX - prevCX) * alpha;
+      camera.y = prevCY + (curCY - prevCY) * alpha;
+    }
+    try {
+      render();
+    } finally {
+      if (blend) {
+        player.x = curPX; player.y = curPY;
+        camera.x = curCX; camera.y = curCY;
+      }
+    }
     requestAnimationFrame(gameLoop);
   }
 
@@ -3436,6 +4098,9 @@
     exitHouse: exitHouse,
     savePersistent: savePersistent,
     getCurrentZone: function () { return currentZone; },
+    /* Debug/QA hook: the live player entity while playing. */
+    getPlayer: function () { return player; },
+    getState: function () { return state; },
   };
 
   /* Auto-init when DOM is ready */

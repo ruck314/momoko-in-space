@@ -110,6 +110,25 @@
     noise(0.1, sfxGain, t + 0.05);
   }
 
+  /* Bounce crater: a soft rubbery spring, a low swoop up and back. */
+  function boing() {
+    if (!ctx) return;
+    var t = ctx.currentTime;
+    var osc = ctx.createOscillator();
+    var g = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(220, t);
+    osc.frequency.exponentialRampToValueAtTime(660, t + 0.12);
+    osc.frequency.exponentialRampToValueAtTime(440, t + 0.3);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.28, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+    osc.connect(g);
+    g.connect(sfxGain);
+    osc.start(t);
+    osc.stop(t + 0.33);
+  }
+
   function pickup() {
     if (!ctx) return;
     var t = ctx.currentTime;
@@ -192,6 +211,7 @@
         case 'enemyDefeat': enemyDefeat(); break;
         case 'damage': damage(); break;
         case 'pickup': pickup(); break;
+        case 'boing': boing(); break;
         case 'select': menuSelect(); break;
         case 'victory': victoryJingle(); break;
         case 'gameOver': gameOverSfx(); break;

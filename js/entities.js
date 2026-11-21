@@ -67,11 +67,14 @@
     this.vx *= Momoko.FRICTION;
     this.vy *= Momoko.FRICTION;
 
-    /* Clamp velocity */
+    /* Clamp velocity; a bounce crater's launch (boost) lifts the cap
+       for a moment and fades back to the normal float speed. */
+    var vmax = Momoko.MAX_VEL + (this.boost || 0);
+    if (this.boost) this.boost = Math.max(0, this.boost - 0.12);
     var speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-    if (speed > Momoko.MAX_VEL) {
-      this.vx = (this.vx / speed) * Momoko.MAX_VEL;
-      this.vy = (this.vy / speed) * Momoko.MAX_VEL;
+    if (speed > vmax) {
+      this.vx = (this.vx / speed) * vmax;
+      this.vy = (this.vy / speed) * vmax;
     }
 
     /* Apply velocity */
@@ -248,8 +251,9 @@
      and the turn come from her rig. */
   Momoko.HERO_SCALE = 1.25;
   Momoko.prototype.draw = function (c, camX, camY) {
-    var sx = Math.round(this.x - camX);
-    var sy = Math.round(this.y - camY);
+    /* Not snapped to whole pixels: her render-blended position glides. */
+    var sx = this.x - camX;
+    var sy = this.y - camY;
     var cust = window.Game.customization || {};
     var k = Momoko.HERO_SCALE;
     var pose = this.rig ? this.rig.pose : null;
@@ -1281,8 +1285,9 @@
   }
 
   /* ========== AMBIENT BUBBLE ========== */
-  function AmbientBubble(x, y) {
+  function AmbientBubble(x, y, colors) {
     this.x = x;
+    this.colors = colors || null;
     this.y = y;
     this.r = 1 + Math.random() * 3;
     this.speed = 0.3 + Math.random() * 0.5;
@@ -1298,13 +1303,17 @@
     if (this.y < -10) this.y = levelHeight + 10;
   };
 
-  /* Re-themed as AmbientSparkle — cosmic dust drifting upward. */
+  /* Re-themed as AmbientSparkle — cosmic dust drifting upward. A level
+     can tint it with dustColors (the cheese moon's float up as golden
+     crumbs). */
+  var AMBIENT_COLORS = ['#ff99dd', '#ccddff'];
   AmbientBubble.prototype.draw = function (c, camX, camY) {
     var sx = this.x - camX + Math.sin(this.phase) * this.wobbleAmp;
     var sy = this.y - camY;
     c.save();
     c.globalAlpha = this.alpha * 0.85;
-    c.fillStyle = this.phase > Math.PI ? '#ff99dd' : '#ccddff';
+    var cols = this.colors || AMBIENT_COLORS;
+    c.fillStyle = this.phase > Math.PI ? cols[0] : cols[1];
     c.beginPath();
     c.arc(sx, sy, this.r, 0, Math.PI * 2);
     c.fill();
@@ -2032,7 +2041,8 @@
   MoonMouse.prototype.interact = function () {
     this.talking = true;
     this.talkTimer = 240;
-    var key = this.greeted ? 'mouseAgain' : 'mouseGreet_' + this.mouseId;
+    /* After hello, every visit gets a cheesy joke. */
+    var key = this.greeted ? 'moonJoke' + (Math.floor(Math.random() * 6) + 1) : 'mouseGreet_' + this.mouseId;
     this.currentText = Game.i18n.t(key);
     /* Fall back to a generic line if the mouse-specific key isn't defined. */
     if (this.currentText === key) this.currentText = Game.i18n.t('mouseGreet');
@@ -2084,6 +2094,18 @@
     c.moveTo(sx + 19, sy + 12 + bob);
     c.quadraticCurveTo(sx + 24, sy + 10 + wag + bob, sx + 26, sy + 6 + wag + bob);
     c.stroke();
+    /* Party hat once Chef Brie's cheese cake is baked */
+    if (Game.quests && Game.quests.brie === 'done') {
+      var hatC = this.mouseId === 'sprout' ? '#44ddff' : (this.mouseId === 'tilly' ? '#ffd24a' : '#ff66cc');
+      c.fillStyle = hatC;
+      c.beginPath();
+      c.moveTo(sx + 0.5, sy + 4.5 + bob); c.lineTo(sx + 7.5, sy + 4.5 + bob); c.lineTo(sx + 4.5, sy - 5 + bob);
+      c.closePath();
+      c.fill();
+      c.fillStyle = '#ffffff';
+      c.fillRect(sx + 2.2, sy + 1 + bob, 4, 1);
+      c.beginPath(); c.arc(sx + 4.5, sy - 5.5 + bob, 1.3, 0, Math.PI * 2); c.fill();
+    }
     /* If greeted, show a little heart over their head */
     if (this.greeted) {
       var hcx = sx + 10, hcy = sy - 3 + bob + Math.sin(this.timer * 0.1) * 0.6;
@@ -2099,6 +2121,260 @@
     }
   };
 
+  /* ========== CHEF BRIE (moon-mouse baker, golden-crumb quest) ========== */
+  function ChefMouse(x, y) {
+    this.x = x;
+    this.y = y;
+    this.w = 30;
+    this.h = 36;
+    this.timer = Math.random() * 100;
+    this.talking = false;
+    this.talkTimer = 0;
+    this.currentText = '';
+  }
+
+  ChefMouse.prototype.update = function () {
+    this.timer++;
+    if (this.talkTimer > 0) {
+      this.talkTimer--;
+      if (this.talkTimer <= 0) this.talking = false;
+    }
+  };
+
+  /* The engine moves the quest along before calling this, so the line
+     always matches the state she is in now. */
+  ChefMouse.prototype.interact = function (key) {
+    this.talking = true;
+    this.talkTimer = 320;
+    this.currentText = Game.i18n.t(key);
+  };
+
+  ChefMouse.prototype.draw = function (c, camX, camY) {
+    var sx = Math.round(this.x - camX);
+    var sy = Math.round(this.y - camY);
+    var t = this.timer;
+    var bob = Math.sin(t * 0.05) * 1.1;
+    var FUR = '#f2e2c8', FUR_D = '#c9b090', INK = '#3a2414';
+    var blink = (t % 220) < 7;
+    var y0 = sy + bob;
+    c.save();
+    c.lineJoin = 'round';
+    c.lineCap = 'round';
+    /* Tail curling up behind her */
+    c.strokeStyle = FUR_D;
+    c.lineWidth = 1.8;
+    var wag = Math.sin(t * 0.08) * 2.5;
+    c.beginPath();
+    c.moveTo(sx + 23, y0 + 31);
+    c.quadraticCurveTo(sx + 33, y0 + 30 + wag * 0.4, sx + 32, y0 + 21 + wag);
+    c.stroke();
+    /* Feet */
+    c.fillStyle = '#ffb0c4';
+    c.beginPath(); c.ellipse(sx + 10, sy + 35, 4, 1.8, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(sx + 20, sy + 35, 4, 1.8, 0, 0, Math.PI * 2); c.fill();
+    /* Body with a soft belly shadow */
+    c.fillStyle = FUR;
+    c.strokeStyle = INK;
+    c.lineWidth = 1;
+    c.beginPath(); c.ellipse(sx + 15, y0 + 26, 10, 9, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+    /* Apron with a little cheese wedge on the pocket */
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.moveTo(sx + 9, y0 + 20);
+    c.lineTo(sx + 21, y0 + 20);
+    c.quadraticCurveTo(sx + 23, y0 + 33, sx + 15, y0 + 34);
+    c.quadraticCurveTo(sx + 7, y0 + 33, sx + 9, y0 + 20);
+    c.closePath();
+    c.fill();
+    c.strokeStyle = 'rgba(58, 36, 20, 0.45)';
+    c.stroke();
+    c.fillStyle = '#ffd24a';
+    c.beginPath(); c.moveTo(sx + 12, y0 + 29); c.lineTo(sx + 18, y0 + 29); c.lineTo(sx + 17, y0 + 25); c.closePath(); c.fill();
+    c.fillStyle = '#c88a2a';
+    c.beginPath(); c.arc(sx + 15.5, y0 + 27.6, 0.7, 0, Math.PI * 2); c.fill();
+    /* Red neckerchief */
+    c.fillStyle = '#e8445a';
+    c.beginPath(); c.moveTo(sx + 9, y0 + 19); c.lineTo(sx + 21, y0 + 19); c.lineTo(sx + 15, y0 + 23.5); c.closePath(); c.fill();
+    /* Arms: the right one stirs a wooden spoon, faster while she talks */
+    var stir = Math.sin(t * (this.talking ? 0.22 : 0.07)) * (this.talking ? 0.5 : 0.25);
+    c.fillStyle = FUR;
+    c.strokeStyle = INK;
+    c.beginPath(); c.ellipse(sx + 6, y0 + 25, 2.4, 3.6, 0.3, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.save();
+    c.translate(sx + 24, y0 + 23);
+    c.rotate(-0.5 + stir);
+    c.strokeStyle = '#a8642a';
+    c.lineWidth = 1.6;
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -11); c.stroke();
+    c.fillStyle = '#c47c38';
+    c.beginPath(); c.ellipse(0, -12.5, 2, 2.8, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = FUR;
+    c.strokeStyle = INK;
+    c.lineWidth = 1;
+    c.beginPath(); c.ellipse(0, 0, 2.4, 3, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.restore();
+    /* Ears out to the sides, pink inside */
+    var earT = Math.sin(t * 0.03) * 0.08;
+    c.fillStyle = FUR;
+    c.beginPath(); c.ellipse(sx + 6, y0 + 9, 5, 5.4, -0.3 - earT, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.beginPath(); c.ellipse(sx + 24, y0 + 9, 5, 5.4, 0.3 + earT, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.fillStyle = '#ffb0c4';
+    c.beginPath(); c.ellipse(sx + 6.4, y0 + 9.4, 3, 3.4, -0.3, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(sx + 23.6, y0 + 9.4, 3, 3.4, 0.3, 0, Math.PI * 2); c.fill();
+    /* Head */
+    c.fillStyle = FUR;
+    c.beginPath(); c.ellipse(sx + 15, y0 + 13, 8.5, 7.6, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    c.beginPath(); c.ellipse(sx + 12, y0 + 10, 3.2, 1.6, -0.4, 0, Math.PI * 2); c.fill();
+    /* Chef's hat: band and three puffs */
+    c.fillStyle = '#ffffff';
+    c.strokeStyle = INK;
+    c.beginPath();
+    c.arc(sx + 11, y0 + 1, 4.2, 0, Math.PI * 2);
+    c.arc(sx + 15, y0 - 1.5, 4.8, 0, Math.PI * 2);
+    c.arc(sx + 19, y0 + 1, 4.2, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ffffff';
+    c.fillRect(sx + 9, y0 + 2, 12, 4.5);
+    c.strokeRect(sx + 9, y0 + 2, 12, 4.5);
+    c.fillStyle = 'rgba(180, 170, 200, 0.45)';
+    c.fillRect(sx + 9.5, y0 + 5, 11, 1.2);
+    /* Eyes (blinking), rosy cheeks, nose, smile, whiskers */
+    c.fillStyle = INK;
+    if (blink) {
+      c.lineWidth = 1;
+      c.beginPath(); c.moveTo(sx + 10.4, y0 + 13); c.lineTo(sx + 13, y0 + 13); c.moveTo(sx + 17, y0 + 13); c.lineTo(sx + 19.6, y0 + 13); c.stroke();
+    } else {
+      c.beginPath(); c.ellipse(sx + 11.8, y0 + 12.6, 1.5, 2, 0, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.ellipse(sx + 18.2, y0 + 12.6, 1.5, 2, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffffff';
+      c.beginPath(); c.arc(sx + 11.3, y0 + 11.8, 0.6, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(sx + 17.7, y0 + 11.8, 0.6, 0, Math.PI * 2); c.fill();
+    }
+    c.fillStyle = 'rgba(255, 120, 150, 0.4)';
+    c.beginPath(); c.ellipse(sx + 9.4, y0 + 16, 1.8, 1.1, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(sx + 20.6, y0 + 16, 1.8, 1.1, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#ff6a9a';
+    c.beginPath(); c.arc(sx + 15, y0 + 15.4, 1.2, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = INK;
+    c.lineWidth = 0.8;
+    c.beginPath(); c.arc(sx + 15, y0 + 16, 2, 0.35, Math.PI - 0.35); c.stroke();
+    c.strokeStyle = 'rgba(58, 36, 20, 0.5)';
+    c.lineWidth = 0.5;
+    var tw = Math.sin(t * 0.11) * 0.5;
+    c.beginPath();
+    c.moveTo(sx + 11, y0 + 15.6); c.lineTo(sx + 5.5, y0 + 14.6 + tw);
+    c.moveTo(sx + 11, y0 + 16.4); c.lineTo(sx + 5.5, y0 + 17 + tw);
+    c.moveTo(sx + 19, y0 + 15.6); c.lineTo(sx + 24.5, y0 + 14.6 - tw);
+    c.moveTo(sx + 19, y0 + 16.4); c.lineTo(sx + 24.5, y0 + 17 - tw);
+    c.stroke();
+    c.restore();
+  };
+
+  /* ========== TELESCOPE (look at the home planet) ========== */
+  function Telescope(x, y) {
+    this.x = x;
+    this.y = y;
+    this.w = 34;
+    this.h = 50;
+    this.talking = false;
+    this.timer = 0;
+  }
+
+  Telescope.prototype.update = function () { this.timer++; };
+  Telescope.prototype.interact = function () { /* handled by engine */ };
+
+  Telescope.prototype.draw = function (c, camX, camY) {
+    var sx = Math.round(this.x - camX);
+    var sy = Math.round(this.y - camY);
+    var INK = '#3a2414';
+    c.save();
+    c.lineCap = 'round';
+    /* Tripod */
+    c.strokeStyle = INK;
+    c.lineWidth = 3.4;
+    c.beginPath();
+    c.moveTo(sx + 17, sy + 27); c.lineTo(sx + 5, sy + 50);
+    c.moveTo(sx + 17, sy + 27); c.lineTo(sx + 29, sy + 50);
+    c.moveTo(sx + 17, sy + 27); c.lineTo(sx + 18, sy + 50);
+    c.stroke();
+    c.strokeStyle = '#8a5a30';
+    c.lineWidth = 2;
+    c.stroke();
+    c.strokeStyle = '#c08850';
+    c.lineWidth = 0.8;
+    c.beginPath(); c.moveTo(sx + 16, sy + 28); c.lineTo(sx + 4.6, sy + 49); c.stroke();
+    /* Brass tube pointing up at the sky */
+    c.translate(sx + 17, sy + 24);
+    c.rotate(-0.62 + Math.sin(this.timer * 0.01) * 0.03);
+    var tg = c.createLinearGradient(0, -5, 0, 5);
+    tg.addColorStop(0, '#fff0b0');
+    tg.addColorStop(0.35, '#e8b048');
+    tg.addColorStop(1, '#8a5418');
+    c.fillStyle = tg;
+    c.strokeStyle = INK;
+    c.lineWidth = 1.1;
+    c.beginPath();
+    c.moveTo(-12, -3.2); c.lineTo(20, -5); c.lineTo(20, 5); c.lineTo(-12, 3.2); c.closePath();
+    c.fill(); c.stroke();
+    /* Bands, the dew cap and the eyepiece */
+    c.fillStyle = '#a86820';
+    c.fillRect(-2, -4, 2.2, 8);
+    c.fillRect(9, -4.6, 2.2, 9.2);
+    c.fillStyle = '#ff66cc';
+    c.beginPath(); c.rect(20, -6, 5, 12); c.fill(); c.stroke();
+    c.fillStyle = '#5a3a20';
+    c.beginPath(); c.rect(-16, -2, 4, 4); c.fill(); c.stroke();
+    /* Lens glint */
+    var gl = 0.5 + Math.sin(this.timer * 0.06) * 0.5;
+    c.fillStyle = 'rgba(180, 240, 255, ' + (0.5 + gl * 0.5).toFixed(2) + ')';
+    c.beginPath(); c.ellipse(25.5, 0, 1.4, 5, 0, 0, Math.PI * 2); c.fill();
+    c.restore();
+    /* Mount */
+    c.fillStyle = '#5a3a20';
+    c.beginPath(); c.arc(sx + 17, sy + 26, 3, 0, Math.PI * 2); c.fill();
+    /* A twinkle off the lens now and then */
+    var tp = (this.timer % 150) / 150;
+    if (tp < 0.25) {
+      var k = Math.sin(tp / 0.25 * Math.PI);
+      c.fillStyle = 'rgba(255, 255, 255, ' + (0.9 * k).toFixed(2) + ')';
+      fillStar(c, sx + 37, sy + 6, 2 + k * 3);
+    }
+  };
+
+  /* ========== GOLDEN CHEESE CRUMB (Chef Brie's quest pickup) ========== */
+  function CrumbPickup(x, y, id) {
+    HeartPickup.call(this, x, y);
+    this.crumbId = id;
+    this.timer = Math.random() * 100;
+  }
+  CrumbPickup.prototype.update = HeartPickup.prototype.update;
+
+  CrumbPickup.prototype.draw = function (c, camX, camY) {
+    if (!this.active) return;
+    var sx = this.x - camX + 8;
+    var sy = this.y - camY + 8;
+    var t = this.timer;
+    c.save();
+    c.translate(sx, sy);
+    c.rotate(Math.sin(t * 0.04) * 0.25);
+    /* Little wedge of golden cheese */
+    c.fillStyle = '#ffc93a';
+    c.strokeStyle = '#8a5418';
+    c.lineWidth = 1;
+    c.beginPath(); c.moveTo(-7, 5); c.lineTo(7, 5); c.lineTo(5, -5); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = '#fff2a0';
+    c.beginPath(); c.moveTo(5, -5); c.lineTo(7, 5); c.lineTo(8.6, 3.4); c.lineTo(6.4, -5.6); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = '#c88a2a';
+    c.beginPath(); c.arc(-1.5, 2, 1.4, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(3.2, -0.6, 1, 0, Math.PI * 2); c.fill();
+    c.restore();
+    /* Twinkle so it reads as something to grab */
+    var k = 0.5 + 0.5 * Math.sin(t * 0.09);
+    c.fillStyle = 'rgba(255, 255, 230, ' + (0.4 + k * 0.6).toFixed(2) + ')';
+    fillStar(c, sx - 6, sy - 7, 1.6 + k * 2);
+  };
+
   /* ========== EXPORTS ========== */
   window.Game.entities = {
     Momoko: Momoko,
@@ -2112,6 +2388,9 @@
     Lila: Lila,
     MigWord: MigWord,
     MoonMouse: MoonMouse,
+    ChefMouse: ChefMouse,
+    Telescope: Telescope,
+    CrumbPickup: CrumbPickup,
     RocketShip: RocketShip,
     HouseDoor: HouseDoor,
     CafeDoor: CafeDoor,

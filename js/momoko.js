@@ -1964,7 +1964,11 @@
     }
     var phi = this.phase, sphi = Math.sin(phi), cphi = Math.cos(phi);
     var H = this.walk * (indoor ? 0.45 + 1.0 * r : 0.8 + 3.3 * r);
-    var hop = -H * Math.pow(Math.abs(sphi), 0.6);
+    /* Long floaty hang, but a soft touch-down: near each contact the
+       rise eases in from flat instead of bouncing off a sharp corner,
+       so she sinks into the step and springs out of it. */
+    var su = Math.abs(sphi);
+    var hop = -H * Math.pow(su, 0.6) * (su * su / (su * su + 0.04));
     hop += this.air * Math.sin(this.time * 2.1) * 0.35;
 
     /* reactions */
@@ -2089,9 +2093,19 @@
     var legA = th * cphi;
     var lift = w * (0.5 + 1.4 * r);
     var lag = th * Math.cos(phi - 0.75);
-    var ka2 = 1.15;
-    var armA = -0.55 - ka2 * legA, armB = 0.55 + ka2 * legA;
-    var bendA = 0.16 - 0.5 * ka2 * (lag - legA) + 0.1 * w, bendB = -0.16 + 0.5 * ka2 * (lag - legA) - 0.1 * w;
+    /* Arms: relaxed, swinging against the legs with a soft elbow. At
+       rest they hold the little A-pose; walking they drop in toward her
+       sides. She is drawn three-quarter on, so an arm swinging across
+       her front is foreshortened: that half of each swing is kept short,
+       which stops both hands meeting over her tummy (it read as arms
+       held up) while the outward half carries the stride. */
+    var ka2 = indoor ? 0.85 : 0.75;
+    var spread = 0.55 - 0.25 * w;
+    var swA = -ka2 * legA, swB = ka2 * legA;
+    if (swA > 0) swA *= 0.3;
+    if (swB < 0) swB *= 0.3;
+    var armA = -spread + swA, armB = spread + swB;
+    var bendA = 0.16 - 0.45 * ka2 * (lag - legA) + 0.02 * w, bendB = -0.16 + 0.45 * ka2 * (lag - legA) - 0.02 * w;
     var lA = legA, lB = -legA, liftA = lift * Math.max(0, -sphi), liftB = lift * Math.max(0, sphi);
     /* idle breathing and weight shift */
     armA -= 0.05 * br * still; armB += 0.05 * br * still;

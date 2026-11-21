@@ -327,6 +327,14 @@
     });
     c.restore();
   }
+  /* Indoors she steps at the engine's fixed 60 Hz; draw her between the
+     last two steps (Game.renderAlpha) so her walk glides on 120 Hz
+     screens too. prev is null until the room has stepped once. */
+  function blendStep(prev, cur) {
+    if (prev == null || Math.abs(cur - prev) > 48) return cur;
+    var a = Game.renderAlpha == null ? 1 : Game.renderAlpha;
+    return prev + (cur - prev) * a;
+  }
   function footShadow(c, x, y) {
     c.fillStyle = 'rgba(10, 2, 30, 0.38)';
     c.beginPath();
@@ -3486,7 +3494,7 @@
     /* Momoko walking inside — she can mingle with the placed furniture. */
     var pp = getHousePlayerPos(houseId);
     if (Game.entities && Game.entities.drawMomokoSprite) {
-      drawInteriorHero(c, pp.x, pp.y + 4, housePlayerFacing, housePlayerFrame);
+      drawInteriorHero(c, blendStep(pp.px, pp.x), blendStep(pp.py, pp.y) + 4, housePlayerFacing, housePlayerFrame);
     }
 
     /* Exit door (right side, bigger so it reads as an actual exit) */
@@ -4697,6 +4705,7 @@
     var pp = getHousePlayerPos(houseId);
     var sp = 2.4;
     var moved = false;
+    pp.px = pp.x; pp.py = pp.y;
     if (keys.left)  { pp.x -= sp; housePlayerFacing = -1; moved = true; }
     if (keys.right) { pp.x += sp; housePlayerFacing = 1;  moved = true; }
     if (keys.up)    { pp.y -= sp; moved = true; }
@@ -4720,6 +4729,7 @@
   var cafePlayerY = H - 80;
   var cafeFacing = 1;
   var cafeFrame = 0;
+  var cafePrevX = null, cafePrevY = null;
   var cafeHearts = [];
 
   /* Buyable items on the cafe counter. Buying an item swaps the held-food
@@ -4749,6 +4759,7 @@
     cafeTimer = 0;
     cafePlayerX = 130;
     cafePlayerY = H - 80;
+    cafePrevX = cafePrevY = null;
     cafeFacing = 1;
     cafeFrame = 0;
     cafeHearts = [];
@@ -4785,6 +4796,7 @@
     /* Walk Momoko around the cafe floor */
     var sp = 2.0;
     var moved = false;
+    cafePrevX = cafePlayerX; cafePrevY = cafePlayerY;
     if (keys.left)  { cafePlayerX -= sp; cafeFacing = -1; moved = true; }
     if (keys.right) { cafePlayerX += sp; cafeFacing = 1;  moved = true; }
     if (keys.up)    { cafePlayerY -= sp; moved = true; }
@@ -5547,7 +5559,7 @@
     drawCafeMenuItems(c);
     /* Momoko walking around the cafe */
     if (Game.entities && Game.entities.drawMomokoSprite) {
-      drawInteriorHero(c, cafePlayerX, cafePlayerY + 4, cafeFacing, cafeFrame);
+      drawInteriorHero(c, blendStep(cafePrevX, cafePlayerX), blendStep(cafePrevY, cafePlayerY) + 4, cafeFacing, cafeFrame);
     }
     /* Yum! purchase feedback bubble */
     if (cafeYumTimer > 0) {
@@ -6063,6 +6075,117 @@
   }
 
   /* ============================================================ */
+  /*              TELESCOPE VIEW (cheese moon → home)               */
+  /* ============================================================ */
+  /* Looking through the telescope on the cheese moon: a round lens on
+     Momoko's ringed home planet, with her town's little houses along the
+     sunlit edge -- her pink house, and Lila's window twinkling. */
+  var SCOPE_HOUSES = [
+    { a: -2.5, c: '#6a4a9a', s: 1.2 },
+    { a: -2.2, c: '#ff66b8', s: 1.7, home: true },
+    { a: -1.88, c: '#5a88d8', s: 1.5, lila: true },
+    { a: -1.6, c: '#7a5aaa', s: 1.25 },
+  ];
+  function drawTelescopeView(c) {
+    var t = Date.now() * 0.001;
+    var cx = W / 2, cy = 192, R = 156;
+    c.save();
+    c.fillStyle = '#07031a';
+    c.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
+    /* Inside the lens */
+    c.save();
+    c.beginPath();
+    c.arc(cx, cy, R, 0, Math.PI * 2);
+    c.clip();
+    drawSpaceBackdrop(c);
+    var px = cx + 16 + Math.sin(t * 0.4) * 3, py = cy + 26 + Math.cos(t * 0.3) * 2, pr = 82;
+    var glow = c.createRadialGradient(px, py, pr * 0.8, px, py, pr * 1.6);
+    glow.addColorStop(0, 'rgba(255, 120, 200, 0.35)');
+    glow.addColorStop(1, 'rgba(255, 120, 200, 0)');
+    c.fillStyle = glow;
+    c.beginPath(); c.arc(px, py, pr * 1.6, 0, Math.PI * 2); c.fill();
+    drawShadedPlanet(c, px, py, pr, '#ffc0e4', '#8a2a80', '#ffd24a');
+    /* The town along the sunlit limb */
+    for (var i = 0; i < SCOPE_HOUSES.length; i++) {
+      var hs = SCOPE_HOUSES[i];
+      c.save();
+      c.translate(px + Math.cos(hs.a) * (pr - 1), py + Math.sin(hs.a) * (pr - 1));
+      c.rotate(hs.a + Math.PI / 2);
+      c.scale(hs.s, hs.s);
+      c.fillStyle = hs.c;
+      c.strokeStyle = '#2a1450';
+      c.lineWidth = 0.9;
+      c.beginPath();
+      c.moveTo(-6, 1); c.lineTo(-6, -8); c.arc(0, -8, 6, Math.PI, 0); c.lineTo(6, 1); c.closePath();
+      c.fill(); c.stroke();
+      var on = hs.lila ? 0.5 + 0.5 * Math.sin(t * 5) : 0.85;
+      c.fillStyle = 'rgba(255, 230, 140, ' + on.toFixed(2) + ')';
+      c.fillRect(-2.2, -7, 4.4, 3.6);
+      if (hs.lila && on > 0.6) {
+        c.fillStyle = 'rgba(255, 240, 180, 0.5)';
+        c.beginPath(); c.arc(0, -5.2, 5 * on, 0, Math.PI * 2); c.fill();
+      }
+      if (hs.home) {
+        c.fillStyle = '#ffd24a';
+        c.beginPath(); c.arc(0, -15.5, 1.4, 0, Math.PI * 2); c.fill();
+      }
+      c.restore();
+    }
+    /* A tiny UFO drifting past, and a shooting star now and then */
+    var ux = cx - R + ((t * 22) % (R * 2 + 60)) - 30, uy = cy - 92 + Math.sin(t * 1.3) * 5;
+    c.fillStyle = '#bbcdd8';
+    c.beginPath(); c.ellipse(ux, uy, 9, 2.4, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#88ddee';
+    c.beginPath(); c.ellipse(ux, uy - 1, 4, 3, 0, Math.PI, 0); c.fill();
+    var sp = (t * 0.25) % 1;
+    if (sp < 0.12) {
+      var sk = sp / 0.12;
+      var ssx = cx + 110 - sk * 150, ssy = cy - 120 + sk * 60;
+      c.strokeStyle = 'rgba(255, 255, 255, ' + (1 - sk).toFixed(2) + ')';
+      c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(ssx, ssy); c.lineTo(ssx + 18, ssy - 7); c.stroke();
+    }
+    /* Lens: darker toward the edge, a curved glint up top */
+    var lv = c.createRadialGradient(cx, cy, R * 0.6, cx, cy, R);
+    lv.addColorStop(0, 'rgba(4, 0, 16, 0)');
+    lv.addColorStop(1, 'rgba(4, 0, 16, 0.6)');
+    c.fillStyle = lv;
+    c.fillRect(cx - R, cy - R, R * 2, R * 2);
+    c.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    c.lineWidth = 6;
+    c.beginPath(); c.arc(cx, cy, R - 20, Math.PI * 1.1, Math.PI * 1.45); c.stroke();
+    c.restore();
+    /* Brass rim */
+    var rg = c.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+    rg.addColorStop(0, '#fff0b0');
+    rg.addColorStop(0.4, '#e8b048');
+    rg.addColorStop(1, '#8a5418');
+    c.strokeStyle = rg;
+    c.lineWidth = 14;
+    c.beginPath(); c.arc(cx, cy, R + 6, 0, Math.PI * 2); c.stroke();
+    c.strokeStyle = '#3a2414';
+    c.lineWidth = 2;
+    c.beginPath(); c.arc(cx, cy, R + 13, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.arc(cx, cy, R - 1, 0, Math.PI * 2); c.stroke();
+    /* Caption card */
+    var bw = 560, bh = 98, bx = (W - bw) / 2, by = 372;
+    drawPanel(c, bx, by, bw, bh, 14, '#ffd24a', 'rgba(52, 22, 108, 0.96)', 'rgba(18, 8, 44, 0.96)');
+    c.textAlign = 'center';
+    c.textBaseline = 'alphabetic';
+    c.fillStyle = '#ffd24a';
+    c.font = 'bold 19px ' + FONT;
+    c.fillText(Game.i18n.t('telescopeTitle'), W / 2, by + 26);
+    c.fillStyle = '#f0e8ff';
+    c.font = '14px ' + FONT;
+    var tl = layoutLines(c, Game.i18n.t('telescopeText'), bw - 40);
+    for (var li = 0; li < tl.length && li < 2; li++) c.fillText(tl[li], W / 2, by + 49 + li * 19);
+    c.fillStyle = 'rgba(200, 184, 255, ' + (0.65 + Math.sin(t * 3) * 0.25).toFixed(2) + ')';
+    c.font = '12px ' + FONT;
+    c.fillText(Game.i18n.t('telescopeHint'), W / 2, by + bh - 10);
+    c.restore();
+  }
+
+  /* ============================================================ */
   /*                         QUEST HUD                              */
   /* ============================================================ */
   function drawQuestHUD(c) {
@@ -6076,6 +6199,12 @@
     if (q.migword === 'inProgress') {
       rows.push({ text: Game.i18n.t('questMigwordProgress') + ' ' + (q.progress.cheese || 0) + '/3',
                   color: '#ffd24a', icon: '\u2665' });
+    }
+    if (q.brie === 'inProgress') {
+      var got = q.progress.crumbs || {}, nc = 0;
+      for (var ck in got) if (got[ck]) nc++;
+      rows.push({ text: nc >= 5 ? Game.i18n.t('questBrieReturn') : Game.i18n.t('questBrieProgress') + ' ' + nc + '/5',
+                  color: '#ffb84a', icon: '\u25B2' });
     }
     var y = 38;
     c.save();
@@ -6173,6 +6302,7 @@
     startShopInterior: startShopInterior,
     drawCarryOverlay: drawCarryOverlay,
     drawQuestHUD: drawQuestHUD,
+    drawTelescopeView: drawTelescopeView,
     drawVersionStamp: drawVersionStamp,
     /* Momoko's feet in the room last drawn, and her arrival hop there
        (the door transition in engine.js). */
