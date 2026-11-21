@@ -54,9 +54,14 @@
   Momoko.SHOOT_CD = 12;
 
   Momoko.prototype.update = function (keys, level) {
+    /* Turbo (input.js): holding left/right ramps her walking push and top
+       speed up to 2x; the float (up/down) and gravity stay as they are. */
+    var tb = Game.input.turboStep('out', false);
+    this.turboEase = tb.ease;
+    if (tb.t === 300) Game.audio.play('whoosh');
     /* Swimming */
-    if (keys.left) { this.vx -= Momoko.SWIM_FORCE; this.facing = -1; }
-    if (keys.right) { this.vx += Momoko.SWIM_FORCE; this.facing = 1; }
+    if (keys.left) { this.vx -= Momoko.SWIM_FORCE * tb.mul; this.facing = -1; }
+    if (keys.right) { this.vx += Momoko.SWIM_FORCE * tb.mul; this.facing = 1; }
     if (keys.up) this.vy -= Momoko.SWIM_FORCE;
     if (keys.down) this.vy += Momoko.SWIM_FORCE;
 
@@ -68,10 +73,13 @@
     this.vy *= Momoko.FRICTION;
 
     /* Clamp velocity; a bounce crater's launch (boost) lifts the cap
-       for a moment and fades back to the normal float speed. */
+       for a moment and fades back to the normal float speed. Turbo
+       stretches the cap sideways only; after a release it eases back
+       (tb.ease) while friction slows her. */
     var vmax = Momoko.MAX_VEL + (this.boost || 0);
     if (this.boost) this.boost = Math.max(0, this.boost - 0.12);
-    var speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    var hx = this.vx / tb.ease;
+    var speed = Math.sqrt(hx * hx + this.vy * this.vy);
     if (speed > vmax) {
       this.vx = (this.vx / speed) * vmax;
       this.vy = (this.vy / speed) * vmax;
@@ -95,7 +103,7 @@
     /* The pet's wag and paw phase: runs on (animTimer wraps every 7
        frames, which made its tail and legs snap back) and quickens with
        her speed. */
-    this.petT = (this.petT || 0) + 0.45 + Math.min(1, Math.abs(this.vx) / Momoko.MAX_VEL) * 0.9;
+    this.petT = (this.petT || 0) + 0.45 + Math.min(2, Math.abs(this.vx) / Momoko.MAX_VEL) * 0.9;
     if (this.rig) {
       if (!this.env || this.envLevel !== level) {
         this.envLevel = level;
@@ -107,6 +115,7 @@
       }
       this.rig.update(1 / 60, this.x + this.w / 2, this.y + this.h, {
         grounded: this.y + this.h >= level.floorY - 0.5, facing: this.facing, dust: true, vmax: 192, arrive: true,
+        turbo: tb.ease - 1,
       });
     }
   };

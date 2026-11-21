@@ -129,6 +129,30 @@
     osc.stop(t + 0.33);
   }
 
+  /* Turbo starting: a soft airy whoosh, band-passed noise sweeping up. */
+  function whoosh() {
+    if (!ctx) return;
+    var t = ctx.currentTime, dur = 0.55;
+    var buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(500, t);
+    bp.frequency.exponentialRampToValueAtTime(1800, t + dur);
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.12, t + 0.22);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(sfxGain);
+    src.start(t);
+  }
+
   function pickup() {
     if (!ctx) return;
     var t = ctx.currentTime;
@@ -212,6 +236,7 @@
         case 'damage': damage(); break;
         case 'pickup': pickup(); break;
         case 'boing': boing(); break;
+        case 'whoosh': whoosh(); break;
         case 'select': menuSelect(); break;
         case 'victory': victoryJingle(); break;
         case 'gameOver': gameOverSfx(); break;

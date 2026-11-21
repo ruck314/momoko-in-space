@@ -315,7 +315,9 @@
   function drawInteriorHero(c, x, y, facing, frame) {
     interiorHeroAt.x = x; interiorHeroAt.y = y;
     interiorRig = heroRig(interiorRig);
-    var pose = interiorRig ? interiorRig.tick(x, y, { facing: facing, planar: true, indoor: true, vmax: 144, arrive: true }) : null;
+    var pose = interiorRig ? interiorRig.tick(x, y, { facing: facing, planar: true, indoor: true, vmax: 144, arrive: true,
+      turbo: Game.input.turbo.ease - 1, size: INTERIOR_HERO }) : null;
+    if (interiorRig) Game.momoko.drawDust(c, interiorRig, 0, 0);
     c.save();
     c.translate(x, y);
     c.scale(INTERIOR_HERO, INTERIOR_HERO);
@@ -4702,17 +4704,39 @@
     return null;
   }
 
+  /* Turbo in the rooms (input.js): her speed this step is the room's
+     walking speed times the turbo multiplier while a direction is held.
+     Letting go after a turbo run, she glides to a stop over the quarter
+     second the turbo takes to ease off (at 1x she stops as before);
+     the room adds glide.vx / glide.vy on steps with no arrow held. */
+  var glide = { vx: 0, vy: 0, e: 1 };
+  function roomSpeed(keys, key, base) {
+    var tb = Game.input.turboStep(key, true);
+    if (tb.t === 300) Game.audio.play('whoosh');
+    var sp = base * tb.mul;
+    if (keys.left || keys.right || keys.up || keys.down) {
+      glide.vx = ((keys.right ? 1 : 0) - (keys.left ? 1 : 0)) * sp;
+      glide.vy = ((keys.down ? 1 : 0) - (keys.up ? 1 : 0)) * sp;
+    } else {
+      var k = glide.e > 1 ? Math.max(0, tb.ease - 1) / (glide.e - 1) : 0;
+      glide.vx *= k; glide.vy *= k;
+    }
+    glide.e = tb.ease;
+    return sp;
+  }
+
   function updateHouseInterior(keys, jp, houseId) {
     if (MOON_ROOMS[houseId]) { updateMoonRoom(keys, jp, houseId); return; }
     /* Walk Momoko around the room with arrow keys / D-pad. */
     var pp = getHousePlayerPos(houseId);
-    var sp = 2.4;
+    var sp = roomSpeed(keys, 'house', 2.4);
     var moved = false;
     pp.px = pp.x; pp.py = pp.y;
     if (keys.left)  { pp.x -= sp; housePlayerFacing = -1; moved = true; }
     if (keys.right) { pp.x += sp; housePlayerFacing = 1;  moved = true; }
     if (keys.up)    { pp.y -= sp; moved = true; }
     if (keys.down)  { pp.y += sp; moved = true; }
+    if (!moved && (glide.vx || glide.vy)) { pp.x += glide.vx; pp.y += glide.vy; moved = true; }
     if (pp.x < HOUSE_FLOOR_LEFT)  pp.x = HOUSE_FLOOR_LEFT;
     if (pp.x > HOUSE_FLOOR_RIGHT) pp.x = HOUSE_FLOOR_RIGHT;
     if (pp.y < HOUSE_FLOOR_TOP)   pp.y = HOUSE_FLOOR_TOP;
@@ -5553,12 +5577,13 @@
     }
     /* Walk Momoko about the floor */
     var pp = getHousePlayerPos(id);
-    var sp = 2.2, moved = false;
+    var sp = roomSpeed(keys, 'moonRoom', 2.2), moved = false;
     pp.px = pp.x; pp.py = pp.y;
     if (keys.left)  { pp.x -= sp; housePlayerFacing = -1; moved = true; }
     if (keys.right) { pp.x += sp; housePlayerFacing = 1;  moved = true; }
     if (keys.up)    { pp.y -= sp; moved = true; }
     if (keys.down)  { pp.y += sp; moved = true; }
+    if (!moved && (glide.vx || glide.vy)) { pp.x += glide.vx; pp.y += glide.vy; moved = true; }
     if (pp.x < 30) pp.x = 30;
     if (pp.x > W - 110) pp.x = W - 110;
     if (pp.y < ROOM_FLOOR_TOP) pp.y = ROOM_FLOOR_TOP;
@@ -5845,13 +5870,14 @@
     cafeTimer++;
     if (cafeYumTimer > 0) cafeYumTimer--;
     /* Walk Momoko around the cafe floor */
-    var sp = 2.0;
+    var sp = roomSpeed(keys, 'cafe', 2.0);
     var moved = false;
     cafePrevX = cafePlayerX; cafePrevY = cafePlayerY;
     if (keys.left)  { cafePlayerX -= sp; cafeFacing = -1; moved = true; }
     if (keys.right) { cafePlayerX += sp; cafeFacing = 1;  moved = true; }
     if (keys.up)    { cafePlayerY -= sp; moved = true; }
     if (keys.down)  { cafePlayerY += sp; moved = true; }
+    if (!moved && (glide.vx || glide.vy)) { cafePlayerX += glide.vx; cafePlayerY += glide.vy; moved = true; }
     if (cafePlayerX < 30)       cafePlayerX = 30;
     if (cafePlayerX > W - 110)  cafePlayerX = W - 110;
     if (cafePlayerY < 200)      cafePlayerY = 200;

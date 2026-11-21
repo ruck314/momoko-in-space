@@ -1860,6 +1860,7 @@
     this.jet = 0;
     this.react = null; this.reactT = 0; this.reactHit = false;
     this.puffs = [];
+    this.streaks = []; this.tb = 0; this.streakT = 0;
     this.pose = neutralPose();
   };
   Rig.prototype.doReact = function (kind) {
@@ -1884,7 +1885,10 @@
 
   /* Advance by dt seconds with her feet at (x, y).
      o: grounded, facing (1/-1), planar (top-down room: y is depth),
-        indoor (smaller steps), dust (kick up regolith), vmax (px/s). */
+        indoor (smaller steps), dust (kick up regolith), vmax (px/s),
+        turbo (0..1 as the turbo boost takes her toward 2x: quicker,
+        longer bounds, more lean, hair and cloth streaming back, speed
+        streaks), size (how much larger the caller paints her). */
   Rig.prototype.update = function (dt, x, y, o) {
     o = o || {};
     if (!(dt > 0)) return this.pose;
@@ -1915,6 +1919,10 @@
     var sp = planar ? Math.sqrt(this.vx * this.vx + this.vy * this.vy) : Math.abs(this.vx);
     var r = clamp(sp / vmax, 0, 1);
     this.r = r;
+    /* the turbo look only while she is actually going fast (not while
+       held against a wall) */
+    this.tb += (clamp(o.turbo || 0, 0, 1) - this.tb) * Math.min(1, dt * 10);
+    var tb = this.tb * r;
 
     /* turning: the body flips half way through a short squash */
     if (facing !== this.facing) {
@@ -1946,7 +1954,7 @@
     this.air += ((grounded ? 0 : 1) - this.air) * Math.min(1, dt * 6);
 
     /* gait: two hops per cycle, contacts at phase = n·π */
-    var steps = indoor ? lerp(1.9, 3.0, r) : lerp(1.45, 2.35, r);
+    var steps = indoor ? lerp(1.9, 3.0, r) + 1.3 * tb : lerp(1.45, 2.35, r) + 0.8 * tb;
     if (grounded && moving) {
       this.phase += dt * Math.PI * steps;
     } else if (this.walk > 0.02) {
@@ -1959,11 +1967,11 @@
       this.stepN = n;
       if (grounded && this.walk > 0.4) {
         this.sqV += (indoor ? 0.8 : 1.7) * r + 0.35;
-        if (o.dust && r > 0.2) this.puff(x + facing * 3, y, 2, false);
+        if (o.dust && r > 0.2) this.puff(x + facing * 3, y, tb > 0.4 ? 3 : 2, tb > 0.4);
       }
     }
     var phi = this.phase, sphi = Math.sin(phi), cphi = Math.cos(phi);
-    var H = this.walk * (indoor ? 0.45 + 1.0 * r : 0.8 + 3.3 * r);
+    var H = this.walk * (indoor ? 0.45 + 1.0 * r + 0.4 * tb : 0.8 + 3.3 * r + 1.4 * tb);
     /* Long floaty hang, but a soft touch-down: near each contact the
        rise eases in from flat instead of bouncing off a sharp corner,
        so she sinks into the step and springs out of it. */
@@ -1996,7 +2004,8 @@
 
     /* body acceleration in sprite units (1 unit = 1 world px) */
     var AX = clamp(this.ax, -2500, 2500), AY = clamp(pay + this.hopA, -3000, 3000);
-    var dragX = clamp(-this.vx / vmax, -1.3, 1.3), dragY = clamp(-pvy / vmax, -1.3, 1.3);
+    var dl = 1.3 + 0.9 * tb;
+    var dragX = clamp(-this.vx / vmax, -dl, dl), dragY = clamp(-pvy / vmax, -1.3, 1.3);
     var vxl = (planar ? this.vx : this.vx) * this.facing;
     var axl = this.ax * this.facing;
 
@@ -2004,8 +2013,8 @@
     var nsub = Math.max(1, Math.ceil(dt / (1 / 120))), h = dt / nsub;
     var floatUp = -this.air * (1.4 + clamp(pvy / vmax, -0.3, 1) * 2.2);
     for (var i = 0; i < nsub; i++) {
-      this.mid.step(h, dragX * 2.4, dragY * 1.4 + floatUp * 0.5, -AX * 0.022, -AY * 0.05);
-      this.tip.step(h, dragX * 5.2 + this.mid.x * 0.55, dragY * 4.2 + floatUp * 1.6 + this.mid.y * 0.55, -AX * 0.03, -AY * 0.085);
+      this.mid.step(h, dragX * 2.4, dragY * 1.4 + floatUp * 0.5 - 0.7 * tb, -AX * 0.022, -AY * 0.05);
+      this.tip.step(h, dragX * 5.2 + this.mid.x * 0.55, dragY * 4.2 + floatUp * 1.6 + this.mid.y * 0.55 - 1.8 * tb, -AX * 0.03, -AY * 0.085);
       this.inner.step(h, dragX * 0.45, dragY * 0.35 + floatUp * 0.15, -AX * 0.0028, -AY * 0.006);
       this.skirt.step(h, this.air * clamp(pvy / vmax, -0.4, 1.0) * 0.9 + this.walk * r * 0.12, dragX * 0.3,
                       AY * 0.0016, -AX * 0.0012);
@@ -2015,18 +2024,18 @@
       this.earS.step(h, dragX * 1.6, dragY * 1.0 + floatUp * 0.4, -AX * 0.01, -AY * 0.03);
       this.headS.step(h, 0, 0, 0, -AY * 0.0018);
     }
-    this.tip.limit(8.5, -7.5, 5.0);
-    this.mid.limit(4.5, -4.5, 3.0);
+    this.tip.limit(8.5 + 3 * tb, -7.5, 5.0);
+    this.mid.limit(4.5 + 1.5 * tb, -4.5, 3.0);
     this.inner.limit(0.8, -0.7, 0.6);
     this.skirt.limit(1.2, -0.5, 1.3);
-    this.capeS.limit(7, -6, 4);
+    this.capeS.limit(7 + 3 * tb, -6, 4);
     this.antS.limit(3, -2.5, 2.5);
     this.balS.limit(9, -4, 6);
     this.earS.limit(2.5, -2.5, 2.5);
     this.headS.limit(0.6, -0.6, 0.6);
 
     /* lean: forward with speed, back on a start, forward on a stop */
-    var leanT = 0.11 * clamp(vxl / vmax, -1.2, 1.2) * (1 - this.air * 0.4) + clamp(-axl * 0.00005, -0.07, 0.07);
+    var leanT = 0.11 * clamp(vxl / vmax, -1.2, 1.2) * (1 - this.air * 0.4) + clamp(-axl * 0.00005, -0.07, 0.07) + 0.06 * tb * this.walk;
     if (planar) leanT *= 0.6;
     this.leanV += (70 * (leanT - this.lean) - 9 * this.leanV) * dt;
     this.lean += this.leanV * dt;
@@ -2082,6 +2091,25 @@
       pf.x += pf.vx * dt; pf.y += pf.vy * dt;
       pf.vx *= Math.exp(-2.4 * dt); pf.vy *= Math.exp(-1.6 * dt);
     }
+    /* turbo speed streaks: short lines left behind in the world as she
+       goes, so they trail off behind her and fade */
+    var sz = o.size || 1;
+    this.streakT -= dt;
+    if (tb > 0.15 && moving && this.streakT <= 0) {
+      this.streakT = 0.05;
+      var vv = Math.sqrt(this.vx * this.vx + this.vy * this.vy) || 1;
+      var ux = this.vx / vv, uy = planar ? this.vy / vv : 0;
+      var back = (6 + this.rnd() * 6) * sz;
+      this.streaks.push({
+        x: x - ux * back, y: y - (5 + this.rnd() * 24) * sz - uy * back,
+        ux: ux, uy: uy, len: (9 + this.rnd() * 12) * sz, w: sz, a: tb, age: 0, life: 0.3,
+      });
+      if (this.streaks.length > 12) this.streaks.shift();
+    }
+    for (var si = this.streaks.length - 1; si >= 0; si--) {
+      this.streaks[si].age += dt;
+      if (this.streaks[si].age >= this.streaks[si].life) this.streaks.splice(si, 1);
+    }
 
     /* ---- assemble the pose ---- */
     var P = this.pose, w = this.walk, a = this.air, face = this.face;
@@ -2089,9 +2117,9 @@
     var still = (1 - w) * (1 - a);
     var shiftK = smooth(3, 4.5, this.idleT);
     /* walk */
-    var th = (indoor ? 0.22 + 0.22 * r : 0.24 + 0.34 * r) * w;
+    var th = (indoor ? 0.22 + 0.22 * r + 0.1 * tb : 0.24 + 0.34 * r + 0.12 * tb) * w;
     var legA = th * cphi;
-    var lift = w * (0.5 + 1.4 * r);
+    var lift = w * (0.5 + 1.4 * r + 0.6 * tb);
     var lag = th * Math.cos(phi - 0.75);
     /* Arms: relaxed, swinging against the legs with a soft elbow. At
        rest they hold the little A-pose; walking they drop in toward her
@@ -2382,9 +2410,24 @@
   }
   var STILL = neutralPose();
 
-  /* Regolith dust kicked up by her steps, in world coordinates. */
+  /* Regolith dust kicked up by her steps and her turbo speed streaks,
+     in world coordinates. */
   function drawDust(ctx, rig, camX, camY, col) {
-    if (!rig || !rig.puffs.length) return;
+    if (!rig) return;
+    if (rig.streaks.length) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      for (var j = 0; j < rig.streaks.length; j++) {
+        var st = rig.streaks[j];
+        var ks = st.age / st.life, ln = st.len * (1 - 0.5 * ks);
+        var sx0 = st.x - camX, sy0 = st.y - camY;
+        ctx.strokeStyle = rgba('#ffffff', ((1 - ks) * 0.5 * st.a).toFixed(3));
+        ctx.lineWidth = 1.5 * st.w * (1 - 0.4 * ks);
+        ctx.beginPath(); ctx.moveTo(sx0, sy0); ctx.lineTo(sx0 - st.ux * ln, sy0 - st.uy * ln); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    if (!rig.puffs.length) return;
     var base = col || '#d8ccf4';
     for (var i = 0; i < rig.puffs.length; i++) {
       var p = rig.puffs[i];

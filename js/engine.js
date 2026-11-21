@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.18.0';
+  Game.VERSION = 'v2.19.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -71,12 +71,15 @@
   };
 
   /* Quest state – persisted in localStorage. */
-  Game.quests = {
-    lila: 'notStarted',      /* 'notStarted' | 'inProgress' | 'done' */
-    migword: 'notStarted',
-    brie: 'notStarted',      /* Chef Brie's golden crumbs (cheese moon) */
-    progress: { gems: 0, cheese: 0, crumbs: {} },
-  };
+  function freshQuests() {
+    return {
+      lila: 'notStarted',      /* 'notStarted' | 'inProgress' | 'done' */
+      migword: 'notStarted',
+      brie: 'notStarted',      /* Chef Brie's golden crumbs (cheese moon) */
+      progress: { gems: 0, cheese: 0, crumbs: {} },
+    };
+  }
+  Game.quests = freshQuests();
 
   /* Shop delivery state – items the hero has purchased and is carrying.
      Each entry: { type: <furniture-type> }. Cleared (deposited) when
@@ -1355,11 +1358,13 @@
         /* Rings-view cutscene disabled in Momoko in Space — the town is open
            sky; no ocean surface to break. */
 
-        /* Camera follow */
+        /* Camera follow; it tightens with her turbo so she trails the
+           centre by about as much at 2x as at walking speed. */
         var targetCamX = player.x - W / 2 + player.w / 2;
         var targetCamY = player.y - H / 2 + player.h / 2;
-        camera.x += (targetCamX - camera.x) * 0.08;
-        camera.y += (targetCamY - camera.y) * 0.08;
+        var camK = 0.08 * (player.turboEase || 1);
+        camera.x += (targetCamX - camera.x) * camK;
+        camera.y += (targetCamY - camera.y) * camK;
         /* Clamp camera */
         if (camera.x < 0) camera.x = 0;
         if (camera.x > level.width - W) camera.x = level.width - W;
@@ -4029,7 +4034,7 @@
 
       case State.CUSTOMIZE:
         var cAction = Game.ui.handleCustomizeClick(mx, my);
-        if (cAction === 'start') state = State.INTRO;
+        if (cAction === 'start') { resetRun(); state = State.INTRO; }
         break;
 
       case State.INTRO:
@@ -4253,6 +4258,17 @@
     try { localStorage.setItem('momoko-space-furniture', JSON.stringify(furn)); } catch (e) {}
     Game.shop.cart = [];
     if (Game.audio && Game.audio.play) Game.audio.play('victory');
+  }
+
+  /* Start on the customize screen begins a new game: every quest and
+     counter (gems, mice met, golden crumbs, the cake party) goes back to
+     zero, in memory and in storage, and anything still in the shopping
+     cart is dropped. Her look, the furnished houses and the settings
+     stay. */
+  function resetRun() {
+    Game.quests = freshQuests();
+    Game.shop.cart = [];
+    savePersistent();
   }
 
   /* ---- Persistence ---- */

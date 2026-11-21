@@ -271,6 +271,40 @@
     prevKeys.pause = keys.pause;
     tapped.action = false;
     tapped.pause = false;
+    tickN++;
+  }
+
+  /* Turbo: holding a direction keeps a timer going; after 5 s her speed
+     multiplier ramps smoothly from 1x to 2x, reached at 10 s. Letting go
+     (or reversing) restarts the timer and sets the multiplier back to
+     1x at once; `ease` follows it down over a quarter second so callers
+     can let her slow down instead of stopping dead. The walking code
+     calls turboStep once per fixed 60 Hz step with its own key ('out',
+     'house', ...); a different key or a missed step (pause, a door, a
+     menu) counts as letting go, and so does flipping an arrow to its
+     opposite from one step to the next. planar: room walks, where any
+     mix of arrows keeps it going (she can circle a room); outdoors only
+     left/right does (up floats). */
+  var TURBO_T0 = 300, TURBO_T1 = 600;
+  var tickN = 0;
+  var turbo = { key: null, tick: -1, t: 0, dx: 0, dy: 0, mul: 1, ease: 1, k: 0 };
+  function turboStep(key, planar) {
+    var dx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+    var dy = planar ? (keys.down ? 1 : 0) - (keys.up ? 1 : 0) : 0;
+    var held = dx !== 0 || dy !== 0;
+    var cont = held && turbo.key === key && turbo.tick === tickN - 1 && turbo.t > 0 &&
+      !(dx && dx === -turbo.dx) && !(dy && dy === -turbo.dy);
+    if (turbo.key !== key || turbo.tick !== tickN - 1) turbo.ease = 1;
+    turbo.t = cont ? turbo.t + 1 : (held ? 1 : 0);
+    turbo.dx = dx;
+    turbo.dy = dy;
+    var u = Math.max(0, Math.min(1, (turbo.t - TURBO_T0) / (TURBO_T1 - TURBO_T0)));
+    turbo.k = u * u * (3 - 2 * u);
+    turbo.mul = 1 + turbo.k;
+    turbo.ease = Math.max(turbo.mul, turbo.ease - 1 / 15);
+    turbo.key = key;
+    turbo.tick = tickN;
+    return turbo;
   }
 
   /* Call at end of frame to clear keyboard-only states (touch states reset via processTouches) */
@@ -438,6 +472,8 @@
     refreshLayout: function () { refreshLayout(); layoutButtons(); },
     keys: keys,
     justPressed: justPressed,
+    turboStep: turboStep,
+    turbo: turbo,
     drawTouchStrip: drawTouchStrip,
     drawTouchButtons: drawTouchButtons,
     /* Legacy alias – calls the new strip + buttons painter. */
