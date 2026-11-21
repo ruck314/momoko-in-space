@@ -3311,6 +3311,7 @@
   var HOUSE_WALL_BOTTOM = 286;
 
   function drawHouseInterior(c, houseId) {
+    if (MOON_ROOMS[houseId]) { drawMoonRoom(c, houseId); return; }
     var th = HOUSE_THEMES[houseId] || HOUSE_THEMES.heroHome;
     var wb = HOUSE_WALL_BOTTOM;
     /* Back wall */
@@ -4630,6 +4631,7 @@
   }
 
   function handleHouseInteriorClick(mx, my, houseId) {
+    if (MOON_ROOMS[houseId]) return handleMoonRoomClick(mx, my, houseId);
     /* One-shot top-right EXIT button */
     if (hitExitButton(mx, my)) {
       Game.audio.play('select');
@@ -4701,6 +4703,7 @@
   }
 
   function updateHouseInterior(keys, jp, houseId) {
+    if (MOON_ROOMS[houseId]) { updateMoonRoom(keys, jp, houseId); return; }
     /* Walk Momoko around the room with arrow keys / D-pad. */
     var pp = getHousePlayerPos(houseId);
     var sp = 2.4;
@@ -4715,6 +4718,1054 @@
     if (pp.y < HOUSE_FLOOR_TOP)   pp.y = HOUSE_FLOOR_TOP;
     if (pp.y > HOUSE_FLOOR_BOTTOM) pp.y = HOUSE_FLOOR_BOTTOM;
     if (moved) housePlayerFrame = (housePlayerFrame + 1) % 24;
+  }
+
+  /* ============================================================ */
+  /*        CHEESE MOON VILLAGE — shop and home interiors          */
+  /* ============================================================ */
+  /* Gouda's Cheese Deli, the Moon Scoops parlour and the Whisker family
+     home use the house-interior state (engine enterHouse) but draw their
+     own furnished rooms instead of the furniture editor. Momoko walks
+     about the floor; walking up to something and pressing the action
+     button (or tapping it) tries it, and each room has a resident mouse
+     who chats in a speech bubble. The static walls, shelves and counter
+     are painted once per room into two cached layers. */
+  var ROOM_FLOOR_TOP = 296;
+  var ROOM_COUNTER_TOP = 206, ROOM_COUNTER_BOT = 262;
+  var room = { id: null, t: 0, say: null, sayT: 0, pop: null, popT: 0, near: -1, fx: [], bits: null };
+
+  /* Resident moon mouse, upright like Chef Brie. Feet at (x, y), scale s.
+     o: fur, apron, hat ('bowtie' | 'scoop' | 'bow' | null), hop (0..1). */
+  function drawRoomMouse(c, x, y, s, o, t) {
+    var FUR = o.fur, FUR_D = hexShadeUI(o.fur, -22), INK = '#3a2414';
+    var bob = Math.sin(t * 0.05 + (o.phase || 0)) * 1.1 - (o.hop || 0) * 10;
+    var blink = ((t + (o.phase || 0) * 40) % 220) < 7;
+    c.save();
+    c.translate(x, y);
+    c.scale(s * (o.face || 1), s);
+    c.translate(-15, -36);
+    var y0 = bob;
+    c.lineJoin = 'round';
+    c.lineCap = 'round';
+    c.strokeStyle = FUR_D;
+    c.lineWidth = 1.8;
+    var wag = Math.sin(t * 0.08 + (o.phase || 0)) * 2.5;
+    c.beginPath(); c.moveTo(23, y0 + 31); c.quadraticCurveTo(33, y0 + 30 + wag * 0.4, 32, y0 + 21 + wag); c.stroke();
+    c.fillStyle = '#ffb0c4';
+    c.beginPath(); c.ellipse(10, 35 + Math.min(0, y0) * 0.6, 4, 1.8, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(20, 35 + Math.min(0, y0) * 0.6, 4, 1.8, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = FUR;
+    c.strokeStyle = INK;
+    c.lineWidth = 1;
+    c.beginPath(); c.ellipse(15, y0 + 26, 10, 9, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    c.beginPath(); c.ellipse(15, y0 + 28, 6, 5.5, 0, 0, Math.PI * 2); c.fill();
+    if (o.apron) {
+      c.fillStyle = o.apron;
+      c.beginPath();
+      c.moveTo(9, y0 + 20); c.lineTo(21, y0 + 20);
+      c.quadraticCurveTo(23, y0 + 33, 15, y0 + 34);
+      c.quadraticCurveTo(7, y0 + 33, 9, y0 + 20);
+      c.closePath(); c.fill();
+      c.strokeStyle = 'rgba(58, 36, 20, 0.45)';
+      c.stroke();
+      c.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      c.fillRect(12.5, y0 + 26, 5, 3.5);
+    }
+    /* Arms: wave while talking */
+    var wave = o.talking ? Math.sin(t * 0.25) * 0.5 : 0;
+    c.fillStyle = FUR;
+    c.strokeStyle = INK;
+    c.lineWidth = 1;
+    c.beginPath(); c.ellipse(6, y0 + 25, 2.4, 3.6, 0.3, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.save();
+    c.translate(24, y0 + 23);
+    c.rotate(-0.3 - wave - (o.talking ? 0.6 : 0));
+    c.beginPath(); c.ellipse(0, 1, 2.4, 3.6, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.restore();
+    var earT = Math.sin(t * 0.03 + (o.phase || 0)) * 0.08;
+    c.beginPath(); c.ellipse(6, y0 + 9, 5, 5.4, -0.3 - earT, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.beginPath(); c.ellipse(24, y0 + 9, 5, 5.4, 0.3 + earT, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.fillStyle = '#ffb0c4';
+    c.beginPath(); c.ellipse(6.4, y0 + 9.4, 3, 3.4, -0.3, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(23.6, y0 + 9.4, 3, 3.4, 0.3, 0, Math.PI * 2); c.fill();
+    c.fillStyle = FUR;
+    c.beginPath(); c.ellipse(15, y0 + 13, 8.5, 7.6, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    c.beginPath(); c.ellipse(12, y0 + 10, 3.2, 1.6, -0.4, 0, Math.PI * 2); c.fill();
+    c.fillStyle = INK;
+    if (blink) {
+      c.beginPath(); c.moveTo(10.4, y0 + 13); c.lineTo(13, y0 + 13); c.moveTo(17, y0 + 13); c.lineTo(19.6, y0 + 13); c.stroke();
+    } else {
+      c.beginPath(); c.ellipse(11.8, y0 + 12.6, 1.5, 2, 0, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.ellipse(18.2, y0 + 12.6, 1.5, 2, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffffff';
+      c.beginPath(); c.arc(11.3, y0 + 11.8, 0.6, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(17.7, y0 + 11.8, 0.6, 0, Math.PI * 2); c.fill();
+    }
+    c.fillStyle = 'rgba(255, 120, 150, 0.4)';
+    c.beginPath(); c.ellipse(9.4, y0 + 16, 1.8, 1.1, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(20.6, y0 + 16, 1.8, 1.1, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#ff6a9a';
+    c.beginPath(); c.arc(15, y0 + 15.4, 1.2, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = INK;
+    c.lineWidth = 0.8;
+    if (o.talking && (t >> 3) % 2) {
+      c.fillStyle = '#c83a5a';
+      c.beginPath(); c.ellipse(15, y0 + 17.4, 1.6, 1.3, 0, 0, Math.PI * 2); c.fill();
+    } else {
+      c.beginPath(); c.arc(15, y0 + 16, 2, 0.35, Math.PI - 0.35); c.stroke();
+    }
+    if (o.moustache) {
+      c.fillStyle = '#8a5a2a';
+      c.beginPath();
+      c.ellipse(12.6, y0 + 16.4, 2.6, 1.1, 0.35, 0, Math.PI * 2);
+      c.ellipse(17.4, y0 + 16.4, 2.6, 1.1, -0.35, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.strokeStyle = 'rgba(58, 36, 20, 0.5)';
+    c.lineWidth = 0.5;
+    var tw = Math.sin(t * 0.11) * 0.5;
+    c.beginPath();
+    c.moveTo(11, y0 + 15.6); c.lineTo(5.5, y0 + 14.6 + tw);
+    c.moveTo(11, y0 + 16.4); c.lineTo(5.5, y0 + 17 + tw);
+    c.moveTo(19, y0 + 15.6); c.lineTo(24.5, y0 + 14.6 - tw);
+    c.moveTo(19, y0 + 16.4); c.lineTo(24.5, y0 + 17 - tw);
+    c.stroke();
+    c.strokeStyle = INK;
+    c.lineWidth = 1;
+    if (o.hat === 'bowtie') {
+      c.fillStyle = '#e8445a';
+      c.beginPath(); c.moveTo(15, y0 + 20.5); c.lineTo(10.5, y0 + 18); c.lineTo(10.5, y0 + 23); c.closePath();
+      c.moveTo(15, y0 + 20.5); c.lineTo(19.5, y0 + 18); c.lineTo(19.5, y0 + 23); c.closePath(); c.fill(); c.stroke();
+      c.beginPath(); c.arc(15, y0 + 20.5, 1.3, 0, Math.PI * 2); c.fill();
+    } else if (o.hat === 'scoop') {
+      /* Paper soda-fountain hat with pink stripes */
+      c.fillStyle = '#ffffff';
+      c.beginPath(); c.moveTo(7, y0 + 7); c.lineTo(23, y0 + 7); c.lineTo(20, y0 - 1); c.lineTo(10, y0 - 1); c.closePath(); c.fill(); c.stroke();
+      c.strokeStyle = '#ff66aa';
+      c.lineWidth = 1.4;
+      c.beginPath(); c.moveTo(9, y0 + 4.5); c.lineTo(21, y0 + 4.5); c.moveTo(10, y0 + 1.5); c.lineTo(20, y0 + 1.5); c.stroke();
+      c.fillStyle = '#e8344a';
+      c.beginPath(); c.arc(15, y0 - 2.6, 1.8, 0, Math.PI * 2); c.fill();
+    } else if (o.hat === 'bow') {
+      c.fillStyle = o.bow || '#ff66aa';
+      c.beginPath(); c.moveTo(19, y0 + 4); c.lineTo(14.5, y0 + 1); c.lineTo(15, y0 + 7); c.closePath();
+      c.moveTo(19, y0 + 4); c.lineTo(23.5, y0 + 0.5); c.lineTo(23.5, y0 + 7); c.closePath(); c.fill(); c.stroke();
+      c.beginPath(); c.arc(19, y0 + 4, 1.4, 0, Math.PI * 2); c.fill();
+    }
+    c.restore();
+  }
+
+  /* Small helpers used by the room painters */
+  function cheeseWheelUI(c, x, y, r, col) {
+    c.fillStyle = hexShadeUI(col, -28);
+    c.beginPath(); c.ellipse(x, y + r * 0.22, r, r * 0.55, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = col;
+    c.beginPath(); c.ellipse(x, y, r, r * 0.55, 0, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = 'rgba(90, 48, 16, 0.75)';
+    c.lineWidth = 1.2;
+    c.stroke();
+    c.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    c.beginPath(); c.ellipse(x - r * 0.3, y - r * 0.15, r * 0.35, r * 0.12, -0.2, 0, Math.PI * 2); c.fill();
+  }
+  function holeUI(c, x, y, r) {
+    c.fillStyle = 'rgba(150, 90, 24, 0.85)';
+    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(110, 60, 16, 0.6)';
+    c.beginPath(); c.arc(x, y - r * 0.25, r * 0.8, Math.PI, 0); c.fill();
+  }
+  function shelfBoard(c, x, y, w) {
+    c.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    c.fillRect(x, y + 6, w, 4);
+    c.fillStyle = '#8a4a20';
+    c.fillRect(x, y, w, 7);
+    c.fillStyle = '#c4803e';
+    c.fillRect(x, y, w, 2);
+  }
+  function roomWindow(c, x, y, r, trim, planet) {
+    c.fillStyle = '#0a0420';
+    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    c.save();
+    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.clip();
+    for (var s = 0; s < 14; s++) {
+      c.fillStyle = 'rgba(255, 255, 255, ' + (0.4 + (s * 17 % 60) / 100) + ')';
+      c.beginPath(); c.arc(x - r + (s * 29) % (r * 2), y - r + (s * 41) % (r * 2), 0.8 + (s % 3) * 0.5, 0, Math.PI * 2); c.fill();
+    }
+    if (planet) drawShadedPlanet(c, x + r * 0.35, y - r * 0.3, r * 0.3, '#ffc0e4', '#8a2a80', '#ffd24a');
+    c.restore();
+    c.strokeStyle = trim;
+    c.lineWidth = 5;
+    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.stroke();
+    c.lineWidth = 2;
+    c.beginPath(); c.moveTo(x - r, y); c.lineTo(x + r, y); c.moveTo(x, y - r); c.lineTo(x, y + r); c.stroke();
+  }
+  function tiledFloor(c, a, b, y0) {
+    c.fillStyle = a;
+    c.fillRect(0, y0, W, H - y0);
+    c.fillStyle = b;
+    for (var row = 0; row < 6; row++) {
+      var ya = y0 + (H - y0) * (row * row) / 36, yb = y0 + (H - y0) * ((row + 1) * (row + 1)) / 36;
+      for (var col = -10; col < 10; col++) {
+        if ((row + col) % 2 === 0) continue;
+        var u0 = col / 10, u1 = (col + 1) / 10;
+        var ka = 0.6 + 0.4 * (ya - y0) / (H - y0), kb = 0.6 + 0.4 * (yb - y0) / (H - y0);
+        c.beginPath();
+        c.moveTo(W / 2 + u0 * W * ka, ya); c.lineTo(W / 2 + u1 * W * ka, ya);
+        c.lineTo(W / 2 + u1 * W * kb, yb); c.lineTo(W / 2 + u0 * W * kb, yb);
+        c.closePath(); c.fill();
+      }
+    }
+  }
+  function counterFront(c, x0, x1, top, body, trim) {
+    c.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    c.fillRect(x0 + 4, ROOM_COUNTER_BOT, x1 - x0, 7);
+    var g = c.createLinearGradient(0, ROOM_COUNTER_TOP, 0, ROOM_COUNTER_BOT);
+    g.addColorStop(0, hexShadeUI(body, 12));
+    g.addColorStop(1, hexShadeUI(body, -24));
+    c.fillStyle = g;
+    c.fillRect(x0, ROOM_COUNTER_TOP + 8, x1 - x0, ROOM_COUNTER_BOT - ROOM_COUNTER_TOP - 8);
+    c.fillStyle = top;
+    c.fillRect(x0 - 6, ROOM_COUNTER_TOP, x1 - x0 + 12, 9);
+    c.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    c.fillRect(x0 - 6, ROOM_COUNTER_TOP, x1 - x0 + 12, 2);
+    c.fillStyle = trim;
+    c.fillRect(x0, ROOM_COUNTER_BOT - 6, x1 - x0, 6);
+  }
+
+  /* ---- Gouda's Cheese Deli ---- */
+  var DELI_CHEESES = [
+    { name: 'cheeseSwiss',   line: 'tasteSwiss',   col: '#ffd24a', x: 150 },
+    { name: 'cheeseCheddar', line: 'tasteCheddar', col: '#ff9a3a', x: 260 },
+    { name: 'cheeseBlue',    line: 'tasteBlue',    col: '#dfe8f4', x: 470 },
+    { name: 'cheeseStar',    line: 'tasteStar',    col: '#fff4dc', x: 580 },
+  ];
+  function paintDeliBack(c) {
+    var wg = c.createLinearGradient(0, 0, 0, 254);
+    wg.addColorStop(0, '#6a3a1a');
+    wg.addColorStop(1, '#a8682e');
+    c.fillStyle = wg;
+    c.fillRect(0, 0, W, 254);
+    /* Wood panelling */
+    c.strokeStyle = 'rgba(40, 18, 6, 0.25)';
+    c.lineWidth = 1;
+    for (var px = 30; px < W; px += 46) { c.beginPath(); c.moveTo(px, 0); c.lineTo(px, 254); c.stroke(); }
+    /* Cream wainscot with a mint rail */
+    c.fillStyle = '#f4e2c0';
+    c.fillRect(0, 196, W, 58);
+    c.fillStyle = '#5ec8a0';
+    c.fillRect(0, 192, W, 6);
+    /* Shelves of cheese wheels, left and right */
+    var sides = [[16, 230], [W - 246, 230]];
+    for (var si = 0; si < 2; si++) {
+      var sx = sides[si][0], sw = sides[si][1];
+      for (var sh = 0; sh < 2; sh++) {
+        var sy = 112 + sh * 50;
+        for (var wi = 0; wi < 6; wi++) {
+          var cols = ['#ffd24a', '#ffb03a', '#fff0b0', '#ff9a3a', '#ffe27a', '#f4d8a0'];
+          cheeseWheelUI(c, sx + 22 + wi * 37, sy - 9, 15, cols[(wi + sh * 2 + si) % cols.length]);
+        }
+        shelfBoard(c, sx, sy, sw);
+      }
+    }
+    /* Chalkboard: today's cheese */
+    c.fillStyle = '#6a4020';
+    roundRect(c, 288, 90, 224, 70, 6); c.fill();
+    c.fillStyle = '#24382e';
+    roundRect(c, 294, 96, 212, 58, 4); c.fill();
+    c.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    c.fillRect(300, 100, 90, 3);
+    c.fillStyle = '#f4f0e0';
+    c.textAlign = 'center';
+    fitFont(c, Game.i18n.t('deliBoard'), 196, 14, 'bold');
+    c.fillText(Game.i18n.t('deliBoard'), 400, 120);
+    c.fillStyle = '#ffd24a';
+    c.beginPath(); c.moveTo(380, 130); c.lineTo(420, 130); c.lineTo(414, 146); c.closePath(); c.fill();
+    c.fillStyle = '#c88a2a';
+    c.beginPath(); c.arc(398, 136, 2.6, 0, Math.PI * 2); c.arc(408, 141, 1.8, 0, Math.PI * 2); c.fill();
+    /* Hanging cheeses on hooks from the ceiling rail */
+    c.fillStyle = '#4a2410';
+    c.fillRect(0, 0, W, 8);
+    var hang = [60, 120, 690, 745];
+    for (var hi = 0; hi < hang.length; hi++) {
+      var hx = hang[hi], hl = 26 + (hi % 2) * 12;
+      c.strokeStyle = '#d8c8a0';
+      c.lineWidth = 1.2;
+      c.beginPath(); c.moveTo(hx, 8); c.lineTo(hx, 8 + hl); c.stroke();
+      c.fillStyle = hi % 2 ? '#ffb03a' : '#ffd24a';
+      c.beginPath(); c.moveTo(hx - 12, 8 + hl); c.lineTo(hx + 12, 8 + hl); c.lineTo(hx, 8 + hl + 26); c.closePath(); c.fill();
+      c.strokeStyle = 'rgba(90, 48, 16, 0.75)';
+      c.stroke();
+      holeUI(c, hx - 3, 8 + hl + 7, 2.4);
+    }
+    /* Floor: cream and mint tiles */
+    tiledFloor(c, '#e8dcc0', '#9ed8bc', 254);
+    c.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    c.fillRect(0, 248, W, 6);
+    /* Big wheel display on the right */
+    cheeseWheelUI(c, 724, 284, 38, '#ffd24a');
+    cheeseWheelUI(c, 724, 262, 30, '#ffb03a');
+    cheeseWheelUI(c, 724, 244, 22, '#fff0b0');
+  }
+  function paintDeliFront(c) {
+    counterFront(c, 90, 640, '#f0e6d0', '#7a4a24', '#5ec8a0');
+    /* Glass display case on top */
+    c.fillStyle = 'rgba(220, 248, 255, 0.18)';
+    c.fillRect(96, ROOM_COUNTER_TOP - 40, 538, 40);
+    c.strokeStyle = 'rgba(240, 255, 255, 0.7)';
+    c.lineWidth = 2;
+    c.strokeRect(96, ROOM_COUNTER_TOP - 40, 538, 40);
+    c.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    c.beginPath(); c.moveTo(110, ROOM_COUNTER_TOP - 36); c.lineTo(150, ROOM_COUNTER_TOP - 36); c.lineTo(120, ROOM_COUNTER_TOP - 4); c.lineTo(104, ROOM_COUNTER_TOP - 4); c.closePath(); c.fill();
+    /* Scale by the till in the middle (where Mr. Gouda stands) */
+    c.fillStyle = '#c8cee0';
+    c.fillRect(352, ROOM_COUNTER_TOP + 14, 96, 30);
+    c.fillStyle = '#ffffff';
+    c.beginPath(); c.arc(400, ROOM_COUNTER_TOP + 29, 11, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#5a3010';
+    c.lineWidth = 1.4;
+    c.stroke();
+    c.beginPath(); c.moveTo(400, ROOM_COUNTER_TOP + 29); c.lineTo(406, ROOM_COUNTER_TOP + 22); c.stroke();
+  }
+  function drawDeliItems(c) {
+    for (var i = 0; i < DELI_CHEESES.length; i++) {
+      var ch = DELI_CHEESES[i], x = ch.x, y = ROOM_COUNTER_TOP - 14;
+      var bitten = room.bits.bitten[i];
+      c.save();
+      if (i === 0) {
+        cheeseWheelUI(c, x, y, 26, ch.col);
+        holeUI(c, x - 10, y - 2, 3); holeUI(c, x + 8, y + 1, 2.4); holeUI(c, x, y - 6, 2);
+      } else if (i === 1) {
+        c.fillStyle = '#c86a20';
+        c.fillRect(x - 24, y - 12, 48, 22);
+        c.fillStyle = ch.col;
+        c.fillRect(x - 24, y - 16, 48, 18);
+        c.strokeStyle = 'rgba(90, 48, 16, 0.75)';
+        c.lineWidth = 1.2;
+        c.strokeRect(x - 24, y - 16, 48, 26);
+      } else if (i === 2) {
+        cheeseWheelUI(c, x, y, 24, ch.col);
+        c.strokeStyle = '#5a7ac8';
+        c.lineWidth = 1.4;
+        c.beginPath(); c.moveTo(x - 14, y - 4); c.quadraticCurveTo(x - 6, y + 2, x + 2, y - 3); c.quadraticCurveTo(x + 8, y - 6, x + 14, y + 2); c.stroke();
+        c.beginPath(); c.moveTo(x - 8, y + 5); c.quadraticCurveTo(x, y + 2, x + 8, y + 6); c.stroke();
+      } else {
+        cheeseWheelUI(c, x, y, 24, ch.col);
+        c.fillStyle = '#ffd24a';
+        c.beginPath();
+        for (var k = 0; k < 10; k++) {
+          var rr = k % 2 ? 3 : 7, aa = -Math.PI / 2 + k * Math.PI / 5;
+          c.lineTo(x + Math.cos(aa) * rr, y - 2 + Math.sin(aa) * rr * 0.6);
+        }
+        c.closePath(); c.fill();
+      }
+      if (bitten) {
+        /* A Momoko-sized bite out of the back-right edge: the wall shows
+           through, ringed by the cut cheese, with a few crumbs */
+        c.fillStyle = '#f4e2c0';
+        c.beginPath(); c.arc(x + 19, y - 12, 6, 0, Math.PI * 2); c.arc(x + 11, y - 15, 5, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = hexShadeUI(ch.col, -30);
+        c.lineWidth = 1.4;
+        c.beginPath(); c.arc(x + 19, y - 12, 6, Math.PI * 0.55, Math.PI * 1.25); c.stroke();
+        c.beginPath(); c.arc(x + 11, y - 15, 5, Math.PI * 0.2, Math.PI * 0.95); c.stroke();
+        c.fillStyle = ch.col;
+        c.fillRect(x + 22, y + 4, 2.4, 2.4);
+        c.fillRect(x + 27, y + 2, 1.8, 1.8);
+      }
+      c.restore();
+    }
+  }
+
+  /* ---- Moon Scoops ice-cream parlour ---- */
+  var FLAVOURS = [
+    { name: 'flavorCheesecake', line: 'scoopLine1', col: '#fff0a8', x: 150 },
+    { name: 'flavorStrawberry', line: 'scoopLine2', col: '#ff9ac8', x: 250 },
+    { name: 'flavorMint',       line: 'scoopLine3', col: '#9fe8c8', x: 350 },
+    { name: 'flavorGalaxy',     line: 'scoopLine4', col: '#9a7ae8', x: 450 },
+  ];
+  var CONE_X = 590;
+  function paintParlourBack(c) {
+    /* Candy stripes */
+    for (var sx = 0; sx < W; sx += 40) {
+      c.fillStyle = (sx / 40) % 2 ? '#ffe4f0' : '#ffc4dc';
+      c.fillRect(sx, 0, 40, 254);
+    }
+    shadeBand(c, 0, 90, 'rgba(120, 30, 80, 0.25)', 'rgba(120, 30, 80, 0)');
+    /* Mint scalloped trim under the ceiling and a chair rail */
+    c.fillStyle = '#5ec8a0';
+    c.fillRect(0, 0, W, 10);
+    for (var sc = 0; sc < W; sc += 20) { c.beginPath(); c.arc(sc + 10, 10, 10, 0, Math.PI); c.fill(); }
+    c.fillStyle = '#ffffff';
+    c.fillRect(0, 186, W, 68);
+    c.fillStyle = '#5ec8a0';
+    c.fillRect(0, 182, W, 6);
+    /* Neon cone sign */
+    c.save();
+    c.shadowColor = '#ff66cc';
+    c.shadowBlur = 12;
+    c.strokeStyle = '#ff66cc';
+    c.lineWidth = 3;
+    c.beginPath(); c.moveTo(120, 140); c.lineTo(100, 96); c.lineTo(140, 96); c.closePath(); c.stroke();
+    c.beginPath(); c.arc(120, 84, 18, Math.PI, 0); c.stroke();
+    c.strokeStyle = '#44ddff';
+    c.beginPath(); c.arc(120, 66, 12, Math.PI, 0); c.stroke();
+    c.restore();
+    /* Menu board with the four flavours */
+    c.fillStyle = '#5a2440';
+    roundRect(c, 250, 84, 300, 84, 8); c.fill();
+    c.fillStyle = '#fff8ec';
+    roundRect(c, 256, 90, 288, 72, 6); c.fill();
+    for (var f = 0; f < FLAVOURS.length; f++) {
+      var mx = 292 + f * 72;
+      c.fillStyle = '#e8a050';
+      c.beginPath(); c.moveTo(mx - 9, 118); c.lineTo(mx + 9, 118); c.lineTo(mx, 136); c.closePath(); c.fill();
+      c.fillStyle = FLAVOURS[f].col;
+      c.beginPath(); c.arc(mx, 112, 10, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = 'rgba(90, 36, 64, 0.5)';
+      c.lineWidth = 1;
+      c.stroke();
+      c.fillStyle = '#5a2440';
+      c.textAlign = 'center';
+      fitFont(c, Game.i18n.t(FLAVOURS[f].name), 66, 10, 'bold');
+      c.fillText(Game.i18n.t(FLAVOURS[f].name), mx, 152);
+    }
+    /* Round window to space */
+    roomWindow(c, 680, 104, 46, '#5ec8a0', true);
+    /* Cone pendant lamps */
+    for (var l = 0; l < 3; l++) {
+      var lx = 200 + l * 200;
+      c.strokeStyle = '#8a5a70';
+      c.lineWidth = 1.2;
+      c.beginPath(); c.moveTo(lx, 10); c.lineTo(lx, 40); c.stroke();
+      c.fillStyle = '#e8a050';
+      c.beginPath(); c.moveTo(lx - 12, 40); c.lineTo(lx + 12, 40); c.lineTo(lx, 62); c.closePath(); c.fill();
+      c.fillStyle = '#fff6c8';
+      c.beginPath(); c.arc(lx, 40, 9, Math.PI, 0); c.fill();
+    }
+    tiledFloor(c, '#fff4f8', '#ff9ac8', 254);
+    c.fillStyle = 'rgba(0, 0, 0, 0.2)';
+    c.fillRect(0, 248, W, 6);
+  }
+  function paintParlourFront(c) {
+    counterFront(c, 90, 650, '#ffffff', '#ff88bb', '#5ec8a0');
+    /* Freezer lid: four tubs of ice cream set into the counter */
+    for (var f = 0; f < FLAVOURS.length; f++) {
+      var x = FLAVOURS[f].x;
+      c.fillStyle = '#c8cee0';
+      c.beginPath(); c.ellipse(x, ROOM_COUNTER_TOP + 3, 34, 8, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = FLAVOURS[f].col;
+      c.beginPath(); c.ellipse(x, ROOM_COUNTER_TOP + 1, 29, 6.5, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      c.beginPath(); c.ellipse(x - 8, ROOM_COUNTER_TOP - 1, 10, 2.4, 0, 0, Math.PI * 2); c.fill();
+      /* Flavour dots on the counter front */
+      c.fillStyle = FLAVOURS[f].col;
+      c.beginPath(); c.arc(x, ROOM_COUNTER_TOP + 30, 9, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = '#ffffff';
+      c.lineWidth = 2;
+      c.stroke();
+    }
+    /* Cone holder */
+    c.fillStyle = '#c8cee0';
+    c.fillRect(CONE_X - 16, ROOM_COUNTER_TOP - 6, 32, 8);
+    c.strokeStyle = '#5a2440';
+    c.lineWidth = 1;
+    c.strokeRect(CONE_X - 16, ROOM_COUNTER_TOP - 6, 32, 8);
+  }
+  function drawParlourItems(c) {
+    var b = room.bits;
+    /* The cone and its stack of scoops (newest one drops in) */
+    var tip = ROOM_COUNTER_TOP - 2, top = tip - 34;
+    c.fillStyle = '#e8a050';
+    c.beginPath(); c.moveTo(CONE_X - 13, top); c.lineTo(CONE_X + 13, top); c.lineTo(CONE_X, tip); c.closePath(); c.fill();
+    c.strokeStyle = '#a8642a';
+    c.lineWidth = 1;
+    c.stroke();
+    c.beginPath();
+    c.moveTo(CONE_X - 9, top + 8); c.lineTo(CONE_X + 4, top + 26);
+    c.moveTo(CONE_X + 9, top + 8); c.lineTo(CONE_X - 4, top + 26);
+    c.stroke();
+    for (var s = 0; s < b.scoops.length; s++) {
+      var drop = s === b.scoops.length - 1 ? Math.max(0, 1 - b.dropT / 14) : 0;
+      var sy = top - 6 - s * 15 - drop * drop * 60;
+      var wob = Math.sin(room.t * 0.05 + s) * (b.scoops.length >= 5 ? 1.5 : 0.4);
+      c.fillStyle = FLAVOURS[b.scoops[s]].col;
+      c.beginPath(); c.arc(CONE_X + wob, sy, 13, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = 'rgba(90, 36, 64, 0.45)';
+      c.stroke();
+      c.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      c.beginPath(); c.ellipse(CONE_X + wob - 4, sy - 5, 4, 2, -0.4, 0, Math.PI * 2); c.fill();
+      if (b.scoops[s] === 3) {
+        c.fillStyle = '#ffffff';
+        c.fillRect(CONE_X + wob + 3, sy - 1, 1.6, 1.6);
+        c.fillRect(CONE_X + wob - 5, sy + 3, 1.4, 1.4);
+      }
+    }
+    if (b.scoops.length >= 5) {
+      c.fillStyle = '#e8344a';
+      var ty = top - 6 - 4 * 15 - 14;
+      c.beginPath(); c.arc(CONE_X, ty, 4.5, 0, Math.PI * 2); c.fill();
+    }
+  }
+  /* Stools along the front of the floor (they y-sort with Momoko) */
+  function drawStool(c, x, y) {
+    c.fillStyle = 'rgba(0, 0, 0, 0.22)';
+    c.beginPath(); c.ellipse(x, y, 16, 4, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#c8cee0';
+    c.fillRect(x - 2, y - 30, 4, 30);
+    c.fillRect(x - 10, y - 2, 20, 3);
+    c.fillStyle = '#ff66aa';
+    c.beginPath(); c.ellipse(x, y - 32, 16, 6, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#ff9ac8';
+    c.beginPath(); c.ellipse(x, y - 34, 14, 4.5, 0, 0, Math.PI * 2); c.fill();
+  }
+
+  /* ---- The Whisker family home ---- */
+  var BABIES = [
+    { id: 'babyNib', fur: '#f0d8b8', phase: 0 },
+    { id: 'babyDot', fur: '#e8e0f0', phase: 2.1, bow: '#44ddff' },
+    { id: 'babyPom', fur: '#d8b090', phase: 4.2 },
+  ];
+  var MUSIC_BOX = { x: 610, y: 300 };
+  function paintFamilyBack(c) {
+    /* Inside a cheese wheel: warm curved wall with holes */
+    var wg = c.createRadialGradient(400, 120, 60, 400, 160, 520);
+    wg.addColorStop(0, '#ffe08a');
+    wg.addColorStop(1, '#c8842a');
+    c.fillStyle = wg;
+    c.fillRect(0, 0, W, 254);
+    var holes = [[40, 60, 12], [150, 30, 8], [250, 70, 6], [560, 40, 10], [770, 80, 9], [470, 24, 5], [90, 170, 7], [740, 190, 6]];
+    for (var h = 0; h < holes.length; h++) holeUI(c, holes[h][0], holes[h][1], holes[h][2]);
+    /* Curved ceiling shadow */
+    c.fillStyle = 'rgba(90, 48, 16, 0.25)';
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(W, 0); c.lineTo(W, 30); c.quadraticCurveTo(W / 2, -10, 0, 30); c.closePath(); c.fill();
+    /* Round window with the stars */
+    roomWindow(c, 400, 104, 44, '#a8642a', false);
+    /* Fireplace (the flames are drawn live) */
+    c.fillStyle = '#b8583a';
+    roundRect(c, 70, 128, 120, 126, 8); c.fill();
+    c.strokeStyle = 'rgba(80, 30, 16, 0.5)';
+    c.lineWidth = 1;
+    for (var br = 0; br < 6; br++) {
+      c.beginPath(); c.moveTo(70, 146 + br * 18); c.lineTo(190, 146 + br * 18); c.stroke();
+    }
+    c.fillStyle = '#2a120a';
+    c.beginPath(); c.moveTo(96, 254); c.lineTo(96, 196); c.arc(130, 196, 34, Math.PI, 0); c.lineTo(164, 254); c.closePath(); c.fill();
+    c.fillStyle = '#8a4a20';
+    c.fillRect(62, 122, 136, 10);
+    /* Family pictures on the mantel and walls */
+    var pics = [[96, 104, '#ff88bb'], [150, 108, '#44ddff'], [560, 96, '#88dd66'], [620, 110, '#ffd24a']];
+    for (var p = 0; p < pics.length; p++) {
+      var px = pics[p][0], py = pics[p][1];
+      c.fillStyle = '#8a4a20';
+      c.fillRect(px - 15, py - 18, 30, 26);
+      c.fillStyle = pics[p][2];
+      c.fillRect(px - 12, py - 15, 24, 20);
+      c.fillStyle = '#f4e2c8';
+      c.beginPath(); c.arc(px - 4, py - 6, 4, 0, Math.PI * 2); c.arc(px + 5, py - 4, 3, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(px - 7, py - 10, 2, 0, Math.PI * 2); c.arc(px - 1, py - 10, 2, 0, Math.PI * 2); c.fill();
+    }
+    /* Matchbox bunk beds on the right */
+    for (var bk = 0; bk < 2; bk++) {
+      var by = 170 + bk * 52;
+      c.fillStyle = '#e8445a';
+      c.fillRect(640, by, 130, 30);
+      c.fillStyle = '#ffe9c8';
+      c.fillRect(646, by + 4, 118, 10);
+      c.fillStyle = '#ffffff';
+      c.beginPath(); c.ellipse(662, by + 8, 12, 6, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = bk ? '#88dd66' : '#44ddff';
+      c.fillRect(676, by + 10, 88, 12);
+      c.strokeStyle = '#6a2a20';
+      c.lineWidth = 1.2;
+      c.strokeRect(640, by, 130, 30);
+    }
+    c.fillStyle = '#8a5a30';
+    c.fillRect(636, 160, 6, 94);
+    c.fillRect(768, 160, 6, 94);
+    /* Wooden floor and a round rag rug */
+    var fg = c.createLinearGradient(0, 254, 0, H);
+    fg.addColorStop(0, '#8a5a2a');
+    fg.addColorStop(1, '#b07a3a');
+    c.fillStyle = fg;
+    c.fillRect(0, 254, W, H - 254);
+    c.strokeStyle = 'rgba(0, 0, 0, 0.16)';
+    c.lineWidth = 1;
+    for (var pl = -8; pl <= 8; pl++) { c.beginPath(); c.moveTo(W / 2 + pl * 60, 254); c.lineTo(W / 2 + pl * 150, H); c.stroke(); }
+    c.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    c.fillRect(0, 248, W, 6);
+    var rugs = ['#ff88bb', '#ffd24a', '#44ddff', '#88dd66', '#ffffff'];
+    for (var r = 0; r < rugs.length; r++) {
+      c.fillStyle = rugs[r];
+      c.beginPath(); c.ellipse(380, 384, 200 - r * 36, 52 - r * 9.4, 0, 0, Math.PI * 2); c.fill();
+    }
+    /* Dining table with thimble cups and a cheese snack */
+    c.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    c.beginPath(); c.ellipse(330, 290, 74, 9, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#8a4a20';
+    c.fillRect(272, 250, 8, 40);
+    c.fillRect(380, 250, 8, 40);
+    c.fillStyle = '#c4803e';
+    c.beginPath(); c.ellipse(330, 248, 72, 14, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#e0a868';
+    c.beginPath(); c.ellipse(330, 245, 70, 11, 0, 0, Math.PI * 2); c.fill();
+    var cups = [290, 316, 344, 370];
+    for (var cu = 0; cu < cups.length; cu++) {
+      c.fillStyle = '#c8cee0';
+      c.fillRect(cups[cu] - 5, 232, 10, 11);
+      c.fillStyle = '#9aa0b8';
+      c.fillRect(cups[cu] - 5, 232, 10, 2);
+    }
+    c.fillStyle = '#ffd24a';
+    c.beginPath(); c.moveTo(318, 242); c.lineTo(346, 242); c.lineTo(340, 226); c.closePath(); c.fill();
+    /* Low shelf for the music box */
+    c.fillStyle = '#8a4a20';
+    c.fillRect(MUSIC_BOX.x - 34, 250, 68, 8);
+    c.fillRect(MUSIC_BOX.x - 30, 258, 6, 32);
+    c.fillRect(MUSIC_BOX.x + 24, 258, 6, 32);
+  }
+  function drawFamilyItems(c) {
+    var t = room.t;
+    /* Fire */
+    for (var f = 0; f < 3; f++) {
+      var fl = 0.8 + Math.sin(t * 0.21 + f * 2) * 0.15 + Math.sin(t * 0.37 + f) * 0.08;
+      c.fillStyle = ['#ff7a2a', '#ffb030', '#fff0a0'][f];
+      c.beginPath(); c.ellipse(130 + (f - 1) * 3, 250 - f * 3, 22 - f * 7, (30 - f * 8) * fl, 0, Math.PI, 0); c.fill();
+    }
+    c.fillStyle = '#6a3a1a';
+    c.fillRect(108, 248, 44, 6);
+    /* Music box on its shelf: a little cheese-wheel carousel */
+    var spin = room.bits.musicT > 0 ? t * 0.12 : 0;
+    var mx = MUSIC_BOX.x, my = 250;
+    c.fillStyle = '#ff88bb';
+    c.fillRect(mx - 18, my - 16, 36, 16);
+    c.strokeStyle = '#6a2a40';
+    c.lineWidth = 1;
+    c.strokeRect(mx - 18, my - 16, 36, 16);
+    c.fillStyle = '#ffd24a';
+    c.beginPath(); c.ellipse(mx, my - 18, 14, 4, 0, 0, Math.PI * 2); c.fill();
+    for (var k = 0; k < 3; k++) {
+      var a = spin + k * Math.PI * 2 / 3;
+      c.fillStyle = ['#ffffff', '#44ddff', '#88dd66'][k];
+      c.beginPath(); c.arc(mx + Math.cos(a) * 9, my - 22 + Math.sin(a) * 2, 3, 0, Math.PI * 2); c.fill();
+    }
+    c.strokeStyle = '#c8cee0';
+    c.lineWidth = 2;
+    c.beginPath(); c.moveTo(mx + 18, my - 8); c.lineTo(mx + 24, my - 8 + Math.sin(spin * 2) * 3); c.stroke();
+  }
+  /* The babies play tag round the rug, turning to face the way they run. */
+  function babyAt(i) {
+    var bb = room.bits.babies[i];
+    var a = room.t * 0.012 + BABIES[i].phase;
+    var x = 380 + Math.cos(a) * 150, y = 384 + Math.sin(a) * 36;
+    return { x: x, y: y, face: Math.sin(a) > 0 ? -1 : 1, hop: bb.hop > 0 ? Math.sin((1 - bb.hop / 30) * Math.PI) : 0 };
+  }
+
+  /* ---- Room table ---- */
+  var MOON_ROOMS = {
+    cheeseDeli: {
+      title: 'roomDeli', sub: 'roomDeliSub', name: 'goudaName', hi: 'goudaHi', chat: ['goudaChat1', 'goudaChat2'],
+      keeper: { x: 400, y: 232, s: 2.4, fur: '#c8945a', apron: '#5ec8a0', hat: 'bowtie', moustache: true },
+      ink: '#ffe9c8', band: 'rgba(58, 26, 8, 0.82)',
+      back: paintDeliBack, front: paintDeliFront, items: drawDeliItems,
+      light: function (g) {
+        shadeBand(g, 0, 90, 'rgba(30, 10, 0, 0.4)', 'rgba(30, 10, 0, 0)');
+        lightCone(g, 400, 10, 250, 160, '255, 230, 170', 0.18);
+        lightPool(g, 400, 330, 320, 80, '255, 230, 170', 0.22);
+        shadeCorners(g, 0, H, 0.34);
+        shadeBand(g, H - 80, H, 'rgba(30, 10, 0, 0)', 'rgba(30, 10, 0, 0.3)');
+      },
+      start: function () { return { bitten: [false, false, false, false] }; },
+      spots: function () {
+        var out = [];
+        for (var i = 0; i < DELI_CHEESES.length; i++) out.push({ x: DELI_CHEESES[i].x, y: ROOM_FLOOR_TOP + 4, label: 'actionTaste', tap: [DELI_CHEESES[i].x - 32, ROOM_COUNTER_TOP - 44, 64, 100], i: i });
+        return out;
+      },
+      act: function (sp) {
+        room.bits.bitten[sp.i] = true;
+        roomSay(DELI_CHEESES[sp.i].line);
+        roomPop('cafeYum');
+        roomBurst(DELI_CHEESES[sp.i].x, ROOM_COUNTER_TOP - 20, [DELI_CHEESES[sp.i].col, '#ffffff', '#ff9a3a']);
+        Game.audio.play('pickup');
+      },
+    },
+    iceCreamParlour: {
+      title: 'roomParlour', sub: 'roomParlourSub', name: 'scoopName', hi: 'scoopHi', chat: ['scoopChat1', 'scoopChat2'],
+      keeper: { x: 520, y: 232, s: 2.4, fur: '#f4f0f4', apron: '#ff9ac8', hat: 'scoop' },
+      ink: '#5a2440', band: 'rgba(255, 244, 250, 0.88)',
+      back: paintParlourBack, front: paintParlourFront, items: drawParlourItems,
+      light: function (g) {
+        for (var l = 0; l < 3; l++) {
+          lightCone(g, 200 + l * 200, 60, 250, 90, '255, 240, 210', 0.2);
+          lightPool(g, 200 + l * 200, 320, 130, 40, '255, 220, 236', 0.2);
+        }
+        lightPool(g, 680, 104, 90, 90, '200, 220, 255', 0.16);
+        shadeCorners(g, 0, H, 0.26);
+      },
+      start: function () { return { scoops: [], dropT: 0 }; },
+      spots: function () {
+        var out = [];
+        for (var i = 0; i < FLAVOURS.length; i++) out.push({ x: FLAVOURS[i].x, y: ROOM_FLOOR_TOP + 4, label: 'actionScoop', tap: [FLAVOURS[i].x - 36, ROOM_COUNTER_TOP - 14, 72, 70], i: i });
+        return out;
+      },
+      act: function (sp) {
+        var b = room.bits;
+        if (b.scoops.length >= 5) b.scoops = [];
+        b.scoops.push(sp.i);
+        b.dropT = 0;
+        if (b.scoops.length >= 5) {
+          roomSay('scoopTower');
+          roomPop('cafeYum');
+          roomBurst(CONE_X, ROOM_COUNTER_TOP - 110, ['#ff66cc', '#ffd24a', '#44ddff', '#88dd66'], 22);
+          Game.audio.play('victory');
+        } else {
+          roomSay(FLAVOURS[sp.i].line);
+          roomBurst(CONE_X, ROOM_COUNTER_TOP - 40 - b.scoops.length * 15, [FLAVOURS[sp.i].col, '#ffffff']);
+          Game.audio.play('pickup');
+        }
+      },
+      actors: function (list) {
+        for (var s = 0; s < 3; s++) list.push({ y: 318, draw: drawStool, x: 200 + s * 100 });
+      },
+    },
+    mouseFamilyHome: {
+      title: 'roomFamily', sub: 'roomFamilySub', name: 'mamaName', hi: 'mamaHi', chat: ['mamaChat1', 'mamaChat2'],
+      keeper: { x: 450, y: 292, s: 2.3, fur: '#e0c8a8', apron: '#ff88bb', hat: 'bow', bow: '#ff66aa', floor: true },
+      ink: '#fff4d8', band: 'rgba(90, 48, 16, 0.82)',
+      back: paintFamilyBack, front: null, items: drawFamilyItems,
+      light: function (g) {
+        lightPool(g, 130, 260, 200, 110, '255, 170, 90', 0.3);
+        lightPool(g, 400, 104, 120, 80, '220, 230, 255', 0.14);
+        shadeCorners(g, 0, H, 0.36);
+        shadeBand(g, H - 80, H, 'rgba(40, 16, 0, 0)', 'rgba(40, 16, 0, 0.3)');
+      },
+      start: function () { return { babies: [{ hop: 0, met: false }, { hop: 0, met: false }, { hop: 0, met: false }], musicT: 0, thanked: false }; },
+      spots: function () {
+        var out = [];
+        for (var i = 0; i < BABIES.length; i++) {
+          var p = babyAt(i);
+          out.push({ x: p.x, y: p.y, label: 'actionPlay', tap: [p.x - 26, p.y - 50, 52, 58], baby: i });
+        }
+        out.push({ x: MUSIC_BOX.x, y: MUSIC_BOX.y + 4, label: 'actionWind', tap: [MUSIC_BOX.x - 30, 220, 60, 50], music: true });
+        return out;
+      },
+      act: function (sp) {
+        var b = room.bits;
+        if (sp.music) {
+          b.musicT = 240;
+          for (var i = 0; i < b.babies.length; i++) b.babies[i].hop = 30;
+          roomSay('musicLine');
+          roomBurst(MUSIC_BOX.x, 220, ['#ffd24a', '#ff88bb', '#44ddff'], 12, true);
+          Game.audio.play('victory');
+          return;
+        }
+        var bb = b.babies[sp.baby];
+        bb.hop = 30;
+        bb.met = true;
+        var all = b.babies[0].met && b.babies[1].met && b.babies[2].met;
+        if (all && !b.thanked) { b.thanked = true; roomSay('mamaThanks'); }
+        else roomSay(BABIES[sp.baby].id, BABIES[sp.baby].id + 'Name');
+        roomBurst(sp.x, sp.y - 40, ['#ff88bb', '#ffffff'], 6, true);
+        Game.audio.play('boing');
+      },
+      actors: function (list) {
+        for (var i = 0; i < BABIES.length; i++) {
+          (function (i) {
+            var p = babyAt(i);
+            list.push({ y: p.y, draw: function (c) {
+              c.fillStyle = 'rgba(40, 16, 0, 0.3)';
+              c.beginPath(); c.ellipse(p.x, p.y, 13, 3.4, 0, 0, Math.PI * 2); c.fill();
+              drawRoomMouse(c, p.x, p.y, 1.35, { fur: BABIES[i].fur, phase: BABIES[i].phase, face: p.face,
+                hop: p.hop + (room.bits.musicT > 0 ? Math.abs(Math.sin(room.t * 0.15 + i)) * 0.6 : 0),
+                hat: BABIES[i].bow ? 'bow' : null, bow: BABIES[i].bow }, room.t);
+            } });
+          })(i);
+        }
+      },
+    },
+  };
+
+  function isMoonRoom(id) { return !!MOON_ROOMS[id]; }
+
+  function startMoonRoom(id) {
+    var R = MOON_ROOMS[id];
+    room.id = id;
+    room.t = 0;
+    room.fx = [];
+    room.pop = null; room.popT = 0;
+    room.near = -1;
+    room.chatI = 0;
+    room.bits = R.start();
+    var pp = getHousePlayerPos(id);
+    pp.x = 130; pp.y = H - 80; pp.px = pp.py = null;
+    housePlayerFacing = 1;
+    roomSay(R.hi);
+  }
+  function roomSay(key, nameKey) {
+    room.say = key;
+    room.sayName = nameKey || null;
+    room.sayT = 330;
+  }
+  function roomPop(key) {
+    var pp = getHousePlayerPos(room.id);
+    room.pop = key; room.popT = 60;
+    room.popX = pp.x; room.popY = pp.y - 80;
+  }
+  function roomBurst(x, y, cols, n, hearts) {
+    for (var i = 0; i < (n || 10); i++) {
+      var a = Math.random() * Math.PI * 2, v = 1 + Math.random() * 2.2;
+      room.fx.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1.6, life: 40 + Math.random() * 20, col: cols[i % cols.length], heart: !!hearts });
+    }
+  }
+  function keeperSpot(R) {
+    return { x: R.keeper.x, y: R.keeper.floor ? R.keeper.y + 10 : ROOM_FLOOR_TOP + 4, label: 'actionTalk',
+             tap: [R.keeper.x - 34, R.keeper.y - 100, 68, 104], keeper: true };
+  }
+  function roomSpots(R) {
+    var s = R.spots();
+    s.push(keeperSpot(R));
+    return s;
+  }
+  function roomAct(R, sp) {
+    if (sp.keeper) {
+      var b = room.bits;
+      if (R === MOON_ROOMS.mouseFamilyHome && b.thanked) roomSay('mamaThanks');
+      else roomSay(R.chat[room.chatI++ % R.chat.length]);
+      Game.audio.play('select');
+      return;
+    }
+    R.act(sp);
+  }
+
+  function updateMoonRoom(keys, jp, id) {
+    var R = MOON_ROOMS[id];
+    if (room.id !== id) startMoonRoom(id);
+    room.t++;
+    if (room.sayT > 0) room.sayT--;
+    if (room.popT > 0) room.popT--;
+    var b = room.bits;
+    if (b.dropT != null) b.dropT++;
+    if (b.musicT > 0) b.musicT--;
+    if (b.babies) for (var bi = 0; bi < b.babies.length; bi++) if (b.babies[bi].hop > 0) b.babies[bi].hop--;
+    for (var f = room.fx.length - 1; f >= 0; f--) {
+      var p = room.fx[f];
+      p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.life--;
+      if (p.life <= 0) room.fx.splice(f, 1);
+    }
+    /* Walk Momoko about the floor */
+    var pp = getHousePlayerPos(id);
+    var sp = 2.2, moved = false;
+    pp.px = pp.x; pp.py = pp.y;
+    if (keys.left)  { pp.x -= sp; housePlayerFacing = -1; moved = true; }
+    if (keys.right) { pp.x += sp; housePlayerFacing = 1;  moved = true; }
+    if (keys.up)    { pp.y -= sp; moved = true; }
+    if (keys.down)  { pp.y += sp; moved = true; }
+    if (pp.x < 30) pp.x = 30;
+    if (pp.x > W - 110) pp.x = W - 110;
+    if (pp.y < ROOM_FLOOR_TOP) pp.y = ROOM_FLOOR_TOP;
+    if (pp.y > H - 30) pp.y = H - 30;
+    if (moved) housePlayerFrame = (housePlayerFrame + 1) % 24;
+    /* The nearest thing she can try */
+    var spots = roomSpots(R), best = 64;
+    room.near = -1;
+    for (var i = 0; i < spots.length; i++) {
+      var dx = pp.x - spots[i].x, dy = (pp.y - spots[i].y) * 1.4;
+      var d = Math.sqrt(dx * dx + dy * dy);
+      if (d < best) { best = d; room.near = i; }
+    }
+    if (jp.action && room.near >= 0) roomAct(R, spots[room.near]);
+  }
+
+  function handleMoonRoomClick(mx, my, id) {
+    var R = MOON_ROOMS[id];
+    if (hitExitButton(mx, my) || hitButton(mx, my, W - 92, H - 152, 80, 122)) {
+      Game.audio.play('select');
+      return 'exit';
+    }
+    var spots = roomSpots(R);
+    for (var i = spots.length - 1; i >= 0; i--) {
+      var tp = spots[i].tap;
+      if (hitButton(mx, my, tp[0], tp[1], tp[2], tp[3])) { roomAct(R, spots[i]); return null; }
+    }
+    return null;
+  }
+
+  /* Static room layers, painted once per room and language into
+     device-resolution canvases. */
+  var roomLayers = {};
+  function roomLayer(c, id, part, y0, y1, paint) {
+    var dpr = Math.min(3, window.devicePixelRatio || 1);
+    var key = id + '@' + dpr + Game.i18n.lang;
+    var L = roomLayers[part];
+    if (!L || L.key !== key) {
+      if (!L) L = roomLayers[part] = { cv: document.createElement('canvas') };
+      L.key = key;
+      L.cv.width = Math.round(W * dpr);
+      L.cv.height = Math.round((y1 - y0) * dpr);
+      var g = L.cv.getContext('2d');
+      g.scale(dpr, dpr);
+      g.translate(0, -y0);
+      g.lineJoin = 'round';
+      g.lineCap = 'round';
+      paint(g);
+    }
+    c.drawImage(L.cv, 0, y0, W, y1 - y0);
+  }
+
+  function drawRoomDoor(c) {
+    c.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    c.beginPath(); c.ellipse(W - 52, H - 30, 44, 6, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#3a2412';
+    c.fillRect(W - 84, H - 140, 64, 110);
+    var dg = c.createLinearGradient(W - 80, 0, W - 24, 0);
+    dg.addColorStop(0, '#9a6a3c');
+    dg.addColorStop(1, '#74482a');
+    c.fillStyle = dg;
+    c.fillRect(W - 80, H - 136, 56, 102);
+    c.fillStyle = '#ffd24a';
+    c.beginPath(); c.arc(W - 33, H - 86, 3.5, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#ffd24a';
+    c.beginPath(); c.moveTo(W - 64, H - 104); c.lineTo(W - 40, H - 104); c.lineTo(W - 44, H - 124); c.closePath(); c.fill();
+    c.fillStyle = '#44ffff';
+    c.fillRect(W - 92, H - 152, 80, 16);
+    c.fillStyle = '#0a0420';
+    c.font = 'bold 11px ' + FONT;
+    c.textAlign = 'center';
+    c.fillText(Game.i18n.t('furnitureExit'), W - 52, H - 141);
+  }
+
+  function drawRoomBubble(c, R) {
+    if (room.sayT <= 0 || !room.say) return;
+    var k = R.keeper, text = Game.i18n.t(room.say);
+    var name = Game.i18n.t(room.sayName || R.name);
+    var bw = 300, pad = 12;
+    c.save();
+    c.globalAlpha = Math.min(1, room.sayT / 20);
+    c.font = 'bold 13px ' + FONT;
+    var lines = layoutLines(c, text, bw - pad * 2);
+    var bh = 30 + lines.length * 17;
+    /* Up beside the speaker's head (clear of the counter, where the
+       things to try are), tail pointing down at them */
+    var anchorX = k.x, anchorY = k.y - k.s * 30;
+    if (room.sayName) {
+      var bp = babyAt(BABIES.map(function (b) { return b.id + 'Name'; }).indexOf(room.sayName));
+      anchorX = bp.x; anchorY = bp.y - 46;
+    }
+    var right = anchorX < W / 2 + 60;
+    var bx = right ? anchorX + 10 : anchorX - 10 - bw;
+    bx = Math.max(10, Math.min(W - bw - 10, bx));
+    var by = Math.max(68, anchorY - 16 - bh);
+    var tx = right ? Math.max(bx + 18, anchorX + 26) : Math.min(bx + bw - 18, anchorX - 26);
+    c.fillStyle = 'rgba(20, 6, 40, 0.3)';
+    roundRect(c, bx + 2, by + 4, bw, bh, 14); c.fill();
+    c.fillStyle = '#fff8ec';
+    c.strokeStyle = '#5a3010';
+    c.lineWidth = 2;
+    roundRect(c, bx, by, bw, bh, 14); c.fill(); c.stroke();
+    var tipX = right ? tx - 14 : tx + 14, tipY = Math.max(by + bh + 8, anchorY - 4);
+    c.beginPath(); c.moveTo(tx - 8, by + bh - 1); c.lineTo(tipX, tipY); c.lineTo(tx + 8, by + bh - 1); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(tx - 8, by + bh); c.lineTo(tipX, tipY); c.lineTo(tx + 8, by + bh); c.stroke();
+    c.fillStyle = '#ff66aa';
+    c.font = 'bold 12px ' + FONT;
+    c.textAlign = 'left';
+    c.fillText(name, bx + pad, by + 18);
+    c.fillStyle = '#3a2414';
+    c.font = 'bold 13px ' + FONT;
+    for (var i = 0; i < lines.length; i++) c.fillText(lines[i], bx + pad, by + 36 + i * 17);
+    c.restore();
+  }
+
+  function drawMoonRoom(c, id) {
+    var R = MOON_ROOMS[id];
+    if (room.id !== id) startMoonRoom(id);
+    roomLayer(c, id, 'back', 0, H, R.back);
+    drawRoomLight(c, 'moon-' + id, R.light, true);
+    var k = R.keeper, kt = room.sayT > 0 && !room.sayName;
+    /* Keeper behind the counter (or standing on the floor at home) */
+    if (!k.floor) {
+      drawRoomMouse(c, k.x, k.y, k.s, { fur: k.fur, apron: k.apron, hat: k.hat, moustache: k.moustache, talking: kt }, room.t);
+      if (R.front) roomLayer(c, id, 'front', ROOM_COUNTER_TOP - 44, ROOM_COUNTER_BOT + 8, R.front);
+    }
+    R.items(c);
+    /* Floor actors and Momoko, back to front */
+    var pp = getHousePlayerPos(id);
+    var list = [];
+    if (R.actors) R.actors(list);
+    if (k.floor) {
+      list.push({ y: k.y, draw: function (c) {
+        c.fillStyle = 'rgba(40, 16, 0, 0.3)';
+        c.beginPath(); c.ellipse(k.x, k.y, 24, 5, 0, 0, Math.PI * 2); c.fill();
+        drawRoomMouse(c, k.x, k.y, k.s, { fur: k.fur, apron: k.apron, hat: k.hat, bow: k.bow, talking: kt, face: pp.x < k.x ? 1 : -1 }, room.t);
+      } });
+    }
+    list.push({ y: pp.y, hero: true });
+    list.sort(function (a, b) { return a.y - b.y; });
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].hero) drawInteriorHero(c, blendStep(pp.px, pp.x), blendStep(pp.py, pp.y) + 4, housePlayerFacing, housePlayerFrame);
+      else list[i].draw(c, list[i].x, list[i].y);
+    }
+    /* What she can try from here */
+    if (room.near >= 0) {
+      var sp = roomSpots(R)[room.near];
+      var lx = sp.tap[0] + sp.tap[2] / 2, ly = sp.tap[1] - 6 + Math.sin(room.t * 0.1) * 2;
+      var label = Game.i18n.t(sp.label);
+      c.font = 'bold 12px ' + FONT;
+      var lw = c.measureText(label).width + 18;
+      c.fillStyle = '#ff66aa';
+      roundRect(c, lx - lw / 2, ly - 18, lw, 20, 10); c.fill();
+      c.strokeStyle = '#ffffff';
+      c.lineWidth = 1.5;
+      c.stroke();
+      c.fillStyle = '#ffffff';
+      c.textAlign = 'center';
+      c.fillText(label, lx, ly - 4);
+    }
+    /* Sparkles and hearts */
+    for (var f = 0; f < room.fx.length; f++) {
+      var p = room.fx[f];
+      c.globalAlpha = Math.min(1, p.life / 20);
+      c.fillStyle = p.col;
+      if (p.heart) {
+        c.beginPath();
+        c.arc(p.x - 2, p.y - 1, 2.2, 0, Math.PI * 2); c.arc(p.x + 2, p.y - 1, 2.2, 0, Math.PI * 2);
+        c.moveTo(p.x - 4, p.y); c.lineTo(p.x, p.y + 4.5); c.lineTo(p.x + 4, p.y); c.closePath(); c.fill();
+      } else {
+        c.fillRect(p.x - 2, p.y - 2, 4, 4);
+      }
+    }
+    c.globalAlpha = 1;
+    /* Yum! over Momoko */
+    if (room.popT > 0) {
+      c.save();
+      c.globalAlpha = Math.min(1, room.popT / 30);
+      var py = room.popY - (60 - room.popT) * 0.4;
+      c.fillStyle = '#fff';
+      c.beginPath(); c.ellipse(room.popX, py, 24, 13, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ff66cc';
+      c.font = 'bold 14px ' + FONT;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(Game.i18n.t(room.pop), room.popX, py);
+      c.restore();
+    }
+    drawRoomDoor(c);
+    /* Title on a hanging board */
+    c.fillStyle = R.band;
+    roundRect(c, 240, 14, 320, 50, 12); c.fill();
+    c.fillStyle = R.ink;
+    c.textAlign = 'center';
+    fitFont(c, Game.i18n.t(R.title), 300, 20, 'bold');
+    c.fillText(Game.i18n.t(R.title), 400, 38);
+    fitFont(c, Game.i18n.t(R.sub), 300, 11, 'bold');
+    c.fillText(Game.i18n.t(R.sub), 400, 56);
+    drawRoomBubble(c, R);
+    /* Hint at the bottom */
+    c.fillStyle = 'rgba(10, 4, 32, 0.7)';
+    c.fillRect(0, H - 24, W - 100, 24);
+    c.fillStyle = '#ffe9c8';
+    c.font = 'bold 11px ' + FONT;
+    c.textAlign = 'center';
+    c.fillText(Game.i18n.t(Game.input.isTouch() ? 'roomHint' : 'roomHintKeys'), (W - 100) / 2, H - 8);
+    drawExitButton(c);
   }
 
   /* ============================================================ */
@@ -6292,6 +7343,9 @@
     drawHouseInterior: drawHouseInterior,
     handleHouseInteriorClick: handleHouseInteriorClick,
     updateHouseInterior: updateHouseInterior,
+    /* The moon village rooms reset each visit and keep no furniture. */
+    startHouseInterior: function (id) { if (MOON_ROOMS[id]) startMoonRoom(id); },
+    isMoonRoom: isMoonRoom,
     drawCafeInterior: drawCafeInterior,
     handleCafeInteriorClick: handleCafeInteriorClick,
     updateCafeInterior: updateCafeInterior,

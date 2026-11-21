@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.17.0';
+  Game.VERSION = 'v2.18.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -945,7 +945,7 @@
       else if (nd.type === 'chefMouse') npcEntity = new Game.entities.ChefMouse(nd.x, nd.y);
       else if (nd.type === 'telescope') npcEntity = new Game.entities.Telescope(nd.x, nd.y);
       else if (nd.type === 'rocket' && Game.entities.RocketShip) npcEntity = new Game.entities.RocketShip(nd.x, nd.y);
-      else if (nd.type === 'houseDoor' && Game.entities.HouseDoor) npcEntity = new Game.entities.HouseDoor(nd.x, nd.y, nd.houseId);
+      else if (nd.type === 'houseDoor' && Game.entities.HouseDoor) npcEntity = new Game.entities.HouseDoor(nd.x, nd.y, nd.houseId, nd.painted);
       else if (nd.type === 'cafeDoor' && Game.entities.CafeDoor) npcEntity = new Game.entities.CafeDoor(nd.x, nd.y);
       else if (nd.type === 'shopDoor' && Game.entities.ShopDoor) npcEntity = new Game.entities.ShopDoor(nd.x, nd.y);
       if (npcEntity) npcs.push({ entity: npcEntity, type: nd.type, data: nd });
@@ -1233,10 +1233,14 @@
           var npc = npcs[nc].entity;
           var npcType = npcs[nc].type;
           var npcData = npcs[nc].data || {};
+          /* Each house door keeps its own cooldown, so stepping out of
+             one door never blocks the next one along the street (the
+             village doors are only a couple of seconds apart). */
+          var cdKey = npcType === 'houseDoor' ? 'houseDoor:' + npcData.houseId : npcType;
           var dist = Math.sqrt(
             Math.pow(player.x - npc.x, 2) + Math.pow(player.y - npc.y, 2)
           );
-          if (dist < 80 && !npc.talking && (!npcCooldowns[npcType] || npcCooldowns[npcType] <= 0)) {
+          if (dist < 80 && !npc.talking && (!npcCooldowns[cdKey] || npcCooldowns[cdKey] <= 0)) {
             /* Universal "interact" trigger: action button (Sparkle on
                touch, Space/Z on keyboard) or Up. */
             var interact = jp.up || keys.up || jp.action;
@@ -1250,12 +1254,14 @@
               if (interact) {
                 var hid = npcData.houseId || 'heroHome';
                 /* Deliver any carried shop items into this house's
-                   furniture state, scattered across the floor. */
-                if (Game.shop && Game.shop.cart && Game.shop.cart.length > 0) {
+                   furniture state, scattered across the floor (the moon
+                   village rooms have no furniture, so the cart waits). */
+                if (Game.shop && Game.shop.cart && Game.shop.cart.length > 0 &&
+                    !(Game.ui.isMoonRoom && Game.ui.isMoonRoom(hid))) {
                   depositCartIntoHouse(hid);
                 }
                 enterHouse(hid);
-                npcCooldowns[npcType] = 300;
+                npcCooldowns[cdKey] = 150;
               }
             } else if (npcType === 'cafeDoor') {
               if (interact) {
@@ -1343,7 +1349,7 @@
               npcCooldowns[npcType] = 300;
             }
           }
-          if (npcCooldowns[npcType] > 0) npcCooldowns[npcType]--;
+          if (npcCooldowns[cdKey] > 0) npcCooldowns[cdKey]--;
         }
 
         /* Rings-view cutscene disabled in Momoko in Space — the town is open
@@ -2002,6 +2008,16 @@
         ctx.beginPath();
         ctx.ellipse(ldx - 20, ldy + 2, 44, 5, 0, 0, Math.PI * 2);
         ctx.fill();
+      } else if (ld.type === 'cheeseDeli' || ld.type === 'iceCreamParlour' || ld.type === 'mouseFamilyHome') {
+        ctx.fillStyle = 'rgba(6, 2, 20, 0.28)';
+        ctx.beginPath();
+        ctx.ellipse(ldx + 4, ldy, ld.type === 'mouseFamilyHome' ? 54 : 64, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        /* Warm light from the door and the shop window */
+        ctx.fillStyle = 'rgba(255, 190, 90, 0.22)';
+        ctx.beginPath();
+        ctx.ellipse(ld.type === 'cheeseDeli' ? ldx - 8 : ldx, ldy + 3, ld.type === 'cheeseDeli' ? 52 : 30, 4.5, 0, 0, Math.PI * 2);
+        ctx.fill();
       } else if (ld.type === 'cheeseArch' || ld.type === 'mouseHouse' || ld.type === 'cheeseStall') {
         var lsk = ld.type === 'cheeseArch' ? 100 * (ld.size || 1) : (ld.type === 'cheeseStall' ? 64 : 40 * (ld.small ? 0.8 : 1));
         ctx.fillStyle = 'rgba(6, 2, 20, 0.28)';
@@ -2570,6 +2586,368 @@
     g.fillRect(-5, AW_T - 24, 10, 6);
     g.fillStyle = '#e8344a';
     g.beginPath(); g.arc(0, AW_T - 26, 2, 0, Math.PI * 2); g.fill();
+  }
+
+  /* ---- Moon village shops and homes you can go into ----
+     Each paints its own door at the spot its houseDoor zone covers
+     (deli: x + 32, parlour and family home: x). */
+  function archDoor(g, cx, w, h, fill, ink) {
+    g.fillStyle = fill;
+    g.beginPath(); g.moveTo(cx - w / 2, 0); g.lineTo(cx - w / 2, -h + w / 2); g.arc(cx, -h + w / 2, w / 2, Math.PI, 0); g.lineTo(cx + w / 2, 0); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(0, 0, 0, 0.16)';
+    g.fillRect(cx + 1, -h + w / 2 - 2, w / 2 - 1, h - w / 2 + 2);
+    g.strokeStyle = ink;
+    g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(cx - w / 2, 0); g.lineTo(cx - w / 2, -h + w / 2); g.arc(cx, -h + w / 2, w / 2, Math.PI, 0); g.lineTo(cx + w / 2, 0); g.stroke();
+    g.fillStyle = '#ffe27a';
+    g.beginPath(); g.arc(cx + w / 2 - 5, -h * 0.45, 1.8, 0, Math.PI * 2); g.fill();
+  }
+  function warmWindow(g, x, y, r, ink) {
+    var lg = g.createRadialGradient(x - 1, y - 1, 0, x, y, r);
+    lg.addColorStop(0, '#fff6c8');
+    lg.addColorStop(1, '#ffb84a');
+    g.fillStyle = lg;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = ink;
+    g.lineWidth = 1.6;
+    g.stroke();
+  }
+
+  /* Gouda's Cheese Deli: a block of swiss with a wedge roof, a striped
+     mint awning over the cheese window and a hanging wedge sign. */
+  function paintCheeseDeli(g) {
+    var INK = '#5a3010';
+    /* Side face for depth, then the front block */
+    g.fillStyle = '#b8761e';
+    g.fillRect(-56, -92, 120, 92);
+    var bg = g.createLinearGradient(-60, -96, 50, 0);
+    bg.addColorStop(0, '#fff09a');
+    bg.addColorStop(0.5, '#ffd04a');
+    bg.addColorStop(1, '#dc962c');
+    g.fillStyle = bg;
+    g.fillRect(-60, -96, 116, 96);
+    g.strokeStyle = INK;
+    g.lineWidth = 1.6;
+    g.strokeRect(-60, -96, 116, 96);
+    cheeseHole(g, -48, -84, 3.2);
+    cheeseHole(g, 44, -82, 4);
+    cheeseHole(g, -50, -12, 2.6);
+    cheeseHole(g, 14, -86, 2.2);
+    /* Wedge roof with a sunlit edge */
+    g.fillStyle = '#e09a2a';
+    g.beginPath(); g.moveTo(-66, -96); g.lineTo(62, -96); g.lineTo(66, -100); g.lineTo(-18, -134); g.closePath(); g.fill();
+    g.fillStyle = '#ffd860';
+    g.beginPath(); g.moveTo(-66, -96); g.lineTo(62, -96); g.lineTo(-20, -131); g.closePath(); g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(-66, -96); g.lineTo(62, -96); g.lineTo(66, -100); g.lineTo(-18, -134); g.lineTo(-20, -131); g.closePath(); g.stroke();
+    g.strokeStyle = 'rgba(255, 252, 220, 0.85)';
+    g.beginPath(); g.moveTo(-62, -98); g.lineTo(-21, -128); g.stroke();
+    cheeseHole(g, -14, -110, 3);
+    cheeseHole(g, 18, -104, 2.2);
+    /* Display window with shelves of cheese */
+    g.fillStyle = '#5a2e14';
+    g.fillRect(-52, -66, 58, 46);
+    var wg = g.createLinearGradient(0, -64, 0, -22);
+    wg.addColorStop(0, '#fff4cc');
+    wg.addColorStop(1, '#ffc768');
+    g.fillStyle = wg;
+    g.fillRect(-49, -63, 52, 40);
+    g.fillStyle = '#9a5a2a';
+    g.fillRect(-49, -45, 52, 2.5);
+    g.fillRect(-49, -26, 52, 2.5);
+    var wheels = [[-41, -51, 6, '#ffcf48'], [-28, -50, 5, '#ffb03a'], [-15, -51, 6, '#fff0b0'], [-3, -50, 4.5, '#ffcf48'],
+                  [-40, -31, 5, '#fff0b0'], [-26, -32, 6, '#ffcf48'], [-11, -31, 5, '#ffb03a']];
+    for (var i = 0; i < wheels.length; i++) {
+      var w = wheels[i];
+      g.fillStyle = w[3];
+      g.beginPath(); g.ellipse(w[0], w[1], w[2], w[2] * 0.8, 0, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = '#a8641c';
+      g.lineWidth = 1;
+      g.stroke();
+    }
+    g.fillStyle = '#ffd860';
+    g.beginPath(); g.moveTo(-2, -28); g.lineTo(2, -38); g.lineTo(2, -28); g.closePath(); g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 1.6;
+    g.strokeRect(-52, -66, 58, 46);
+    g.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    g.lineWidth = 1.2;
+    g.beginPath(); g.moveTo(-44, -60); g.lineTo(-36, -60); g.moveTo(-44, -56); g.lineTo(-40, -56); g.stroke();
+    /* Flower box under the window */
+    g.fillStyle = '#8a4a20';
+    g.fillRect(-54, -20, 62, 6);
+    g.strokeStyle = INK;
+    g.lineWidth = 1;
+    g.strokeRect(-54, -20, 62, 6);
+    var fl = ['#ff66cc', '#44ddff', '#ffd24a', '#ff66cc', '#88dd66'];
+    for (var f = 0; f < 5; f++) {
+      g.fillStyle = '#5ac85a';
+      g.beginPath(); g.arc(-48 + f * 12.5, -22, 3, 0, Math.PI * 2); g.fill();
+      g.fillStyle = fl[f];
+      g.beginPath(); g.arc(-47 + f * 12.5, -23.5, 1.8, 0, Math.PI * 2); g.fill();
+    }
+    /* Striped scalloped awning over window and door */
+    var AT = -82, AB = -70, n = 8, sw = 118 / n;
+    for (var st = 0; st < n; st++) {
+      var x0 = -62 + st * sw;
+      g.fillStyle = st % 2 ? '#fff4d8' : '#5ec8a0';
+      g.beginPath(); g.moveTo(x0, AT); g.lineTo(x0 + sw, AT); g.lineTo(x0 + sw, AB); g.arc(x0 + sw / 2, AB, sw / 2, 0, Math.PI); g.closePath(); g.fill();
+    }
+    g.strokeStyle = INK;
+    g.lineWidth = 1.2;
+    g.beginPath(); g.moveTo(-62, AT);
+    for (var sc = 0; sc < n; sc++) g.arc(-62 + sc * sw + sw / 2, AB, sw / 2, Math.PI, 0, true);
+    g.lineTo(56, AT); g.stroke();
+    g.fillStyle = '#2e8a6a';
+    g.fillRect(-64, AT - 5, 122, 5);
+    g.strokeRect(-64, AT - 5, 122, 5);
+    /* Mint door with a little window */
+    archDoor(g, 32, 24, 50, '#5ec8a0', INK);
+    g.fillStyle = '#fff4cc';
+    g.beginPath(); g.arc(32, -36, 5, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 1;
+    g.stroke();
+    g.fillStyle = '#8a5a30';
+    g.fillRect(18, 0, 28, 3);
+    /* Bracket for the hanging sign (the sign itself sways, drawn live) */
+    g.strokeStyle = '#6a4a2a';
+    g.lineWidth = 2;
+    g.beginPath(); g.moveTo(56, -60); g.lineTo(72, -60); g.stroke();
+  }
+  /* Wedge sign under the deli's bracket. */
+  function drawDeliSign(x, y, t) {
+    ctx.save();
+    ctx.translate(x + 68, y - 60);
+    ctx.rotate(Math.sin(t * 0.0018) * 0.12);
+    ctx.strokeStyle = '#6a4a2a';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(-5, 5); ctx.moveTo(5, 0); ctx.lineTo(5, 5); ctx.stroke();
+    ctx.fillStyle = '#ffd24a';
+    ctx.beginPath(); ctx.moveTo(-12, 5); ctx.lineTo(12, 5); ctx.lineTo(0, 26); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#5a3010';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.fillStyle = '#c88a2a';
+    ctx.beginPath(); ctx.arc(-3, 10, 1.6, 0, Math.PI * 2); ctx.arc(4, 13, 1.2, 0, Math.PI * 2); ctx.arc(0, 19, 1.3, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  /* Moon Scoops: pastel parlour under a strawberry-scoop dome with a
+     cherry on top, a round sundae window and a candy-striped door. */
+  function paintIceCreamParlour(g) {
+    var INK = '#5a2440';
+    /* Walls: mint with a pink skirting */
+    var wg = g.createLinearGradient(-54, -72, 40, 0);
+    wg.addColorStop(0, '#d8fff0');
+    wg.addColorStop(1, '#8edcc0');
+    g.fillStyle = '#5aa890';
+    g.fillRect(-50, -70, 106, 70);
+    g.fillStyle = wg;
+    g.fillRect(-54, -72, 106, 72);
+    g.fillStyle = '#ff9ac8';
+    g.fillRect(-54, -10, 106, 10);
+    g.strokeStyle = INK;
+    g.lineWidth = 1.6;
+    g.strokeRect(-54, -72, 106, 72);
+    /* Polka dots on the wall */
+    g.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    for (var d = 0; d < 9; d++) {
+      g.beginPath(); g.arc(-46 + (d * 23) % 100, -62 + (d * 17) % 46, 1.8, 0, Math.PI * 2); g.fill();
+    }
+    /* Strawberry-scoop dome with a dripping rim */
+    g.fillStyle = '#d45a8c';
+    g.beginPath(); g.ellipse(4, -70, 62, 52, 0, Math.PI, 0); g.fill();
+    var dg = g.createRadialGradient(-20, -108, 4, 0, -76, 64);
+    dg.addColorStop(0, '#ffe0ee');
+    dg.addColorStop(0.5, '#ff9ac8');
+    dg.addColorStop(1, '#e8609a');
+    g.fillStyle = dg;
+    g.beginPath(); g.ellipse(0, -72, 60, 50, 0, Math.PI, 0); g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 1.6;
+    g.beginPath(); g.ellipse(0, -72, 60, 50, 0, Math.PI, 0); g.stroke();
+    /* Drips hanging over the wall top */
+    g.fillStyle = '#ff9ac8';
+    g.beginPath();
+    g.moveTo(-60, -72);
+    var drips = [[-48, 9], [-30, 5], [-14, 12], [4, 6], [22, 10], [40, 5], [54, 8]];
+    for (var i = 0; i < drips.length; i++) {
+      var dx = drips[i][0], dl = drips[i][1];
+      g.lineTo(dx - 5, -72);
+      g.quadraticCurveTo(dx - 5, -72 + dl, dx, -72 + dl);
+      g.quadraticCurveTo(dx + 5, -72 + dl, dx + 5, -72);
+    }
+    g.lineTo(60, -72);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 1.2;
+    g.stroke();
+    /* Sprinkles on the dome */
+    var spr = ['#ffd24a', '#44ddff', '#88dd66', '#ffffff', '#7a5cff'];
+    var sprPos = [[-44, -84], [-34, -98], [-18, -90], [-6, -110], [-2, -86], [10, -100], [20, -88], [28, -108],
+                  [36, -94], [46, -82], [-26, -80], [14, -78], [-40, -76], [32, -78], [0, -96], [-14, -104]];
+    for (var s = 0; s < sprPos.length; s++) {
+      g.save(); g.translate(sprPos[s][0], sprPos[s][1]); g.rotate(s * 1.3);
+      g.fillStyle = spr[s % spr.length];
+      g.fillRect(-2.2, -0.8, 4.4, 1.6);
+      g.restore();
+    }
+    g.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    g.beginPath(); g.ellipse(-26, -104, 12, 5, -0.5, 0, Math.PI * 2); g.fill();
+    /* Cherry on top */
+    g.strokeStyle = '#3a7a2a';
+    g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(2, -128); g.quadraticCurveTo(6, -138, 12, -140); g.stroke();
+    g.fillStyle = '#e8344a';
+    g.beginPath(); g.arc(1, -126, 6, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 1.2;
+    g.stroke();
+    g.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    g.beginPath(); g.arc(-1, -128, 1.8, 0, Math.PI * 2); g.fill();
+    /* Round window with a sundae inside */
+    g.fillStyle = '#fff8e0';
+    g.beginPath(); g.arc(-32, -38, 14, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#e8a050';
+    g.beginPath(); g.moveTo(-38, -36); g.lineTo(-26, -36); g.lineTo(-32, -25); g.closePath(); g.fill();
+    g.fillStyle = '#ff9ac8';
+    g.beginPath(); g.arc(-34, -40, 4.5, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#9fe8c8';
+    g.beginPath(); g.arc(-29.5, -41, 4.2, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#fff0b0';
+    g.beginPath(); g.arc(-32, -45.5, 4, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#e8609a';
+    g.lineWidth = 3;
+    g.beginPath(); g.arc(-32, -38, 14, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = INK;
+    g.lineWidth = 1.2;
+    g.beginPath(); g.arc(-32, -38, 15.5, 0, Math.PI * 2); g.stroke();
+    /* Candy-striped awning over the door */
+    for (var st = 0; st < 4; st++) {
+      g.fillStyle = st % 2 ? '#ffffff' : '#ff66aa';
+      g.beginPath(); g.moveTo(-18 + st * 9, -60); g.lineTo(-9 + st * 9, -60); g.lineTo(-9 + st * 9, -54); g.arc(-13.5 + st * 9, -54, 4.5, 0, Math.PI); g.closePath(); g.fill();
+    }
+    g.strokeStyle = INK;
+    g.lineWidth = 1;
+    g.strokeRect(-18, -60, 36, 6);
+    /* Glass door, mint frame */
+    archDoor(g, 0, 22, 48, '#ffd8ea', INK);
+    g.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(-6, -34); g.lineTo(-2, -40); g.moveTo(-6, -27); g.lineTo(0, -35); g.stroke();
+    g.fillStyle = '#8a5a30';
+    g.fillRect(-14, 0, 28, 3);
+    /* Waffle-cone board out front */
+    g.fillStyle = '#8a5a30';
+    g.beginPath(); g.moveTo(34, 0); g.lineTo(40, -26); g.lineTo(52, -26); g.lineTo(58, 0); g.closePath(); g.fill();
+    g.fillStyle = '#fff4d8';
+    g.fillRect(38, -24, 16, 18);
+    g.fillStyle = '#e8a050';
+    g.beginPath(); g.moveTo(42, -15); g.lineTo(50, -15); g.lineTo(46, -8); g.closePath(); g.fill();
+    g.fillStyle = '#ff9ac8';
+    g.beginPath(); g.arc(46, -17, 4, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 1;
+    g.strokeRect(38, -24, 16, 18);
+  }
+
+  /* The Whisker family home: two cheese wheels stacked up, a wedge roof,
+     window boxes, a washing line of tiny socks and a big round door. */
+  function paintMouseFamilyHome(g) {
+    var INK = '#6a3a10';
+    function wheel(cx, cy, r) {
+      g.fillStyle = '#b8761e';
+      g.beginPath(); g.arc(cx + 6, cy + 2, r, 0, Math.PI * 2); g.fill();
+      var wg = g.createRadialGradient(cx - r * 0.4, cy - r * 0.5, 4, cx, cy, r + 2);
+      wg.addColorStop(0, '#fff0a0');
+      wg.addColorStop(0.6, '#ffd04a');
+      wg.addColorStop(1, '#d8902a');
+      g.fillStyle = wg;
+      g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = '#c47a22';
+      g.lineWidth = 5;
+      g.beginPath(); g.arc(cx, cy, r - 3, 0, Math.PI * 2); g.stroke();
+      g.strokeStyle = INK;
+      g.lineWidth = 1.6;
+      g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+    }
+    /* Washing line from the top wheel to a pole */
+    g.fillStyle = '#8a5a30';
+    g.fillRect(56, -88, 3, 88);
+    g.strokeStyle = 'rgba(70, 40, 20, 0.8)';
+    g.lineWidth = 0.8;
+    g.beginPath(); g.moveTo(30, -104); g.quadraticCurveTo(44, -90, 57, -86); g.stroke();
+    var socks = [[38, -96, '#ff66cc'], [45, -92, '#44ddff'], [52, -88, '#88dd66']];
+    for (var k = 0; k < socks.length; k++) {
+      g.fillStyle = socks[k][2];
+      g.fillRect(socks[k][0] - 1.5, socks[k][1], 3, 6);
+      g.fillRect(socks[k][0] - 1.5, socks[k][1] + 4.5, 5, 2.5);
+    }
+    wheel(0, -46, 46);
+    wheel(4, -118, 31);
+    cheeseHole(g, 26, -24, 3.6);
+    cheeseHole(g, -32, -60, 2.8);
+    cheeseHole(g, 30, -66, 2.4);
+    cheeseHole(g, -14, -124, 2.2);
+    /* Wedge roof and thimble chimney */
+    g.fillStyle = '#9aa0b8';
+    g.fillRect(18, -170, 9, 16);
+    g.fillStyle = '#c8cee0';
+    g.fillRect(17, -172, 11, 3);
+    g.strokeStyle = INK;
+    g.lineWidth = 1;
+    g.strokeRect(18, -170, 9, 16);
+    g.fillStyle = '#e09a2a';
+    g.beginPath(); g.moveTo(-32, -140); g.lineTo(38, -140); g.lineTo(42, -144); g.lineTo(2, -178); g.closePath(); g.fill();
+    g.fillStyle = '#ffd860';
+    g.beginPath(); g.moveTo(-32, -140); g.lineTo(38, -140); g.lineTo(0, -176); g.closePath(); g.fill();
+    g.strokeStyle = INK;
+    g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(-32, -140); g.lineTo(38, -140); g.lineTo(42, -144); g.lineTo(2, -178); g.lineTo(0, -176); g.closePath(); g.stroke();
+    g.strokeStyle = 'rgba(255, 252, 220, 0.85)';
+    g.beginPath(); g.moveTo(-29, -142); g.lineTo(-1, -172); g.stroke();
+    cheeseHole(g, 4, -152, 2.6);
+    /* Windows with pink curtains and window boxes */
+    var wins = [[-24, -56, 9], [24, -50, 8], [6, -118, 9]];
+    for (var i = 0; i < wins.length; i++) {
+      var wx = wins[i][0], wy = wins[i][1], wr = wins[i][2];
+      warmWindow(g, wx, wy, wr, '#8a4a18');
+      g.fillStyle = 'rgba(255, 120, 180, 0.8)';
+      g.beginPath(); g.moveTo(wx - wr + 1, wy - wr * 0.6); g.quadraticCurveTo(wx - wr * 0.2, wy - wr * 0.6, wx - wr * 0.5, wy + wr * 0.6); g.lineTo(wx - wr + 1, wy + wr * 0.4); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(wx + wr - 1, wy - wr * 0.6); g.quadraticCurveTo(wx + wr * 0.2, wy - wr * 0.6, wx + wr * 0.5, wy + wr * 0.6); g.lineTo(wx + wr - 1, wy + wr * 0.4); g.closePath(); g.fill();
+      g.fillStyle = '#8a4a20';
+      g.fillRect(wx - wr - 1, wy + wr - 1, wr * 2 + 2, 4);
+      g.fillStyle = '#5ac85a';
+      g.beginPath(); g.arc(wx - wr * 0.5, wy + wr - 2, 2.4, 0, Math.PI * 2); g.arc(wx + wr * 0.5, wy + wr - 2, 2.4, 0, Math.PI * 2); g.fill();
+      g.fillStyle = i % 2 ? '#ffd24a' : '#ff88cc';
+      g.beginPath(); g.arc(wx - wr * 0.5, wy + wr - 3.5, 1.4, 0, Math.PI * 2); g.arc(wx + wr * 0.5, wy + wr - 3.5, 1.4, 0, Math.PI * 2); g.fill();
+    }
+    /* Big round family door with a heart window and a doormat */
+    archDoor(g, 0, 28, 40, '#ff88bb', INK);
+    g.fillStyle = '#fff0f6';
+    var hx = 0, hy = -26;
+    g.beginPath();
+    g.arc(hx - 2.2, hy - 1, 2.4, 0, Math.PI * 2);
+    g.arc(hx + 2.2, hy - 1, 2.4, 0, Math.PI * 2);
+    g.moveTo(hx - 4.4, hy); g.lineTo(hx, hy + 4.6); g.lineTo(hx + 4.4, hy);
+    g.closePath(); g.fill();
+    g.fillStyle = '#8a5a30';
+    g.fillRect(-18, 0, 36, 3);
+    g.fillStyle = '#c84a6a';
+    g.fillRect(-12, -2, 24, 2.5);
+    /* Heart mailbox on a post */
+    g.fillStyle = '#8a5a30';
+    g.fillRect(-52, -22, 3, 22);
+    g.fillStyle = '#ff66aa';
+    g.fillRect(-58, -32, 15, 10);
+    g.strokeStyle = INK;
+    g.lineWidth = 1;
+    g.strokeRect(-58, -32, 15, 10);
+    g.fillStyle = '#ffffff';
+    g.fillRect(-55, -29, 9, 1.4);
   }
 
   /* Moon Cheese Cake on Brie's counter once her quest is done, with
@@ -3556,6 +3934,26 @@
           }
           ctx.globalAlpha = 1;
         }
+      } else if (d.type === 'cheeseDeli') {
+        blitDeco(decoSprite('deli', 140, 142, 68, 138, paintCheeseDeli), dx, dy, 1);
+        drawDeliSign(dx, dy, Date.now());
+      } else if (d.type === 'iceCreamParlour') {
+        blitDeco(decoSprite('parlour', 130, 150, 64, 146, paintIceCreamParlour), dx, dy, 1);
+        /* Twinkle on the cherry */
+        var tw = 0.5 + 0.5 * Math.sin(Date.now() * 0.004);
+        ctx.globalAlpha = tw;
+        ctx.drawImage(glowSprite('#ffffff', 12), dx - 9, dy - 137, 14, 14);
+        ctx.globalAlpha = 1;
+      } else if (d.type === 'mouseFamilyHome') {
+        blitDeco(decoSprite('family', 126, 186, 62, 182, paintMouseFamilyHome), dx, dy, 1);
+        var fT = Date.now() * 0.0011 + d.x;
+        for (var fs = 0; fs < 3; fs++) {
+          var fP = (fT + fs * 0.33) % 1;
+          ctx.fillStyle = 'rgba(255, 244, 220, ' + (0.36 * (1 - fP)).toFixed(2) + ')';
+          ctx.beginPath();
+          ctx.arc(dx + 22 + Math.sin(fP * 6 + fs) * 3, dy - 176 - fP * 22, 2 + fP * 3.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
       } else if (d.type === 'bunting') {
         drawBunting(d, dx, dy, Date.now(), party);
       } else if (d.type === 'cheeseMoonBg') {
@@ -3800,6 +4198,7 @@
   /* ---- House interior ---- */
   function enterHouse(id) {
     currentHouseId = id;
+    if (Game.ui.startHouseInterior) Game.ui.startHouseInterior(id);
     Game.audio.startMusic('bgm', 'indoor');
     state = State.HOUSE_INTERIOR;
   }
@@ -4101,6 +4500,7 @@
     /* Debug/QA hook: the live player entity while playing. */
     getPlayer: function () { return player; },
     getState: function () { return state; },
+    getHouse: function () { return currentHouseId; },
   };
 
   /* Auto-init when DOM is ready */

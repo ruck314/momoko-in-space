@@ -1687,12 +1687,16 @@
   };
 
   /* ========== HOUSE DOOR (interactable — enters house interior) ========== */
-  function HouseDoor(x, y, houseId) {
+  function HouseDoor(x, y, houseId, painted) {
     this.x = x;
     this.y = y;
     this.w = 48;
     this.h = 52;
     this.houseId = houseId || 'heroHome';
+    /* The moon village's buildings paint their own doors; their entry
+       zone only adds the warm glow and bobbing heart cue ('shop' fronts
+       also get the OPEN tag). */
+    this.painted = painted || null;
     this.talking = false;
     this.timer = 0;
   }
@@ -1703,6 +1707,7 @@
   HouseDoor.prototype.draw = function (c, camX, camY) {
     var sx = Math.round(this.x - camX);
     var sy = Math.round(this.y - camY);
+    if (this.painted) { CafeDoor.prototype.drawCue.call(this, c, sx, sy, this.painted === 'shop'); return; }
     /* Door step */
     c.fillStyle = '#4a3a5e';
     c.fillRect(sx - 4, sy + 50, 56, 4);
@@ -1784,8 +1789,12 @@
   CafeDoor.prototype.interact = function () { /* handled by engine */ };
 
   CafeDoor.prototype.draw = function (c, camX, camY) {
-    var sx = Math.round(this.x - camX);
-    var sy = Math.round(this.y - camY);
+    this.drawCue(c, Math.round(this.x - camX), Math.round(this.y - camY), true);
+  };
+
+  /* Glow + bobbing heart over a painted door (and the OPEN tag on shop
+     fronts). Shared with HouseDoor's painted variant. */
+  CafeDoor.prototype.drawCue = function (c, sx, sy, openTag) {
     /* Soft warm glow at the doorway (subtle, since the building art owns
        the door visuals). */
     c.save();
@@ -1808,6 +1817,7 @@
     c.lineTo(hcx + 4.4, hcy);
     c.closePath();
     c.fill();
+    if (!openTag) return;
     /* Tiny "OPEN" tag */
     c.fillStyle = '#ffd24a';
     c.font = 'bold 8px "M PLUS Rounded 1c", sans-serif';
