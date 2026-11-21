@@ -303,6 +303,19 @@
   }
 
   /* Contact shadow under a character whose feet are at (x, y). */
+  /* Momoko indoors: painted 1.5x up from her feet at (x, y) so she
+     holds her own against the furniture; her walk position and every
+     hit test stay where they were. */
+  var INTERIOR_HERO = 1.5;
+  function drawInteriorHero(c, x, y, facing, frame) {
+    c.save();
+    c.translate(x, y);
+    c.scale(INTERIOR_HERO, INTERIOR_HERO);
+    footShadow(c, 0, 0);
+    c.scale(facing, 1);
+    Game.entities.drawMomokoSprite(c, -14, -34, Game.customization, frame, { mirror: facing === -1 });
+    c.restore();
+  }
   function footShadow(c, x, y) {
     c.fillStyle = 'rgba(10, 2, 30, 0.38)';
     c.beginPath();
@@ -646,12 +659,33 @@
     c.beginPath();
     c.ellipse(x, y + r * 0.3, r * 1.2, r * 0.2, tilt, 0, Math.PI * 2);
     c.fill();
+    /* Atmosphere: the limb brightens where the air is seen edge-on */
+    var ag = c.createRadialGradient(x, y, r * 0.7, x, y, r);
+    ag.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    ag.addColorStop(1, 'rgba(255, 240, 255, 0.3)');
+    c.fillStyle = ag;
+    c.fillRect(x - r, y - r, r * 2, r * 2);
+    /* Night side: a terminator sweeping round the lower right, with a
+       warm band where day turns to night */
+    var ng = c.createRadialGradient(x - r * 0.55, y - r * 0.6, r * 0.2, x - r * 0.3, y - r * 0.35, r * 1.75);
+    ng.addColorStop(0, 'rgba(10, 4, 30, 0)');
+    ng.addColorStop(0.5, 'rgba(10, 4, 30, 0)');
+    ng.addColorStop(0.62, 'rgba(120, 30, 70, 0.18)');
+    ng.addColorStop(0.8, 'rgba(10, 4, 30, 0.6)');
+    ng.addColorStop(1, 'rgba(10, 4, 30, 0.78)');
+    c.fillStyle = ng;
+    c.fillRect(x - r, y - r, r * 2, r * 2);
     c.restore();
-    /* Atmosphere rim */
-    c.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-    c.lineWidth = 1.5;
+    /* Atmosphere rim on the lit limb, and its glow just outside */
+    c.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+    c.lineWidth = 1.2;
     c.beginPath();
-    c.arc(x, y, r - 0.5, Math.PI * 0.9, Math.PI * 1.6);
+    c.arc(x, y, r - 0.6, Math.PI * 0.85, Math.PI * 1.65);
+    c.stroke();
+    c.strokeStyle = 'rgba(255, 220, 255, 0.18)';
+    c.lineWidth = 2.5;
+    c.beginPath();
+    c.arc(x, y, r + 1.2, Math.PI * 0.95, Math.PI * 1.55);
     c.stroke();
     if (ring) {
       c.strokeStyle = ring;
@@ -3021,12 +3055,12 @@
          sprite height (34) to plant feet on the ground line. */
       if (Game.entities && Game.entities.drawMomokoSprite) {
         var frame = mm.moving ? Math.floor(mm.walkPhase) : 0;
-        Game.entities.drawMomokoSprite(c, -14, -34, Game.customization, frame);
+        Game.entities.drawMomokoSprite(c, -14, -34, Game.customization, frame, { mirror: mm.facing === -1 });
       }
       /* Companion crab trails behind her opposite facing direction */
       if (Game.entities && Game.entities.drawCrabPet &&
           Game.customization.crab && Game.customization.crab !== 'none') {
-        Game.entities.drawCrabPet(c, -22, -2, Game.customization.crab, beachTimer);
+        Game.entities.drawCrabPet(c, -22, -2, Game.customization.crab, beachTimer, mm.facing === -1);
       }
       c.restore();
     }
@@ -3638,16 +3672,7 @@
     /* Momoko walking inside — she can mingle with the placed furniture. */
     var pp = getHousePlayerPos(houseId);
     if (Game.entities && Game.entities.drawMomokoSprite) {
-      footShadow(c, pp.x, pp.y + 4);
-      c.save();
-      var psx = pp.x - 14, psy = pp.y - 30;
-      if (housePlayerFacing === -1) {
-        c.translate(psx + 14, 0);
-        c.scale(-1, 1);
-        psx = -14;
-      }
-      Game.entities.drawMomokoSprite(c, psx, psy, Game.customization, housePlayerFrame);
-      c.restore();
+      drawInteriorHero(c, pp.x, pp.y + 4, housePlayerFacing, housePlayerFrame);
     }
 
     /* Exit door (right side, bigger so it reads as an actual exit) */
@@ -5708,16 +5733,7 @@
     drawCafeMenuItems(c);
     /* Momoko walking around the cafe */
     if (Game.entities && Game.entities.drawMomokoSprite) {
-      footShadow(c, cafePlayerX, cafePlayerY + 4);
-      c.save();
-      var psx = cafePlayerX - 14, psy = cafePlayerY - 30;
-      if (cafeFacing === -1) {
-        c.translate(psx + 14, 0);
-        c.scale(-1, 1);
-        psx = -14;
-      }
-      Game.entities.drawMomokoSprite(c, psx, psy, Game.customization, cafeFrame);
-      c.restore();
+      drawInteriorHero(c, cafePlayerX, cafePlayerY + 4, cafeFacing, cafeFrame);
     }
     /* Yum! purchase feedback bubble */
     if (cafeYumTimer > 0) {
@@ -6202,7 +6218,8 @@
   function drawCarryOverlay(c, player, camX, camY) {
     if (!Game.shop || !Game.shop.cart || Game.shop.cart.length === 0) return;
     var bx = Math.round(player.x - camX) + (player.w || 28) / 2;
-    var by = Math.round(player.y - camY) - 18;
+    /* rests on top of her helmet (she is painted 1.25x up from her feet) */
+    var by = Math.round(player.y - camY) - 27;
     var t = Date.now() * 0.005;
     var bob = Math.sin(t * 2) * 2;
     /* Pillow under the items */

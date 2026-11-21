@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.13.0';
+  Game.VERSION = 'v2.14.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -311,6 +311,206 @@
     }
   }
 
+  /* Regolith: a wrapping strip of surface material laid over the ground
+     fill -- dust grain, half-buried stones lit from the upper left with
+     short shadows to the lower right, and small craters whose far inner
+     wall catches the sun. Features grow toward the bottom of the strip,
+     which is nearer the viewer. Painted once per level and blitted. */
+  var REGO_W = 840, REGO_H = 56, REGO_TOP = 10;
+  var regoCv = null, regoKey = '';
+  function buildRegolith() {
+    var s = Math.min(2, DPR);
+    var key = level.name + '@' + s;
+    if (key === regoKey) return;
+    regoKey = key;
+    regoCv = offscreen(REGO_W * s, REGO_H * s);
+    var g = regoCv.getContext('2d');
+    g.scale(s, s);
+    var A = level.floorColorA || '#2d1a4a', B = level.floorColorB || '#4a2a8a';
+    var lightC = mixHex(level.keyLight || '#ffffff', '#ffffff', 0.5);
+    var lit = mixHex(B, lightC, 0.55), dark = mixHex(A, '#05010f', 0.55);
+    var rnd = lcg(4242 + level.width);
+    var i, k, x, y, n;
+    /* each feature is drawn at x and, near an edge, x +/- REGO_W so the
+       strip wraps without a seam */
+    function wrap(x, r, fn) {
+      fn(x);
+      if (x < r) fn(x + REGO_W);
+      if (x > REGO_W - r) fn(x - REGO_W);
+    }
+    /* grain */
+    for (i = 0; i < 2600; i++) {
+      x = rnd() * REGO_W;
+      y = REGO_TOP + Math.pow(rnd(), 0.8) * (REGO_H - REGO_TOP);
+      var depth = (y - REGO_TOP) / (REGO_H - REGO_TOP);
+      g.globalAlpha = 0.1 + rnd() * 0.22;
+      g.fillStyle = rnd() < 0.5 ? lit : dark;
+      var gs = 0.5 + depth * 0.9 * rnd();
+      g.fillRect(x, y, gs, gs * 0.7);
+    }
+    g.globalAlpha = 1;
+    /* faint strata streaks */
+    for (i = 0; i < 18; i++) {
+      x = rnd() * REGO_W; y = REGO_TOP + 4 + rnd() * (REGO_H - REGO_TOP - 6);
+      var len = 30 + rnd() * 80;
+      g.strokeStyle = hexA(rnd() < 0.5 ? lit : dark, 0.12);
+      g.lineWidth = 0.8;
+      (function (x0, y0, L) {
+        wrap(x0, L, function (xx) {
+          g.beginPath(); g.moveTo(xx, y0); g.quadraticCurveTo(xx + L / 2, y0 + (rnd() - 0.5) * 2, xx + L, y0); g.stroke();
+        });
+      })(x, y, len);
+    }
+    /* craters */
+    n = 16;
+    for (i = 0; i < n; i++) {
+      x = (i + rnd() * 0.8) * REGO_W / n;
+      y = REGO_TOP + 6 + rnd() * (REGO_H - REGO_TOP - 12);
+      var dk = (y - REGO_TOP) / (REGO_H - REGO_TOP);
+      var r = (2.5 + rnd() * 6) * (0.6 + dk * 0.8);
+      (function (cx, cy, cr) {
+        wrap(cx, cr + 2, function (xx) {
+          var ry = cr * 0.36;
+          /* raised rim: lit on the upper left, shadowed lower right */
+          g.fillStyle = hexA(lit, 0.55);
+          g.beginPath(); g.ellipse(xx - 0.6, cy - 0.6, cr + 1.4, ry + 1, 0, 0, Math.PI * 2); g.fill();
+          g.fillStyle = hexA(dark, 0.45);
+          g.beginPath(); g.ellipse(xx + 0.8, cy + 0.7, cr + 1.2, ry + 0.9, 0, 0, Math.PI * 2); g.fill();
+          /* bowl in shadow */
+          g.fillStyle = mixHex(A, '#05010f', 0.4);
+          g.beginPath(); g.ellipse(xx, cy, cr, ry, 0, 0, Math.PI * 2); g.fill();
+          /* far (lower right) inner wall catching the sun */
+          g.save();
+          g.beginPath(); g.ellipse(xx, cy, cr, ry, 0, 0, Math.PI * 2); g.clip();
+          g.fillStyle = hexA(lit, 0.7);
+          g.beginPath(); g.ellipse(xx + cr * 0.35, cy + ry * 0.45, cr * 0.85, ry * 0.75, 0, 0, Math.PI * 2); g.fill();
+          g.fillStyle = mixHex(A, '#05010f', 0.4);
+          g.beginPath(); g.ellipse(xx - cr * 0.1, cy - ry * 0.05, cr * 0.8, ry * 0.7, 0, 0, Math.PI * 2); g.fill();
+          g.restore();
+        });
+      })(x, y, r);
+    }
+    /* half-buried stones */
+    for (i = 0; i < 70; i++) {
+      x = rnd() * REGO_W;
+      y = REGO_TOP + 3 + Math.pow(rnd(), 0.7) * (REGO_H - REGO_TOP - 5);
+      var dd = (y - REGO_TOP) / (REGO_H - REGO_TOP);
+      var sr = (0.8 + rnd() * 2.2) * (0.5 + dd);
+      (function (cx, cy, rr) {
+        wrap(cx, rr * 3, function (xx) {
+          g.fillStyle = hexA('#05010f', 0.35);
+          g.beginPath(); g.ellipse(xx + rr * 0.9, cy + rr * 0.35, rr * 1.3, rr * 0.4, 0, 0, Math.PI * 2); g.fill();
+          g.fillStyle = mixHex(B, '#05010f', 0.35);
+          g.beginPath(); g.ellipse(xx, cy, rr, rr * 0.62, 0, 0, Math.PI * 2); g.fill();
+          g.fillStyle = lit;
+          g.beginPath(); g.ellipse(xx - rr * 0.3, cy - rr * 0.25, rr * 0.55, rr * 0.3, -0.3, 0, Math.PI * 2); g.fill();
+        });
+      })(x, y, sr);
+    }
+  }
+
+  /* Foreground: soft dark boulders and crystal clusters along the bottom
+     edge, nearer than the walking line and scrolling faster than it, so
+     the frame has a front layer. Sprites are blurred once at build time
+     with a shadow offset (works where canvas filters do not). */
+  var fgSprites = [], fgItems = [], fgKey = '';
+  function buildForeground() {
+    var s = Math.min(2, DPR);
+    var key = level.name + '@' + s;
+    if (key === fgKey) return;
+    fgKey = key;
+    var rnd = lcg(733 + level.width);
+    var rockC = mixHex(level.floorColorA || '#2d1a4a', '#05010f', 0.55);
+    var rimC = mixHex(level.keyLight || '#ffffff', level.floorColorB || '#4a2a8a', 0.5);
+    fgSprites = [];
+    for (var v = 0; v < 3; v++) {
+      var w = 120 + v * 30, h = 46;
+      var cv = offscreen(w * s, h * s);
+      var g = cv.getContext('2d');
+      g.scale(s, s);
+      g.shadowColor = rockC;
+      g.shadowBlur = 3 * s;
+      g.shadowOffsetX = 1000 * s;
+      g.fillStyle = '#000';
+      g.translate(-1000, 0);
+      g.beginPath();
+      g.moveTo(8, h);
+      var bumps = 3 + v;
+      for (var b = 0; b <= bumps; b++) {
+        var bx = 8 + (w - 16) * b / bumps;
+        var by = h - 14 - rnd() * 18 - (b > 0 && b < bumps ? 6 : 0);
+        g.quadraticCurveTo(bx - (w - 16) / bumps / 2, by - 8 * rnd(), bx, by);
+      }
+      g.lineTo(w - 8, h);
+      g.closePath();
+      g.fill();
+      /* a crystal cluster on the middle variant */
+      if (v === 1) {
+        g.fillStyle = '#000';
+        g.beginPath(); g.moveTo(60, h - 20); g.lineTo(66, h - 42); g.lineTo(72, h - 20); g.fill();
+        g.beginPath(); g.moveTo(70, h - 20); g.lineTo(80, h - 36); g.lineTo(82, h - 18); g.fill();
+      }
+      g.setTransform(s, 0, 0, s, 0, 0);
+      g.shadowColor = 'rgba(0,0,0,0)';
+      /* faint rim of sky light along the tops */
+      g.globalCompositeOperation = 'source-atop';
+      var rg = g.createLinearGradient(0, 0, 0, h);
+      rg.addColorStop(0, hexA(rimC, 0.5));
+      rg.addColorStop(0.5, hexA(rimC, 0));
+      g.fillStyle = rg;
+      g.fillRect(0, 0, w, h);
+      fgSprites.push(cv);
+    }
+    fgItems = [];
+    var span = level.width * FG_PAR + W;
+    for (var x = 60 + rnd() * 200; x < span; x += 340 + rnd() * 420) {
+      fgItems.push({ x: x, v: Math.floor(rnd() * 3), flip: rnd() < 0.5, dy: rnd() * 8 });
+    }
+  }
+  var FG_PAR = 1.35;
+  function drawForeground() {
+    var s = Math.min(2, DPR);
+    for (var i = 0; i < fgItems.length; i++) {
+      var it = fgItems[i];
+      var cv = fgSprites[it.v];
+      var w = cv.width / s, h = cv.height / s;
+      var x = it.x - camera.x * FG_PAR;
+      if (x + w < 0 || x > W) continue;
+      var y = H - h + 14 + it.dy;
+      if (it.flip) {
+        ctx.save();
+        ctx.translate(x + w, y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(cv, 0, 0, w, h);
+        ctx.restore();
+      } else {
+        ctx.drawImage(cv, x, y, w, h);
+      }
+    }
+  }
+
+  /* Each background planet is painted once (halo, shaded sphere,
+     terminator, atmosphere) into its own sprite. */
+  function planetSprite(item) {
+    var s = Math.min(2, DPR);
+    if (item.sprite && item.spriteS === s) return item.sprite;
+    var pr = item.w / 2, R = pr * 1.9;
+    var cv = offscreen(R * 2 * s, R * 2 * s);
+    var g = cv.getContext('2d');
+    g.scale(s, s);
+    g.globalAlpha = item.far ? 0.3 : 0.75;
+    g.drawImage(glowSprite(mixHex(item.color, '#ffffff', 0.3), 48), 0, 0, R * 2, R * 2);
+    g.globalAlpha = item.far ? 0.5 : 1;
+    var key = level.keyLight || '#ffffff';
+    Game.ui.drawShadedPlanet(g, R, R, pr,
+      mixHex(item.color, key, 0.5), mixHex(item.color, '#120830', 0.55),
+      item.blobSeed > 70 ? hexA(mixHex(item.color, '#ffffff', 0.6), 0.8) : null);
+    item.sprite = cv;
+    item.spriteS = s;
+    item.spriteR = R;
+    return cv;
+  }
+
   /* Bloom: additive halos blitted from one cached sprite per colour over
      everything that emits light. Reading the frame back and blurring it
      costs a full-frame scaled blit; this costs only the lit area. */
@@ -405,9 +605,26 @@
      given a rim of sunlight along its upper-left edge (the sprite minus
      a copy of itself nudged away from the light). Only the sprite's own
      box is touched, so the cost follows the size of the character. */
-  var LIT_PAD = 18, LIT_W = 100, LIT_H = 72;
+  var LIT_PAD = 24, LIT_W = 112, LIT_H = 84;
   var LIT_TYPES = { oliver: 1, kittycorn: 1, bob: 1, crab: 1, lila: 1, migword: 1, moonMouse: 1 };
   var litCv = null, litCtx = null, rimCv = null, rimCtx = null, outCv = null, outCtx = null, litKey = '';
+  var lampCv = null, lampCtx = null;
+  /* Street lamps and neon signs also light whoever walks past: a wash of
+     their colour and a rim on the side that faces them, fading out over
+     LAMP_REACH px. */
+  var LAMP_REACH = 120;
+  function nearestLamp(x) {
+    var best = null, bd = LAMP_REACH;
+    for (var i = 0; i < level.decorations.length; i++) {
+      var d = level.decorations[i];
+      if (d.type !== 'lampPost' && d.type !== 'neonSign') continue;
+      var dd = Math.abs(d.x - x);
+      if (dd < bd) { bd = dd; best = d; }
+    }
+    if (!best) return null;
+    var k = 1 - bd / LAMP_REACH;
+    return { color: best.color || '#44ffff', side: best.x < x ? -1 : 1, k: k * k };
+  }
   function drawLit(e) {
     if (!Game.FX.rim) { e.draw(ctx, camera.x, camera.y); return; }
     var key = DPR + level.name;
@@ -422,6 +639,8 @@
       outCv = offscreen(LIT_W * DPR, LIT_H * DPR);
       outCtx = outCv.getContext('2d');
       outCtx.fillStyle = '#2a0c52';
+      lampCv = offscreen(LIT_W * DPR, LIT_H * DPR);
+      lampCtx = lampCv.getContext('2d');
     }
     var sx = Math.round(e.x - camera.x) - LIT_PAD, sy = Math.round(e.y - camera.y) - LIT_PAD;
     var w = e.w + LIT_PAD * 2, h = e.h + LIT_PAD * 2;
@@ -462,11 +681,31 @@
     ctx.globalAlpha = 0.85;
     ctx.drawImage(rimCv, 0, 0, pw, ph, sx, sy, w, h);
     ctx.globalAlpha = 1;
+    var lamp = nearestLamp(e.x + e.w / 2);
+    if (lamp && lamp.k > 0.02) {
+      lampCtx.globalCompositeOperation = 'copy';
+      lampCtx.drawImage(litCv, 0, 0, pw, ph, 0, 0, pw, ph);
+      lampCtx.globalCompositeOperation = 'source-in';
+      lampCtx.fillStyle = lamp.color;
+      lampCtx.fillRect(0, 0, pw, ph);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = lamp.k * 0.2;
+      ctx.drawImage(lampCv, 0, 0, pw, ph, sx, sy, w, h);
+      /* keep only the edge facing the lamp */
+      lampCtx.globalCompositeOperation = 'destination-out';
+      lampCtx.drawImage(litCv, 0, 0, pw, ph, -lamp.side * 1.8 * DPR, 1.2 * DPR, pw, ph);
+      ctx.globalAlpha = Math.min(1, lamp.k * 1.3);
+      ctx.drawImage(lampCv, 0, 0, pw, ph, sx, sy, w, h);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
   }
 
   function initBgLayers() {
     bgLayers = [];
     buildSky();
+    buildRegolith();
+    buildForeground();
 
     /* Far layer – a few big, faint planets that barely move, so the mid
        planets read as nearer and the sky gets a second depth step. */
@@ -1226,16 +1465,9 @@
         var bx = item.x - camera.x * layer.parallax;
         if (bx + item.w * 2 > 0 && bx - item.w < W) {
           if (item.isPlanet) {
-            /* Atmosphere halo, then the lit sphere */
-            var pr = item.w / 2;
-            ctx.globalAlpha = item.far ? 0.3 : 0.75;
-            ctx.drawImage(glowSprite(mixHex(item.color, '#ffffff', 0.3), 48),
-              bx + pr - pr * 1.9, item.y - pr * 1.9, pr * 3.8, pr * 3.8);
-            ctx.globalAlpha = item.far ? 0.42 : 1;
-            Game.ui.drawShadedPlanet(ctx, bx + pr, item.y, pr,
-              mixHex(item.color, '#ffffff', 0.55), mixHex(item.color, '#000000', 0.5),
-              item.blobSeed > 70 ? hexA(mixHex(item.color, '#ffffff', 0.6), 0.8) : null);
-            ctx.globalAlpha = 1;
+            /* Cached sprite: halo, lit sphere, terminator, atmosphere */
+            var pcv = planetSprite(item), pR = item.spriteR, pr = item.w / 2;
+            ctx.drawImage(pcv, bx + pr - pR, item.y - pR, pR * 2, pR * 2);
           } else {
             /* Floating rock: sunlit crown, shadowed belly, rim light on
                the upper-left shoulder, hazed toward the horizon colour. */
@@ -1414,6 +1646,18 @@
     depthGrad.addColorStop(1, 'rgba(0, 0, 0, 0.22)');
     ctx.fillStyle = depthGrad;
     ctx.fillRect(0, floorBase + 14, W, H - floorBase - 14);
+    /* Regolith material, clipped to the surface contour */
+    if (regoCv) {
+      ctx.beginPath();
+      ctx.moveTo(0, H + 10);
+      for (var rgx = 0; rgx <= W; rgx += 8) ctx.lineTo(rgx, floorBase + surfaceUndulation(rgx + camera.x) + 2);
+      ctx.lineTo(W, H + 10);
+      ctx.closePath();
+      ctx.clip();
+      var rgo = -(((camera.x % REGO_W) + REGO_W) % REGO_W);
+      ctx.drawImage(regoCv, rgo, floorBase - REGO_TOP, REGO_W, REGO_H);
+      ctx.drawImage(regoCv, rgo + REGO_W, floorBase - REGO_TOP, REGO_W, REGO_H);
+    }
     ctx.restore();
     /* Ground detail pass */
     ctx.save();
@@ -1523,10 +1767,18 @@
         ctx.ellipse(ldx - 24, ldy + 3, 30, 5, 0, 0, Math.PI * 2);
         ctx.fill();
       } else if (ld.type === 'lampPost') {
-        ctx.fillStyle = hexA(ld.color || '#44ffff', 0.24);
-        ctx.beginPath();
-        ctx.ellipse(ldx, ldy + 2, 30, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
+        /* Pool of lamp light on the regolith: a wide soft fall-off and a
+           hot core under the lamp, added onto the ground */
+        var lpc = ld.color || '#44ffff';
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.9;
+        ctx.drawImage(glowSprite(lpc, 32), ldx - 95, ldy - 12, 190, 34);
+        ctx.globalAlpha = 0.85;
+        ctx.drawImage(glowSprite(lpc, 32), ldx - 34, ldy - 5, 68, 14);
+        ctx.globalAlpha = 0.35;
+        ctx.drawImage(glowSprite('#ffffff', 32), ldx - 14, ldy - 2, 28, 7);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
         ctx.fillStyle = 'rgba(6, 2, 20, 0.35)';
         ctx.beginPath();
         ctx.ellipse(ldx, ldy, 5, 1.6, 0, 0, Math.PI * 2);
@@ -1627,8 +1879,202 @@
       particles[pa].draw(ctx, camera.x, camera.y);
     }
 
+    drawForeground();
+
     /* Colour grade and vignette over the finished scene */
     postFX(0, 0, W, H);
+  }
+
+  /* ---- House sprite ----
+     Painted once per colour pair at device resolution: panelled walls
+     with bevelled seams, rivets and grain, ambient occlusion under the
+     eaves and along the ground, deep window recesses with glowing glass
+     and sills, and a dome of ribbed panels with a sky-lit rim. */
+  var HOUSE_SPR_X = 72, HOUSE_SPR_Y = 146, HOUSE_SPR_W = 144, HOUSE_SPR_H = 156;
+  var houseSprites = {};
+  function houseSprite(hc, rc) {
+    var s = Math.min(2, DPR);
+    var key = hc + rc + s;
+    if (houseSprites[key]) return houseSprites[key];
+    var cv = offscreen(HOUSE_SPR_W * s, HOUSE_SPR_H * s);
+    var g = cv.getContext('2d');
+    g.scale(s, s);
+    g.translate(HOUSE_SPR_X, HOUSE_SPR_Y);
+    paintHouse(g, hc, rc);
+    houseSprites[key] = cv;
+    return cv;
+  }
+
+  function paintHouse(g, hc, rc) {
+    var INK = '#2a1450';
+    var rnd = lcg(parseInt(hc.slice(1), 16) & 0xffff);
+    var i, x, y;
+    /* Contact shadow */
+    g.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    g.beginPath(); g.ellipse(0, 1, 64, 6, 0, 0, Math.PI * 2); g.fill();
+    /* Wall, lit from the upper left */
+    var wg = g.createLinearGradient(-50, 0, 50, 0);
+    wg.addColorStop(0, mixHex(hc, '#ffffff', 0.2));
+    wg.addColorStop(0.55, hc);
+    wg.addColorStop(1, mixHex(hc, '#1a0838', 0.35));
+    g.fillStyle = wg;
+    g.fillRect(-50, -90, 100, 90);
+    g.save();
+    g.beginPath(); g.rect(-50, -90, 100, 90); g.clip();
+    /* Panel courses: a dark groove with a lit lip under it, staggered
+       vertical seams, a rivet at each joint */
+    for (y = -79, i = 0; y < 0; y += 11, i++) {
+      g.fillStyle = 'rgba(30, 6, 60, 0.28)';
+      g.fillRect(-50, y, 100, 1);
+      g.fillStyle = 'rgba(255, 255, 255, 0.14)';
+      g.fillRect(-50, y + 1, 100, 0.8);
+      for (x = -50 + (i % 2 ? 12 : 25); x < 50; x += 26) {
+        g.fillStyle = 'rgba(30, 6, 60, 0.22)';
+        g.fillRect(x, y - 11, 0.9, 11);
+        g.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        g.fillRect(x + 0.9, y - 11, 0.6, 11);
+        g.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        g.fillRect(x - 2.4, y - 2.2, 1, 1);
+      }
+    }
+    /* Grain */
+    for (i = 0; i < 260; i++) {
+      g.fillStyle = rnd() < 0.5 ? 'rgba(255, 255, 255, 0.06)' : 'rgba(20, 0, 40, 0.08)';
+      g.fillRect(-50 + rnd() * 100, -90 + rnd() * 90, 1 + rnd() * 2, 0.7);
+    }
+    /* Occlusion under the eaves and along the ground */
+    var ao = g.createLinearGradient(0, -90, 0, -74);
+    ao.addColorStop(0, 'rgba(20, 0, 40, 0.45)');
+    ao.addColorStop(1, 'rgba(20, 0, 40, 0)');
+    g.fillStyle = ao;
+    g.fillRect(-50, -90, 100, 16);
+    var ag = g.createLinearGradient(0, -16, 0, 0);
+    ag.addColorStop(0, 'rgba(20, 0, 40, 0)');
+    ag.addColorStop(1, 'rgba(20, 0, 40, 0.35)');
+    g.fillStyle = ag;
+    g.fillRect(-50, -16, 100, 16);
+    /* Shadowed side wall and a lit corner bevel */
+    g.fillStyle = 'rgba(10, 0, 30, 0.2)';
+    g.fillRect(35, -90, 15, 90);
+    g.fillStyle = 'rgba(255, 255, 255, 0.28)';
+    g.fillRect(-50, -90, 1.6, 90);
+    g.fillStyle = 'rgba(255, 255, 255, 0.12)';
+    g.fillRect(34, -90, 1, 90);
+    g.restore();
+    g.strokeStyle = INK;
+    g.lineWidth = 2;
+    g.strokeRect(-50, -90, 100, 90);
+
+    /* Windows: light spill on the wall, a deep frame, glowing glass with
+       a hot centre, muntins and a lit sill casting a shadow */
+    var winColors = ['#ffd24a', '#44ffff', '#ff88cc'];
+    for (i = 0; i < 3; i++) {
+      var wx = -38 + i * 28, wy = -70, wc = winColors[i];
+      g.globalCompositeOperation = 'lighter';
+      g.globalAlpha = 0.5;
+      g.drawImage(glowSprite(wc, 32), wx - 12, wy - 12, 42, 42);
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = 'source-over';
+      g.fillStyle = mixHex(hc, '#1a0838', 0.55);
+      g.fillRect(wx - 2.5, wy - 2.5, 23, 23);
+      g.fillStyle = mixHex(hc, '#ffffff', 0.35);
+      g.fillRect(wx - 2.5, wy - 2.5, 23, 1.2);
+      g.fillRect(wx - 2.5, wy - 2.5, 1.2, 23);
+      var gg = g.createRadialGradient(wx + 7, wy + 7, 1, wx + 9, wy + 9, 14);
+      gg.addColorStop(0, mixHex(wc, '#ffffff', 0.7));
+      gg.addColorStop(0.5, wc);
+      gg.addColorStop(1, mixHex(wc, '#1a0838', 0.35));
+      g.fillStyle = gg;
+      g.fillRect(wx, wy, 18, 18);
+      /* inner shadow at the top of the recess */
+      g.fillStyle = 'rgba(20, 0, 40, 0.35)';
+      g.fillRect(wx, wy, 18, 2.5);
+      g.fillStyle = '#221133';
+      g.fillRect(wx + 8, wy, 2, 18);
+      g.fillRect(wx, wy + 8, 18, 2);
+      /* glass glint */
+      g.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      g.beginPath(); g.moveTo(wx + 1, wy + 7); g.lineTo(wx + 7, wy + 1); g.lineTo(wx + 8, wy + 1); g.lineTo(wx + 1, wy + 8); g.fill();
+      /* sill */
+      g.fillStyle = mixHex(rc, '#ffffff', 0.3);
+      g.fillRect(wx - 4, wy + 20.5, 26, 2.2);
+      g.fillStyle = 'rgba(20, 0, 40, 0.3)';
+      g.fillRect(wx - 3, wy + 22.7, 24, 2);
+    }
+
+    /* Roof: dome of ribbed panels */
+    var rG = g.createRadialGradient(-22, -110, 4, 0, -92, 62);
+    rG.addColorStop(0, mixHex(rc, '#ffffff', 0.4));
+    rG.addColorStop(0.55, rc);
+    rG.addColorStop(1, mixHex(rc, '#1a0838', 0.35));
+    g.fillStyle = rG;
+    g.beginPath(); g.ellipse(0, -90, 56, 26, 0, Math.PI, 0); g.closePath(); g.fill();
+    g.save();
+    g.clip();
+    g.lineWidth = 0.8;
+    for (i = 1; i < 4; i++) {
+      g.strokeStyle = 'rgba(30, 6, 60, 0.25)';
+      g.beginPath(); g.ellipse(0, -90, 56 * i / 4, 26, 0, Math.PI, 0); g.stroke();
+      g.strokeStyle = 'rgba(30, 6, 60, 0.18)';
+      g.beginPath(); g.ellipse(0, -90, 56, 26 * i / 4 + 2, 0, Math.PI, 0); g.stroke();
+    }
+    /* sky rim along the lit shoulder */
+    g.strokeStyle = 'rgba(255, 230, 250, 0.55)';
+    g.lineWidth = 2;
+    g.beginPath(); g.ellipse(0, -89, 54.5, 24.5, 0, Math.PI * 1.05, Math.PI * 1.45); g.stroke();
+    g.restore();
+    g.strokeStyle = INK;
+    g.lineWidth = 2;
+    g.beginPath(); g.ellipse(0, -90, 56, 26, 0, Math.PI, 0); g.closePath(); g.stroke();
+    g.fillStyle = 'rgba(255, 255, 255, 0.32)';
+    g.beginPath(); g.ellipse(-22, -104, 14, 5, -0.35, 0, Math.PI * 2); g.fill();
+    /* Trim ring under the dome, bevelled */
+    g.fillStyle = mixHex(rc, '#1a0838', 0.3);
+    g.fillRect(-56, -92, 112, 5);
+    g.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    g.fillRect(-56, -92, 112, 1);
+    g.strokeStyle = INK;
+    g.lineWidth = 2;
+    g.strokeRect(-56, -92, 112, 5);
+    /* Antenna */
+    g.strokeStyle = '#ddddee';
+    g.lineWidth = 2;
+    g.beginPath(); g.moveTo(0, -116); g.lineTo(0, -134); g.stroke();
+    g.fillStyle = '#44ffff';
+    g.beginPath(); g.arc(0, -136, 3, 0, Math.PI * 2); g.fill();
+    /* Chimney, shaded */
+    var cg = g.createLinearGradient(28, 0, 39, 0);
+    cg.addColorStop(0, mixHex(hc, '#000000', 0.12));
+    cg.addColorStop(1, mixHex(hc, '#1a0838', 0.45));
+    g.fillStyle = cg;
+    g.fillRect(28, -126, 11, 22);
+    g.fillStyle = mixHex(rc, '#000000', 0.2);
+    g.fillRect(26, -129, 15, 4);
+    g.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    g.fillRect(26, -129, 15, 1);
+    /* Glowing trim along the base */
+    g.fillStyle = '#44ffff';
+    g.fillRect(-50, -6, 100, 2);
+    /* Door recess, frame posts and awning */
+    g.fillStyle = 'rgba(0, 0, 0, 0.38)';
+    g.fillRect(-26, -50, 52, 50);
+    g.fillStyle = mixHex(hc, '#ffffff', 0.35);
+    g.fillRect(-31, -54, 5, 54);
+    g.fillRect(26, -54, 5, 54);
+    g.fillStyle = 'rgba(20, 0, 40, 0.3)';
+    g.fillRect(29, -54, 2, 54);
+    g.fillRect(-28, -54, 2, 54);
+    g.fillStyle = mixHex(hc, '#000000', 0.3);
+    g.fillRect(-31, -54, 62, 2);
+    g.fillStyle = mixHex(rc, '#ffffff', 0.15);
+    g.beginPath();
+    g.moveTo(-36, -54); g.lineTo(36, -54); g.lineTo(30, -62); g.lineTo(-30, -62);
+    g.closePath();
+    g.fill();
+    g.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    g.fillRect(-30, -62, 60, 1.5);
+    g.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    g.fillRect(-36, -54, 72, 3);
   }
 
   function renderDecorations() {
@@ -1721,81 +2167,10 @@
           ctx.fillRect(dx - 26 + rsv * 14, dy - 4, 6, 1.5);
         }
       } else if (d.type === 'houseDecor') {
-        /* Big sci-fi house silhouette behind the door */
-        var hc = d.color || '#8866aa';
-        var rc = d.roofColor || '#cc4488';
-        /* Contact shadow so the house sits on the ground */
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-        ctx.beginPath();
-        ctx.ellipse(dx, dy + 1, 62, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
-        /* Body — lit from the upper left */
-        var hGrad = ctx.createLinearGradient(dx - 50, 0, dx + 50, 0);
-        hGrad.addColorStop(0, mixHex(hc, '#ffffff', 0.18));
-        hGrad.addColorStop(0.6, hc);
-        hGrad.addColorStop(1, mixHex(hc, '#000000', 0.25));
-        ctx.fillStyle = hGrad;
-        ctx.fillRect(dx - 50, dy - 90, 100, 90);
-        /* Side trim shading */
-        ctx.fillStyle = 'rgba(0,0,0,0.18)';
-        ctx.fillRect(dx + 35, dy - 90, 15, 90);
-        ctx.strokeStyle = '#2a1450';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(dx - 50, dy - 90, 100, 90);
-        /* Roof — dome plus trim ring */
-        var rGrad = ctx.createLinearGradient(0, dy - 116, 0, dy - 90);
-        rGrad.addColorStop(0, mixHex(rc, '#ffffff', 0.25));
-        rGrad.addColorStop(1, mixHex(rc, '#000000', 0.15));
-        ctx.fillStyle = rGrad;
-        ctx.beginPath();
-        ctx.ellipse(dx, dy - 90, 56, 26, 0, Math.PI, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        /* Dome highlight */
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.beginPath();
-        ctx.ellipse(dx - 22, dy - 104, 14, 5, -0.35, 0, Math.PI * 2);
-        ctx.fill();
-        /* Trim ring under the dome */
-        ctx.fillStyle = mixHex(rc, '#000000', 0.3);
-        ctx.fillRect(dx - 56, dy - 92, 112, 5);
-        ctx.strokeRect(dx - 56, dy - 92, 112, 5);
-        /* Roof antenna */
-        ctx.strokeStyle = '#ddddee';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(dx, dy - 116);
-        ctx.lineTo(dx, dy - 134);
-        ctx.stroke();
-        ctx.fillStyle = '#44ffff';
-        ctx.beginPath();
-        ctx.arc(dx, dy - 136, 3, 0, Math.PI * 2);
-        ctx.fill();
-        /* Glowing windows — three across */
-        var winColors = ['#ffd24a', '#44ffff', '#ff88cc'];
-        for (var hwn = 0; hwn < 3; hwn++) {
-          /* Soft light spill around each window */
-          ctx.fillStyle = hexA(winColors[hwn], 0.18);
-          ctx.fillRect(dx - 41 + hwn * 28, dy - 73, 24, 24);
-          ctx.fillStyle = winColors[hwn];
-          ctx.fillRect(dx - 38 + hwn * 28, dy - 70, 18, 18);
-          /* Cross frames */
-          ctx.fillStyle = '#221133';
-          ctx.fillRect(dx - 38 + hwn * 28 + 8, dy - 70, 2, 18);
-          ctx.fillRect(dx - 38 + hwn * 28, dy - 62, 18, 2);
-        }
-        /* Dome overhang shadow and wall seams */
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.14)';
-        ctx.fillRect(dx - 50, dy - 87, 100, 6);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
-        ctx.fillRect(dx - 50, dy - 44, 100, 1.5);
-        ctx.fillRect(dx - 50, dy - 22, 100, 1.5);
-        /* Chimney with a lazy curl of smoke */
-        ctx.fillStyle = mixHex(hc, '#000000', 0.3);
-        ctx.fillRect(dx + 28, dy - 126, 11, 22);
-        ctx.fillStyle = mixHex(rc, '#000000', 0.2);
-        ctx.fillRect(dx + 26, dy - 129, 15, 4);
+        /* Sci-fi cottage behind the door: the static house is a cached
+           sprite; only the chimney smoke moves. */
+        ctx.drawImage(houseSprite(d.color || '#8866aa', d.roofColor || '#cc4488'),
+          dx - HOUSE_SPR_X, dy - HOUSE_SPR_Y, HOUSE_SPR_W, HOUSE_SPR_H);
         var smT = Date.now() * 0.0012 + d.x;
         for (var sm = 0; sm < 3; sm++) {
           var smP = (smT + sm * 0.33) % 1;
@@ -1804,30 +2179,6 @@
           ctx.arc(dx + 33 + Math.sin(smP * 6 + sm) * 4, dy - 134 - smP * 26, 2.5 + smP * 4, 0, Math.PI * 2);
           ctx.fill();
         }
-        /* Glowing trim along the base */
-        ctx.fillStyle = '#44ffff';
-        ctx.fillRect(dx - 50, dy - 6, 100, 2);
-        /* Door recess, frame posts and a little awning over the entrance */
-        ctx.fillStyle = 'rgba(0,0,0,0.35)';
-        ctx.fillRect(dx - 26, dy - 50, 52, 50);
-        ctx.fillStyle = mixHex(hc, '#ffffff', 0.35);
-        ctx.fillRect(dx - 31, dy - 54, 5, 54);
-        ctx.fillRect(dx + 26, dy - 54, 5, 54);
-        ctx.fillStyle = mixHex(hc, '#000000', 0.3);
-        ctx.fillRect(dx - 31, dy - 54, 62, 2);
-        var awG = mixHex(rc, '#ffffff', 0.15);
-        ctx.fillStyle = awG;
-        ctx.beginPath();
-        ctx.moveTo(dx - 36, dy - 54);
-        ctx.lineTo(dx + 36, dy - 54);
-        ctx.lineTo(dx + 30, dy - 62);
-        ctx.lineTo(dx - 30, dy - 62);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-        ctx.fillRect(dx - 30, dy - 62, 60, 1.5);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-        ctx.fillRect(dx - 36, dy - 54, 72, 2);
       } else if (d.type === 'cafeBuilding') {
         /* COSMIC CAFÉ — pink storefront, striped awning, big window with
            espresso machine + tiny patron, drifting steam. */
@@ -2161,12 +2512,28 @@
       } else if (d.type === 'lampPost') {
         /* Tall thin pole with a glowing neon lamp on top */
         var lpC = d.color || '#44ffff';
-        ctx.fillStyle = '#7d8896';
-        ctx.fillRect(dx - 1.5, dy - 80, 3, 80);
+        /* Round pole: shadowed body, a sunlit strip on the left and a
+           strip of its own lamp light down the right */
+        ctx.fillStyle = '#4a5064';
+        ctx.fillRect(dx - 1.6, dy - 80, 3.2, 80);
+        ctx.fillStyle = '#b8c2d4';
+        ctx.fillRect(dx - 1.2, dy - 80, 1, 80);
+        ctx.fillStyle = hexA(lpC, 0.55);
+        ctx.fillRect(dx + 0.7, dy - 78, 0.7, 40);
+        /* Base plinth */
+        ctx.fillStyle = '#3a3e52';
+        ctx.fillRect(dx - 4, dy - 6, 8, 6);
+        ctx.fillStyle = '#9aa4ba';
+        ctx.fillRect(dx - 4, dy - 6, 8, 1);
+        ctx.fillRect(dx - 4, dy - 6, 1, 6);
         /* Lamp head */
         ctx.fillStyle = '#3a3a4a';
         ctx.beginPath();
         ctx.ellipse(dx, dy - 84, 8, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#8a90a8';
+        ctx.beginPath();
+        ctx.ellipse(dx - 2, dy - 87, 4, 1.6, -0.2, 0, Math.PI * 2);
         ctx.fill();
         /* Glow */
         ctx.save();
@@ -2667,7 +3034,7 @@
     var bob = Math.sin(Date.now() * 0.006) * 2;
     var lift = (Game.shop && Game.shop.cart && Game.shop.cart.length > 0) ? 26 : 0;
     var bx = Math.round(player.x - camera.x + player.w / 2);
-    var by = Math.round(player.y - camera.y - 18 - lift + bob);
+    var by = Math.round(player.y - camera.y - 27 - lift + bob);
     ctx.save();
     ctx.font = 'bold 13px "M PLUS Rounded 1c", sans-serif';
     var tw = ctx.measureText(label).width;
