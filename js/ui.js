@@ -311,7 +311,9 @@
      when she comes through a door and plays her arrival hop. */
   var interiorRig = null, previewRig = null, introRig = null, beachRig = null;
   function heroRig(r) { return r || (Game.momoko ? Game.momoko.createRig() : null); }
+  var interiorHeroAt = { x: 0, y: 0 };
   function drawInteriorHero(c, x, y, facing, frame) {
+    interiorHeroAt.x = x; interiorHeroAt.y = y;
     interiorRig = heroRig(interiorRig);
     var pose = interiorRig ? interiorRig.tick(x, y, { facing: facing, planar: true, indoor: true, vmax: 144, arrive: true }) : null;
     c.save();
@@ -6172,6 +6174,10 @@
     drawCarryOverlay: drawCarryOverlay,
     drawQuestHUD: drawQuestHUD,
     drawVersionStamp: drawVersionStamp,
+    /* Momoko's feet in the room last drawn, and her arrival hop there
+       (the door transition in engine.js). */
+    heroPos: function () { return interiorHeroAt; },
+    heroArrive: function () { if (interiorRig) interiorRig.doReact('arrive'); },
   };
 
   /* Version stamp in the bottom-right corner of the current view, so on

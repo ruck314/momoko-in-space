@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.15.0';
+  Game.VERSION = 'v2.16.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -108,6 +108,68 @@
   var rocketTarget = 0;
   /* House interior state. */
   var currentHouseId = null;
+
+  /* Door and rocket transitions: the state still switches at once, but
+     the screen irises shut on the old scene around Momoko and opens on
+     the new one around her, and she gives a little arrival hop as it
+     opens. Purely visual; about half a second in all. */
+  var IRIS_CLOSE = 0.2, IRIS_OPEN = 0.32;
+  var renderedState = null, iris = null, irisCv = null, heroAt = { x: 0, y: 0 };
+  var IRIS_STATES = {};
+  IRIS_STATES[State.HOUSE_INTERIOR] = 1; IRIS_STATES[State.CAFE_INTERIOR] = 1; IRIS_STATES[State.SHOP_INTERIOR] = 1;
+  function irisPair(a, b) {
+    return (a === State.PLAYING && IRIS_STATES[b]) || (IRIS_STATES[a] && b === State.PLAYING) ||
+           (a === State.TRAVEL_MENU && b === State.ROCKET_ANIM) || (a === State.ROCKET_ANIM && b === State.PLAYING);
+  }
+  /* Where Momoko is on the canvas in the state just drawn. */
+  function heroOnCanvas(out) {
+    var p = null;
+    if ((state === State.PLAYING || state === State.TRAVEL_MENU) && player) {
+      p = { x: player.x - camera.x + player.w / 2, y: player.y - camera.y + player.h / 2 - 6 };
+    } else if ((state === State.HOUSE_INTERIOR || state === State.CAFE_INTERIOR) && Game.ui.heroPos) {
+      p = Game.ui.heroPos();
+      p = { x: p.x, y: p.y - 34 };
+    }
+    out.x = GAME_X + (p ? p.x : W / 2);
+    out.y = GAME_Y + (p ? p.y : H / 2);
+  }
+  function startIris() {
+    if (!irisCv || irisCv.width !== canvas.width || irisCv.height !== canvas.height) irisCv = offscreen(canvas.width, canvas.height);
+    var g = irisCv.getContext('2d');
+    g.clearRect(0, 0, irisCv.width, irisCv.height);
+    g.drawImage(canvas, 0, 0);
+    iris = { t0: performance.now(), x: heroAt.x, y: heroAt.y, opened: false };
+  }
+  function drawIris() {
+    var t = (performance.now() - iris.t0) / 1000;
+    var R = Math.sqrt(CANVAS_W * CANVAS_W + CANVAS_H * CANVAS_H), k, cx, cy;
+    if (t < IRIS_CLOSE) {
+      ctx.drawImage(irisCv, 0, 0, CANVAS_W, CANVAS_H);
+      k = t / IRIS_CLOSE; k = 1 - k * k;
+      cx = iris.x; cy = iris.y;
+    } else if (t < IRIS_CLOSE + IRIS_OPEN) {
+      if (!iris.opened) {
+        iris.opened = true;
+        if (state === State.PLAYING && player && player.react) player.react('arrive');
+        else if (Game.ui.heroArrive) Game.ui.heroArrive();
+      }
+      k = (t - IRIS_CLOSE) / IRIS_OPEN; k = 1 - (1 - k) * (1 - k) * (1 - k);
+      cx = heroAt.x; cy = heroAt.y;
+    } else { iris = null; return; }
+    var r = 6 + (R - 6) * k;
+    ctx.save();
+    ctx.fillStyle = '#0c0424';
+    ctx.beginPath();
+    ctx.rect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill('evenodd');
+    ctx.strokeStyle = 'rgba(255, 196, 236, 0.55)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   /* Dialogue message queued during the playing-state render; drawn in
      canvas-space after the game viewport is painted so it can live in
@@ -1253,6 +1315,10 @@
   }
 
   function render() {
+    if (state !== renderedState) {
+      if (renderedState !== null && irisPair(renderedState, state)) startIris();
+      renderedState = state;
+    }
     ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
     /* Paint side-strip backgrounds first so they sit underneath the pause
@@ -1406,6 +1472,9 @@
         pendingDialogue.entity
       );
     }
+
+    heroOnCanvas(heroAt);
+    if (iris) drawIris();
   }
 
   /* DOM bits that track the game state: the Game Center link only shows
@@ -3084,7 +3153,7 @@
     Game.audio.init();
     Game.audio.resume();
     beachReady = true;
-    Game.audio.startMusic('bgm');
+    Game.audio.startMusic('bgm', level.music);
     state = State.PLAYING;
   }
 
@@ -3094,6 +3163,7 @@
     loadLevel(currentZone);
     camera = { x: 0, y: 0 };
     beachReady = true;
+    Game.audio.startMusic('bgm', level.music);
     state = State.PLAYING;
   }
 
@@ -3104,31 +3174,37 @@
   /* ---- House interior ---- */
   function enterHouse(id) {
     currentHouseId = id;
+    Game.audio.startMusic('bgm', 'indoor');
     state = State.HOUSE_INTERIOR;
   }
 
   function exitHouse() {
     currentHouseId = null;
+    Game.audio.startMusic('bgm', level.music);
     state = State.PLAYING;
   }
 
   /* ---- Cafe cutscene ---- */
   function enterCafe() {
     if (Game.ui.startCafeCutscene) Game.ui.startCafeCutscene();
+    Game.audio.startMusic('bgm', 'indoor');
     state = State.CAFE_INTERIOR;
   }
 
   function exitCafe() {
+    Game.audio.startMusic('bgm', level.music);
     state = State.PLAYING;
   }
 
   /* ---- Shop ---- */
   function enterShop() {
     if (Game.ui.startShopInterior) Game.ui.startShopInterior();
+    Game.audio.startMusic('bgm', 'indoor');
     state = State.SHOP_INTERIOR;
   }
 
   function exitShop() {
+    Game.audio.startMusic('bgm', level.music);
     state = State.PLAYING;
   }
 

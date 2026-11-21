@@ -89,6 +89,10 @@
     /* Animation */
     this.animTimer++;
     if (this.animTimer > 6) { this.animTimer = 0; this.animFrame = (this.animFrame + 1) % 4; }
+    /* The pet's wag and paw phase: runs on (animTimer wraps every 7
+       frames, which made its tail and legs snap back) and quickens with
+       her speed. */
+    this.petT = (this.petT || 0) + 0.45 + Math.min(1, Math.abs(this.vx) / Momoko.MAX_VEL) * 0.9;
     if (this.rig) {
       if (!this.env || this.envLevel !== level) {
         this.envLevel = level;
@@ -256,7 +260,7 @@
       c.save();
       c.translate(sx + this.w / 2, 0);
       c.scale(this.facing, 1);
-      drawCrabPet(c, -this.w / 2 - 12, sy + 32, cust.crab, this.animTimer, this.facing === -1);
+      drawCrabPet(c, -this.w / 2 - 12, sy + 32, cust.crab, this.petT || 0, this.facing === -1);
       c.restore();
     }
     c.save();

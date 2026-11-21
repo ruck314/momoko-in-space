@@ -1867,6 +1867,8 @@
     this.react = kind;
     this.reactT = 0;
     this.reactHit = false;
+    /* a quick crouch to spring from */
+    if (kind === 'cheer') this.sqV += 2.6;
   };
   Rig.prototype.puff = function (x, y, n, big) {
     for (var i = 0; i < n; i++) {
@@ -1975,8 +1977,8 @@
       else {
         re = smooth(0, 0.14, rt) * (1 - smooth(dur - 0.25, dur, rt));
         if (R === 'cheer') {
-          hop += -3.4 * Math.max(0, Math.sin(Math.PI * Math.min(1, rt / 0.55)));
-          if (!this.reactHit && rt > 0.55) { this.reactHit = true; this.sqV += 3.2; }
+          hop += -3.4 * Math.max(0, Math.sin(Math.PI * clamp((rt - 0.08) / 0.5, 0, 1)));
+          if (!this.reactHit && rt > 0.58) { this.reactHit = true; this.sqV += 3.2; }
         } else if (R === 'arrive') {
           hop += -2.2 * Math.max(0, Math.sin(Math.PI * Math.min(1, rt / 0.34)));
           if (!this.reactHit && rt > 0.34) { this.reactHit = true; this.sqV += 3.6; if (o.dust) this.puff(x, y, 4, true); }

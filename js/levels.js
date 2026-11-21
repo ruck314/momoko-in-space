@@ -180,6 +180,7 @@
   /* ========== LEVEL 2 — CHEESE MOON ========== */
   var LEVEL_2 = {
     name: 'Cheese Moon',
+    music: 'moon',      /* variant of the 'bgm' type in songs.js */
     width: 3200,
     height: 480,
     waterSurface: 60,
