@@ -42,6 +42,9 @@
     this.animFrame = 0;
     this.animTimer = 0;
     this.shootCooldown = 0;
+    /* Animation rig: walk cycle, springs, blinks, dust (momoko.js). */
+    this.rig = Game.momoko ? Game.momoko.createRig() : null;
+    this.env = null;
   }
 
   Momoko.SWIM_FORCE = 0.45;
@@ -86,6 +89,33 @@
     /* Animation */
     this.animTimer++;
     if (this.animTimer > 6) { this.animTimer = 0; this.animFrame = (this.animFrame + 1) % 4; }
+    if (this.rig) {
+      if (!this.env || this.envLevel !== level) {
+        this.envLevel = level;
+        this.env = {
+          sky: level.bgMid || '#1a0b3d', ground: level.floorColorB || '#4a2a8a',
+          key: level.keyLight || '#ffc4e8', glow: level.horizonGlow || '#a04ad8',
+        };
+        this.dustCol = level.floorColorB ? mixDust(level.floorColorB) : '#d8ccf4';
+      }
+      this.rig.update(1 / 60, this.x + this.w / 2, this.y + this.h, {
+        grounded: this.y + this.h >= level.floorY - 0.5, facing: this.facing, dust: true, vmax: 192, arrive: true,
+      });
+    }
+  };
+
+  /* Pale regolith tint for the dust puffs from the level's ground. */
+  function mixDust(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    var r = ((n >> 16) & 255) * 0.35 + 255 * 0.65, g = ((n >> 8) & 255) * 0.35 + 240 * 0.65, b = (n & 255) * 0.35 + 255 * 0.65;
+    return '#' + ((1 << 24) | (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b)).toString(16).slice(1);
+  }
+
+  /* A little reaction (cheer / wave) on top of whatever she is doing. */
+  Momoko.prototype.react = function (kind) { if (this.rig) this.rig.doReact(kind); };
+  /* Dust from her footfalls, drawn behind her in world space. */
+  Momoko.prototype.drawFx = function (c, camX, camY) {
+    if (this.rig && Game.momoko) Game.momoko.drawDust(c, this.rig, camX, camY, this.dustCol);
   };
 
   Momoko.prototype.shoot = function () {
@@ -137,9 +167,7 @@
      upper left. */
   function drawMomokoSprite(c, sx, sy, cust, frame, opts) {
     var o = opts || {};
-    Game.momoko.paint(c, sx, sy, cust, {
-      frame: frame || 0, t: o.t, mirror: o.mirror, vx: o.vx, vy: o.vy,
-    });
+    Game.momoko.paint(c, sx, sy, cust, { rig: o.rig, pose: o.pose, mirror: o.mirror, env: o.env });
   }
 
   /* Pet-dog companion — re-themed from crab. `variant` picks the coat
@@ -212,16 +240,16 @@
 
   /* Gameplay draw: the figure is painted a size up from her 28x34
      collision box, pivoting on her feet, so she reads at play scale
-     while every collision stays exactly as it was. She leans into her
-     motion and stretches a touch when she rises or falls fast. */
+     while every collision stays exactly as it was. Lean, squash, hop
+     and the turn come from her rig. */
   Momoko.HERO_SCALE = 1.25;
   Momoko.prototype.draw = function (c, camX, camY) {
     var sx = Math.round(this.x - camX);
     var sy = Math.round(this.y - camY);
     var cust = window.Game.customization || {};
-    var lean = Math.max(-0.12, Math.min(0.12, this.vx * 0.04));
-    var st = Math.min(0.06, Math.abs(this.vy) * 0.018);
     var k = Momoko.HERO_SCALE;
+    var pose = this.rig ? this.rig.pose : null;
+    var face = pose ? pose.face : this.facing;
 
     /* Pet trails at foot level on the side away from her facing. */
     if (cust.crab && cust.crab !== 'none') {
@@ -233,10 +261,9 @@
     }
     c.save();
     c.translate(sx + this.w / 2, sy + this.h);
-    c.rotate(lean);
-    c.scale(k * (1 - st * 0.5) * this.facing, k * (1 + st));
-    drawMomokoSprite(c, -this.w / 2, -this.h, cust, this.animFrame, {
-      mirror: this.facing === -1, vx: this.vx * this.facing, vy: this.vy,
+    c.scale(k * (pose ? pose.sx : this.facing), k);
+    drawMomokoSprite(c, -this.w / 2, -this.h, cust, 0, {
+      rig: this.rig, mirror: face === -1, env: this.env,
     });
     c.restore();
   };

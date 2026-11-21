@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.14.0';
+  Game.VERSION = 'v2.15.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -65,6 +65,8 @@
     shoes: 'maryJane',
     crab: 'none',
     food: 'none',
+    helmet: 'bubble',
+    gear: 'none',
   };
 
   /* Quest state – persisted in localStorage. */
@@ -606,6 +608,9 @@
      a copy of itself nudged away from the light). Only the sprite's own
      box is touched, so the cost follows the size of the character. */
   var LIT_PAD = 24, LIT_W = 112, LIT_H = 84;
+  /* The player's box gets a wider margin: her hops, tails, cape and
+     balloon reach well past her collision box. */
+  var HERO_PAD = 44, HERO_LIT_W = 28 + HERO_PAD * 2, HERO_LIT_H = 34 + HERO_PAD * 2;
   var LIT_TYPES = { oliver: 1, kittycorn: 1, bob: 1, crab: 1, lila: 1, migword: 1, moonMouse: 1 };
   var litCv = null, litCtx = null, rimCv = null, rimCtx = null, outCv = null, outCtx = null, litKey = '';
   var lampCv = null, lampCtx = null;
@@ -630,20 +635,22 @@
     var key = DPR + level.name;
     if (key !== litKey) {
       litKey = key;
-      litCv = offscreen(LIT_W * DPR, LIT_H * DPR);
-      rimCv = offscreen(LIT_W * DPR, LIT_H * DPR);
+      var LW = Math.max(LIT_W, HERO_LIT_W), LH = Math.max(LIT_H, HERO_LIT_H);
+      litCv = offscreen(LW * DPR, LH * DPR);
+      rimCv = offscreen(LW * DPR, LH * DPR);
       litCtx = litCv.getContext('2d');
       rimCtx = rimCv.getContext('2d');
       litCtx.scale(DPR, DPR);
       rimCtx.fillStyle = mixHex(level.keyLight || '#ffffff', '#ffffff', 0.55);
-      outCv = offscreen(LIT_W * DPR, LIT_H * DPR);
+      outCv = offscreen(LW * DPR, LH * DPR);
       outCtx = outCv.getContext('2d');
       outCtx.fillStyle = '#2a0c52';
-      lampCv = offscreen(LIT_W * DPR, LIT_H * DPR);
+      lampCv = offscreen(LW * DPR, LH * DPR);
       lampCtx = lampCv.getContext('2d');
     }
-    var sx = Math.round(e.x - camera.x) - LIT_PAD, sy = Math.round(e.y - camera.y) - LIT_PAD;
-    var w = e.w + LIT_PAD * 2, h = e.h + LIT_PAD * 2;
+    var pad = e === player ? HERO_PAD : LIT_PAD;
+    var sx = Math.round(e.x - camera.x) - pad, sy = Math.round(e.y - camera.y) - pad;
+    var w = e.w + pad * 2, h = e.h + pad * 2;
     /* Backlight so the character separates from the scenery */
     if (Game.FX.bloom) {
       ctx.globalCompositeOperation = 'lighter';
@@ -653,7 +660,7 @@
     }
     var pw = w * DPR, ph = h * DPR;
     litCtx.clearRect(0, 0, w, h);
-    e.draw(litCtx, e.x - LIT_PAD, e.y - LIT_PAD);
+    e.draw(litCtx, e.x - pad, e.y - pad);
     rimCtx.clearRect(0, 0, pw, ph);
     rimCtx.globalCompositeOperation = 'source-over';
     rimCtx.drawImage(litCv, 0, 0, pw, ph, 0, 0, pw, ph);
@@ -1075,6 +1082,7 @@
             particles = particles.concat(
               Game.entities.spawnBurst(pick.x + 8, pick.y + 8, 8, hColors)
             );
+            if (player.react) player.react('cheer');
             Game.audio.play('pickup');
             checkVictory();
           }
@@ -1121,6 +1129,7 @@
               }
             } else if (npcType === 'lila') {
               if (npc.interact) npc.interact();
+              if (player.react) player.react('wave');
               /* Start quest on first contact */
               if (Game.quests && Game.quests.lila === 'notStarted') {
                 Game.quests.lila = 'inProgress';
@@ -1130,6 +1139,7 @@
               npcCooldowns[npcType] = 300;
             } else if (npcType === 'migword') {
               if (npc.interact) npc.interact();
+              if (player.react) player.react('wave');
               if (Game.quests && Game.quests.migword === 'notStarted') {
                 Game.quests.migword = 'inProgress';
                 Game.quests.progress.cheese = Game.quests.progress.cheese || 0;
@@ -1139,6 +1149,7 @@
               npcCooldowns[npcType] = 300;
             } else if (npcType === 'moonMouse') {
               if (npc.interact) npc.interact();
+              if (player.react) player.react('wave');
               /* Greeting a moon mouse advances MigWord's quest, but only
                  once per unique mouse. */
               var mid = npcData.mouseId;
@@ -1157,6 +1168,7 @@
               npcCooldowns[npcType] = 240;
             } else {
               if (npc.interact) npc.interact();
+              if (player.react) player.react('wave');
               npcCooldowns[npcType] = 300;
             }
           }
@@ -1858,7 +1870,8 @@
       bubbles[bi].draw(ctx, camera.x, camera.y);
     }
 
-    /* Player */
+    /* Player (her footfall dust sits behind her) */
+    if (player && player.drawFx) player.drawFx(ctx, camera.x, camera.y);
     if (player) drawLit(player);
 
     /* Shop-cart carry overlay — bobbing item icons floating above Momoko's
@@ -3157,6 +3170,13 @@
       if (cs) {
         var parsed = JSON.parse(cs);
         for (var k in parsed) { Game.customization[k] = parsed[k]; }
+        /* Saves from older builds lack the newer fields, and a value this
+           build does not know falls back to the default look. */
+        if (Game.momoko && Game.momoko.readCust) {
+          var clean = Game.momoko.readCust(Game.customization);
+          for (var ck in clean) Game.customization[ck] = clean[ck];
+        }
+        if (['none', 'red', 'blue', 'gold'].indexOf(Game.customization.crab) < 0) Game.customization.crab = 'none';
       }
       var qs = localStorage.getItem('momoko-space-quests');
       if (qs) {
