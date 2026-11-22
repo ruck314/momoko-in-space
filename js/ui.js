@@ -1576,23 +1576,33 @@
        - Momoko preview on the left side (live, animated, and she does a
          little cheer whenever something changes)
        - Two rows of category tabs along the top-right
-       - A 3x3 grid of option cards, each showing the option painted by
-         the hero renderer itself (a crop of Momoko wearing it, or the
-         item); categories with more than nine options page with arrows
+       - A grid of picture cards, two rows of five, each showing the
+         option painted by the hero renderer itself (a close crop of
+         Momoko wearing it, or the item on its own); categories with more
+         than ten options page with arrows
        - Color swatches below the grid when the current tab has a color
-       - Start button at the bottom */
-  var hairColors = ['#e06088', '#4a3728', '#f5d060', '#4488ff', '#222222', '#cc3333', '#b088e8', '#4ccfa8', '#eae6f6'];
-  var suitColors = ['#e06088', '#3366aa', '#cc3333', '#7733aa', '#228844', '#dd7722', '#ff8fb8', '#38b8d0', '#f0eefa'];
-  var shoeColors = ['#ff99cc', '#33bb77', '#ffcc44', '#66aaff', '#ffffff', '#552211', '#b088e8', '#ff5a5a', '#38b8d0'];
-  var skinTones  = ['#ffe0c0', '#ddb896', '#c68c5a', '#8d6e4c', '#5c3d2e'];
+       - Start button at the bottom
+     On a tablet the whole layout is drawn larger, centred in the screen,
+     so the cards and swatches are comfortable to tap. */
+  var hairColors = ['#e06088', '#4a3728', '#f5d060', '#f08a3c', '#cc3333', '#4488ff', '#4ccfa8', '#b088e8', '#222222', '#eae6f6'];
+  var suitColors = ['#e06088', '#ff8fb8', '#cc3333', '#dd7722', '#f2c230', '#228844', '#38b8d0', '#3366aa', '#7733aa', '#f0eefa'];
+  var shoeColors = ['#ff99cc', '#ff5a5a', '#ffcc44', '#33bb77', '#38b8d0', '#66aaff', '#b088e8', '#ffffff', '#552211', '#2a2a44'];
+  var eyeColors  = ['#9a3c68', '#d83a4a', '#c88a2a', '#6a4a2a', '#3aa860', '#2ab8b0', '#3a7ae0', '#8a5ae0', '#5a6478'];
+  var glassColors = ['#5ee8ff', '#8af0b0', '#ffd86a', '#ff9a6a', '#ff8fd0', '#c8a8ff', '#ffffff'];
+  var skinTones  = ['#ffe0c0', '#f3c9a5', '#ddb896', '#c68c5a', '#8d6e4c', '#5c3d2e'];
 
   /* Tab definitions. `field` is the key inside Game.customization this tab
-     writes to; `colorField` (optional) adds a swatch row below the grid.
-     `crop` is the window of Momoko's 28x34 sprite box shown on each card
-     (x, y, w, h); tabs without one draw an item icon instead. */
-  var CROP_HEAD = [-1.5, -6, 31, 29], CROP_BODY = [-0.5, 5, 29, 31.5], CROP_FEET = [3, 24.5, 22, 11.5];
+     writes to; `colorField` (optional) adds a swatch row below the grid,
+     drawn as `swatch` (a lock of hair, a patch of cloth, ...). `crop` is
+     the window of Momoko's 28x34 sprite box shown on each card (x, y, w,
+     h) and `bare` leaves her helmet off so the hair or face shows; tabs
+     without a crop draw the item on its own. `zoom` brings the big
+     preview closer (or back) while the tab is open. */
+  var CROP_HAIR = [-4.5, -4.8, 37, 26.2], CROP_FACE = [3.2, 4.6, 21.6, 15.3], CROP_BODY = [1.5, 17.6, 25, 17.7],
+      CROP_HELMET = [-3.5, -14.8, 35, 24.8];
   var customTabs = [
-    { id: 'hair',  label: 'tabHair',  field: 'hairStyle', colorField: 'hair',    colors: hairColors, crop: CROP_HEAD,
+    { id: 'hair',  label: 'tabHair',  field: 'hairStyle', colorField: 'hair',    colors: hairColors, swatch: 'hair',
+      colorLabel: 'hairColor', crop: CROP_HAIR, bare: true, zoom: 1.1,
       variants: [
         { id: 'twinTails',  label: 'varTwinTails' },
         { id: 'longBraids', label: 'varLongBraids' },
@@ -1600,35 +1610,70 @@
         { id: 'ponytail',   label: 'varPonytail' },
         { id: 'bob',        label: 'varBob' },
         { id: 'sideTail',   label: 'varSideTail' },
+        { id: 'ringlets',   label: 'varRinglets' },
+        { id: 'longHair',   label: 'varLongHair' },
+        { id: 'pixie',      label: 'varPixie' },
+        { id: 'puffs',      label: 'varPuffs' },
       ] },
-    { id: 'dress', label: 'tabDress', field: 'outfit',    colorField: 'suit',    colors: suitColors, crop: CROP_BODY,
+    { id: 'face',  label: 'tabFace',  field: 'face',      colorField: 'eyes',    colors: eyeColors, swatch: 'eyes',
+      colorLabel: 'eyeColor', crop: CROP_FACE, bare: true, zoom: 1.16,
+      variants: [
+        { id: 'none',        label: 'varNone' },
+        { id: 'glasses',     label: 'varGlasses' },
+        { id: 'starShades',  label: 'varStarShades' },
+        { id: 'freckles',    label: 'varFreckles' },
+        { id: 'heartCheeks', label: 'varHeartCheeks' },
+        { id: 'starPaint',   label: 'varStarPaint' },
+      ] },
+    { id: 'dress', label: 'tabDress', field: 'outfit',    colorField: 'suit',    colors: suitColors, swatch: 'cloth',
+      colorLabel: 'suitColor', crop: CROP_BODY,
       variants: [
         { id: 'frillyDress', label: 'varFrillyDress' },
         { id: 'sailorDress', label: 'varSailorDress' },
         { id: 'starDress',   label: 'varStarDress' },
         { id: 'galaxyDress', label: 'varGalaxyDress' },
+        { id: 'tutu',        label: 'varTutu' },
+        { id: 'gown',        label: 'varGown' },
+        { id: 'yukata',      label: 'varYukata' },
+        { id: 'snowDress',   label: 'varSnowDress' },
       ] },
-    { id: 'swim',  label: 'tabSwim',  field: 'outfit',    colorField: 'suit',    colors: suitColors, crop: CROP_BODY,
+    { id: 'swim',  label: 'tabSwim',  field: 'outfit',    colorField: 'suit',    colors: suitColors, swatch: 'cloth',
+      colorLabel: 'suitColor', crop: CROP_BODY,
       variants: [
         { id: 'sailorSwimsuit', label: 'varSailorSwimsuit' },
         { id: 'onePiece',       label: 'varOnePiece' },
         { id: 'frillyBikini',   label: 'varFrillyBikini' },
         { id: 'puffySuit',      label: 'varPuffySuit' },
+        { id: 'pilot',          label: 'varPilot' },
+        { id: 'mech',           label: 'varMech' },
+        { id: 'kitty',          label: 'varKitty' },
+        { id: 'rainbow',        label: 'varRainbow' },
       ] },
-    { id: 'shoes', label: 'tabShoes', field: 'shoes',     colorField: 'flipper', colors: shoeColors, crop: CROP_FEET,
+    { id: 'shoes', label: 'tabShoes', field: 'shoes',     colorField: 'flipper', colors: shoeColors, swatch: 'boot',
+      colorLabel: 'tabShoes', icon: 'shoe',
       variants: [
-        { id: 'maryJane',    label: 'varMaryJane' },
-        { id: 'sneaker',     label: 'varSneaker' },
-        { id: 'flipper',     label: 'varFlipper' },
-        { id: 'rocketBoots', label: 'varRocketBoots' },
-        { id: 'starBoots',   label: 'varStarBoots' },
+        { id: 'maryJane',      label: 'varMaryJane' },
+        { id: 'sneaker',       label: 'varSneaker' },
+        { id: 'flipper',       label: 'varFlipper' },
+        { id: 'rocketBoots',   label: 'varRocketBoots' },
+        { id: 'starBoots',     label: 'varStarBoots' },
+        { id: 'springBoots',   label: 'varSpringBoots' },
+        { id: 'bunnySlippers', label: 'varBunnySlippers' },
+        { id: 'rollerSkates',  label: 'varRollerSkates' },
+        { id: 'wingBoots',     label: 'varWingBoots' },
       ] },
-    { id: 'helmet', label: 'tabHelmet', field: 'helmet',  colorField: null, colors: null, crop: CROP_HEAD,
+    { id: 'helmet', label: 'tabHelmet', field: 'helmet',  colorField: 'glass',   colors: glassColors, swatch: 'glass',
+      colorLabel: 'glassColor', crop: CROP_HELMET, zoom: 1.06,
       variants: [
-        { id: 'bubble',  label: 'varHelmBubble' },
-        { id: 'catEars', label: 'varHelmCat' },
-        { id: 'antenna', label: 'varHelmAntenna' },
-        { id: 'visor',   label: 'varHelmVisor' },
+        { id: 'bubble',     label: 'varHelmBubble' },
+        { id: 'catEars',    label: 'varHelmCat' },
+        { id: 'bunnyEars',  label: 'varHelmBunny' },
+        { id: 'antenna',    label: 'varHelmAntenna' },
+        { id: 'visor',      label: 'varHelmVisor' },
+        { id: 'planetRing', label: 'varHelmRing' },
+        { id: 'crown',      label: 'varHelmCrown' },
+        { id: 'propeller',  label: 'varHelmPropeller' },
+        { id: 'bigBow',     label: 'varHelmBow' },
       ] },
     { id: 'gear',  label: 'tabGear',  field: 'gear',      colorField: null, colors: null, icon: 'gear',
       variants: [
@@ -1638,157 +1683,228 @@
         { id: 'starCape',  label: 'varStarCape' },
         { id: 'scarf',     label: 'varScarf' },
         { id: 'starBadge', label: 'varStarBadge' },
+        { id: 'wings',     label: 'varWings' },
+        { id: 'backBow',   label: 'varBackBow' },
+        { id: 'satchel',   label: 'varSatchel' },
+        { id: 'hoverRing', label: 'varHoverRing' },
       ] },
-    { id: 'crab',  label: 'tabCrab',  field: 'crab',      colorField: null, colors: null, icon: 'pet',
+    { id: 'crab',  label: 'tabCrab',  field: 'crab',      colorField: null, colors: null, icon: 'pet', zoom: 0.94,
       variants: [
-        { id: 'none', label: 'varNone' },
-        { id: 'red',  label: 'varCrabRed' },
-        { id: 'blue', label: 'varCrabBlue' },
-        { id: 'gold', label: 'varCrabGold' },
+        { id: 'none',   label: 'varNone' },
+        { id: 'red',    label: 'varCrabRed' },
+        { id: 'blue',   label: 'varCrabBlue' },
+        { id: 'gold',   label: 'varCrabGold' },
+        { id: 'fluffy', label: 'varCrabFluffy' },
+        { id: 'husky',  label: 'varCrabHusky' },
+        { id: 'robo',   label: 'varCrabRobo' },
+        { id: 'star',   label: 'varCrabStar' },
       ] },
     { id: 'food',  label: 'tabFood',  field: 'food',      colorField: null, colors: null, icon: 'held',
       variants: [
-        { id: 'none',       label: 'varNone' },
-        { id: 'iceCream',   label: 'varIceCream' },
-        { id: 'onigiri',    label: 'varOnigiri' },
-        { id: 'donut',      label: 'varDonut' },
-        { id: 'crepe',      label: 'varCrepe' },
-        { id: 'taiyaki',    label: 'varTaiyaki' },
-        { id: 'parfait',    label: 'varParfait' },
-        { id: 'macaron',    label: 'varMacaron' },
-        { id: 'strawberry', label: 'varStrawberry' },
-        { id: 'starWand',   label: 'varStarWand' },
-        { id: 'balloon',    label: 'varBalloon' },
+        { id: 'none',        label: 'varNone' },
+        { id: 'starWand',    label: 'varStarWand' },
+        { id: 'balloon',     label: 'varBalloon' },
+        { id: 'starFlag',    label: 'varStarFlag' },
+        { id: 'lantern',     label: 'varLantern' },
+        { id: 'plushie',     label: 'varPlushie' },
+        { id: 'iceCream',    label: 'varIceCream' },
+        { id: 'lollipop',    label: 'varLollipop' },
+        { id: 'cottonCandy', label: 'varCottonCandy' },
+        { id: 'donut',       label: 'varDonut' },
+        { id: 'crepe',       label: 'varCrepe' },
+        { id: 'parfait',     label: 'varParfait' },
+        { id: 'macaron',     label: 'varMacaron' },
+        { id: 'strawberry',  label: 'varStrawberry' },
+        { id: 'onigiri',     label: 'varOnigiri' },
+        { id: 'taiyaki',     label: 'varTaiyaki' },
+        { id: 'dango',       label: 'varDango' },
       ] },
   ];
 
   var customSelection = { tab: 'hair', page: {} };
 
   /* ---- Layout constants (shared by draw + hit-test) ---- */
-  var TAB_X = 320, TAB_Y = 50, TAB_W = 116, TAB_H = 30, TAB_GAP = 4, TAB_COLS = 4;
-  var GRID_X = 320, GRID_Y = 122, GRID_COLS = 3, GRID_ROWS = 3, GRID_TILE_W = 154, GRID_TILE_H = 52, GRID_GAP = 7;
+  var PANEL_X = 316, PANEL_W = 474;
+  var TAB_Y = 42, TAB_H = 40, TAB_GAP = 4, TAB_ROW1 = 5;
+  var GRID_Y = 132, GRID_COLS = 5, GRID_ROWS = 2, GRID_TILE_W = 90, GRID_TILE_H = 88, GRID_GAP = 6;
   var PER_PAGE = GRID_COLS * GRID_ROWS;
-  var COLOR_X = 320, COLOR_STEP = 42;
-  var PAGER_W = 44, PAGER_H = 28;
+  var ROW_H = 40, ROW_GAP = 2;
+  var COLOR_X = PANEL_X + 66, COLOR_STEP = 41, SWATCH_R = 15;
+  var PAGER_W = 64;
   var START_BTN_W = 200, START_BTN_H = 46;
-  var START_BTN_X = W / 2 - START_BTN_W / 2 + 150;
+  var START_BTN_X = PANEL_X + PANEL_W / 2 - START_BTN_W / 2;
   var START_BTN_Y = 420;
+
+  /* How much larger the layout is drawn than the 800x480 window, and
+     where its corner lands: 1 and (0, 0) on a desktop, up to 1.5x and
+     centred when the view covers a whole tablet screen. */
+  var custXf = { k: 1, x: 0, y: 0 };
+  function customLayout() {
+    var k = Math.min(1.5, VIEW.w / (W + 24), VIEW.h / (H + 16));
+    if (k < 1.02) k = 1;
+    custXf.k = k;
+    custXf.x = VIEW.x + VIEW.w / 2 - W * k / 2;
+    custXf.y = VIEW.y + VIEW.h / 2 - H * k / 2;
+  }
 
   function getTab(id) {
     for (var i = 0; i < customTabs.length; i++) if (customTabs[i].id === id) return customTabs[i];
     return customTabs[0];
   }
+  /* Five tabs across the first row, the rest share the second. */
   function tabRect(i) {
-    return [TAB_X + (i % TAB_COLS) * (TAB_W + TAB_GAP), TAB_Y + Math.floor(i / TAB_COLS) * (TAB_H + TAB_GAP)];
+    var row = i < TAB_ROW1 ? 0 : 1, n = row ? customTabs.length - TAB_ROW1 : TAB_ROW1, col = row ? i - TAB_ROW1 : i;
+    var w = (PANEL_W - (n - 1) * TAB_GAP) / n;
+    return [PANEL_X + col * (w + TAB_GAP), TAB_Y + row * (TAB_H + TAB_GAP), w];
   }
   function pageCount(tab) { return Math.max(1, Math.ceil(tab.variants.length / PER_PAGE)); }
   function curPage(tab) {
     var p = customSelection.page[tab.id] || 0;
     return Math.min(p, pageCount(tab) - 1);
   }
-  /* Rows of cards actually shown on this tab's page. */
-  function gridRows(tab) {
-    var n = Math.min(PER_PAGE, tab.variants.length - curPage(tab) * PER_PAGE);
-    return pageCount(tab) > 1 ? GRID_ROWS : Math.max(1, Math.ceil(n / GRID_COLS));
-  }
   function tileRect(k) {
-    return [GRID_X + (k % GRID_COLS) * (GRID_TILE_W + GRID_GAP), GRID_Y + Math.floor(k / GRID_COLS) * (GRID_TILE_H + GRID_GAP)];
+    return [PANEL_X + (k % GRID_COLS) * (GRID_TILE_W + GRID_GAP), GRID_Y + Math.floor(k / GRID_COLS) * (GRID_TILE_H + GRID_GAP)];
   }
-  /* The pager sits right under the grid on tabs that need it. */
-  function pagerY(tab) { return GRID_Y + gridRows(tab) * (GRID_TILE_H + GRID_GAP) + 2; }
-  /* Where the color-swatch row anchors for this tab: just below the
-     grid (and pager) so short tabs don't leave a gap. */
-  function colorYFor(tab) {
-    var y = GRID_Y + gridRows(tab) * (GRID_TILE_H + GRID_GAP) + 22;
-    return pageCount(tab) > 1 && tab.colorField ? y + PAGER_H + 2 : y;
+  /* The rows under the grid, top to bottom: the pager on tabs with more
+     than one page, the tab's own colours, then skin tones (always). */
+  function rowsFor(tab) {
+    var rows = [];
+    if (pageCount(tab) > 1) rows.push({ pager: true });
+    if (tab.colorField) rows.push({ field: tab.colorField, colors: tab.colors, swatch: tab.swatch, label: tab.colorLabel });
+    rows.push({ field: 'skin', colors: skinTones, swatch: 'skin', label: 'skinTone' });
+    var y = GRID_Y + GRID_ROWS * (GRID_TILE_H + GRID_GAP) + 2;
+    for (var i = 0; i < rows.length; i++) { rows[i].y = y; y += ROW_H + ROW_GAP; }
+    return rows;
   }
 
   /* ---- Option previews ----
-     Each card shows its option painted by the real hero renderer (a crop
-     of Momoko wearing it) or the item itself, rendered once per look at
-     device resolution and kept until the look changes. */
-  var ICON_W = 52, ICON_H = 42;
+     Each card shows its option painted by the real hero renderer (a
+     close crop of Momoko wearing it, in her current colours) or the item
+     itself, rendered once per look at device resolution and kept until
+     the look changes. */
+  var PV_W = GRID_TILE_W - 8, PV_H = 62;
   var previewCache = {}, previewN = 0;
   function cardCust(tab, v) {
     var cu = {};
     for (var k in Game.customization) cu[k] = Game.customization[k];
     cu[tab.field] = v.id;
-    if (tab.id === 'hair' || tab.id === 'helmet') cu.gear = 'none';
+    /* nothing in her hands or on her back to hide what the card is about */
+    if (tab.crop) { cu.food = 'none'; cu.gear = 'none'; }
     return cu;
+  }
+  function paintNone(g) {
+    var cx = PV_W / 2, cy = PV_H / 2 + 1;
+    g.lineCap = 'round';
+    g.strokeStyle = 'rgba(10, 2, 36, 0.5)';
+    g.lineWidth = 5.5;
+    g.beginPath(); g.arc(cx, cy + 1.5, 15, 0, Math.PI * 2); g.stroke();
+    var lg = g.createLinearGradient(0, cy - 16, 0, cy + 16);
+    lg.addColorStop(0, '#f0e6ff');
+    lg.addColorStop(1, '#9a86d8');
+    g.strokeStyle = lg;
+    g.lineWidth = 4;
+    g.beginPath(); g.arc(cx, cy, 15, 0, Math.PI * 2); g.stroke();
+    g.beginPath(); g.moveTo(cx - 10.2, cy + 10.2); g.lineTo(cx + 10.2, cy - 10.2); g.stroke();
+    g.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    g.lineWidth = 1;
+    g.beginPath(); g.arc(cx, cy, 16.3, Math.PI * 1.1, Math.PI * 1.45); g.stroke();
   }
   function optionPreview(c, tab, v) {
     var k = c.getTransform().d || 1;
-    var cu = cardCust(tab, v);
-    var key = tab.id + v.id + k + cu.hair + cu.suit + cu.skin + cu.flipper + cu.hairStyle + cu.outfit + cu.shoes + cu.helmet;
+    var cu = cardCust(tab, v), rc = Game.momoko.readCust(cu);
+    var key = tab.id + v.id + k;
+    for (var f in rc) key += rc[f];
     var cv = previewCache[key];
     if (cv) return cv;
-    if (previewN > 160) { previewCache = {}; previewN = 0; }
+    if (previewN > 200) { previewCache = {}; previewN = 0; }
     cv = document.createElement('canvas');
-    cv.width = Math.ceil(ICON_W * k);
-    cv.height = Math.ceil(ICON_H * k);
+    cv.width = Math.ceil(PV_W * k);
+    cv.height = Math.ceil(PV_H * k);
     var g = cv.getContext('2d');
     g.scale(k, k);
-    if (v.id === 'none') {
-      g.strokeStyle = 'rgba(170, 200, 240, 0.8)';
-      g.lineWidth = 2;
-      g.beginPath(); g.arc(ICON_W / 2, ICON_H / 2, 11, 0, Math.PI * 2); g.stroke();
-      g.beginPath(); g.moveTo(ICON_W / 2 - 7.5, ICON_H / 2 - 7.5); g.lineTo(ICON_W / 2 + 7.5, ICON_H / 2 + 7.5); g.stroke();
+    if (v.id === 'none' && !tab.crop) {
+      paintNone(g);
     } else if (tab.crop) {
-      var cr = tab.crop, sc = Math.min(ICON_W / cr[2], ICON_H / cr[3]);
-      g.translate(ICON_W / 2 - (cr[0] + cr[2] / 2) * sc, ICON_H / 2 - (cr[1] + cr[3] / 2) * sc);
+      var cr = tab.crop, sc = Math.min(PV_W / cr[2], PV_H / cr[3]);
+      g.translate(PV_W / 2 - (cr[0] + cr[2] / 2) * sc, PV_H / 2 - (cr[1] + cr[3] / 2) * sc);
       g.scale(sc, sc);
-      Game.momoko.paint(g, 0, 0, cu, {});
-    } else if (tab.icon === 'pet') {
-      g.translate(ICON_W / 2 + 4, ICON_H / 2 + 3);
-      g.scale(2.4, 2.4);
-      Game.entities.drawCrabPet(g, 0, 0, v.id, 0);
+      Game.momoko.paint(g, 0, 0, cu, { bare: tab.bare });
     } else {
-      g.translate(ICON_W / 2, ICON_H / 2);
-      g.scale(tab.icon === 'gear' ? 1.15 : 1.45, tab.icon === 'gear' ? 1.15 : 1.45);
-      Game.momoko.icon(g, tab.icon === 'gear' ? 'gear' : 'held', v.id, cu, 0.3);
+      /* the item on its own, standing on a soft shadow */
+      g.fillStyle = 'rgba(8, 2, 30, 0.42)';
+      g.beginPath(); g.ellipse(PV_W / 2, PV_H - 5.5, 22, 3.6, 0, 0, Math.PI * 2); g.fill();
+      if (tab.icon === 'pet') {
+        g.translate(PV_W / 2 + 2, PV_H - 22);
+        g.scale(2.9, 2.9);
+        Game.entities.drawCrabPet(g, 0, 0, v.id, 0);
+      } else if (tab.icon === 'shoe') {
+        g.translate(PV_W / 2, PV_H / 2);
+        Game.momoko.icon(g, 'shoe', v.id, cu, 0);
+      } else {
+        g.translate(PV_W / 2, PV_H / 2 - 2);
+        g.scale(2.05, 2.05);
+        Game.momoko.icon(g, tab.icon, v.id, cu, 0.3);
+      }
     }
     previewCache[key] = cv;
     previewN++;
     return cv;
   }
 
-  /* Card label: one line if it fits at a readable size, else two. */
-  function cardLabel(c, text, x, cy, maxW) {
-    for (var sz = 12; sz >= 10; sz--) {
+  /* Card label, centred: one line if it fits at a readable size, else two. */
+  function cardLabel(c, text, cx, cy, maxW) {
+    for (var sz = 11; sz >= 9; sz--) {
       c.font = 'bold ' + sz + 'px ' + FONT;
-      if (c.measureText(text).width <= maxW) { c.fillText(text, x, cy); return; }
+      if (c.measureText(text).width <= maxW) { c.fillText(text, cx, cy); return; }
     }
     var cut = text.lastIndexOf(' ');
     if (cut < 0 || /[　-鿿]/.test(text)) cut = Math.ceil(text.length / 2);
     var a = text.slice(0, cut).trim(), b = text.slice(cut).trim();
-    fitFont(c, a.length > b.length ? a : b, maxW, 11, 'bold');
-    c.fillText(a, x, cy - 7);
-    c.fillText(b, x, cy + 7);
+    fitFont(c, a.length > b.length ? a : b, maxW, 9, 'bold');
+    c.fillText(a, cx, cy - 5);
+    c.fillText(b, cx, cy + 5);
+  }
+
+  function checkBadge(c, bx, by, r) {
+    c.fillStyle = '#ffd24a';
+    c.beginPath(); c.arc(bx, by, r, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#7a4a00';
+    c.lineWidth = 1;
+    c.stroke();
+    c.strokeStyle = '#4a2a00';
+    c.lineWidth = r * 0.28;
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+    c.beginPath(); c.moveTo(bx - r * 0.46, by + r * 0.03); c.lineTo(bx - r * 0.11, by + r * 0.37); c.lineTo(bx + r * 0.49, by - r * 0.34); c.stroke();
   }
 
   function drawOptionCard(c, tab, v, x, y, selected, hot) {
-    var t = customizeTimer;
+    if (hot && Game.input.pointer.down) y += 1.5;
     c.save();
     if (selected) {
-      /* soft pulsing glow behind the chosen card */
-      c.shadowColor = 'rgba(255, 214, 120, ' + (0.55 + 0.25 * Math.sin(t * 0.08)).toFixed(3) + ')';
+      /* soft glow behind the chosen card */
+      c.shadowColor = 'rgba(255, 214, 120, 0.6)';
       c.shadowBlur = 14;
     }
-    drawChip(c, x, y, GRID_TILE_W, GRID_TILE_H, 9, selected, hot);
+    drawChip(c, x, y, GRID_TILE_W, GRID_TILE_H, 10, selected, hot);
     c.restore();
-    /* inset stage for the preview */
-    var ix = x + 5, iy = y + 5, iw = ICON_W, ih = ICON_H;
+    /* stage for the picture: a pool of light on a dark floor */
+    var ix = x + 4, iy = y + 4, iw = PV_W, ih = PV_H;
     c.save();
     roundRect(c, ix, iy, iw, ih, 7);
-    var sg = c.createRadialGradient(ix + iw / 2, iy + ih * 0.62, 2, ix + iw / 2, iy + ih / 2, iw * 0.7);
-    sg.addColorStop(0, selected ? 'rgba(255, 190, 240, 0.55)' : 'rgba(150, 110, 230, 0.4)');
-    sg.addColorStop(1, 'rgba(14, 4, 40, 0.75)');
+    var sg = c.createRadialGradient(ix + iw / 2, iy + ih * 0.56, 3, ix + iw / 2, iy + ih * 0.5, iw * 0.62);
+    sg.addColorStop(0, selected ? 'rgba(255, 196, 240, 0.62)' : hot ? 'rgba(190, 150, 255, 0.52)' : 'rgba(150, 110, 230, 0.42)');
+    sg.addColorStop(1, 'rgba(14, 4, 40, 0.78)');
     c.fillStyle = sg;
     c.fill();
     c.clip();
-    var pv = optionPreview(c, tab, v);
-    var bob = selected ? Math.sin(t * 0.09) * 1.2 : 0;
-    c.drawImage(pv, ix, iy + bob, iw, ih);
+    c.drawImage(optionPreview(c, tab, v), ix, iy, iw, ih);
+    /* glass sheen across the top of the picture */
+    var gl = c.createLinearGradient(0, iy, 0, iy + ih * 0.4);
+    gl.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
+    gl.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    c.fillStyle = gl;
+    c.fillRect(ix, iy, iw, ih * 0.4);
     c.restore();
     c.save();
     roundRect(c, ix, iy, iw, ih, 7);
@@ -1798,64 +1914,288 @@
     c.restore();
     /* label */
     c.fillStyle = selected ? '#ffffff' : '#e6dcff';
-    c.textAlign = 'left';
+    c.textAlign = 'center';
     c.textBaseline = 'middle';
-    cardLabel(c, Game.i18n.t(v.label), x + ICON_W + 12, y + GRID_TILE_H / 2, GRID_TILE_W - ICON_W - 18);
-    /* check badge */
-    if (selected) {
-      var bx = x + GRID_TILE_W - 9, by = y + 9;
-      c.fillStyle = '#ffd24a';
-      c.beginPath(); c.arc(bx, by, 7, 0, Math.PI * 2); c.fill();
-      c.strokeStyle = '#7a4a00';
-      c.lineWidth = 1;
-      c.stroke();
-      c.strokeStyle = '#4a2a00';
-      c.lineWidth = 2;
-      c.lineCap = 'round';
-      c.beginPath(); c.moveTo(bx - 3.2, by + 0.2); c.lineTo(bx - 0.8, by + 2.6); c.lineTo(bx + 3.4, by - 2.4); c.stroke();
-    }
+    cardLabel(c, Game.i18n.t(v.label), x + GRID_TILE_W / 2, y + GRID_TILE_H - 10.5, GRID_TILE_W - 8);
+    if (selected) checkBadge(c, x + GRID_TILE_W - 9, y + 9, 8);
   }
 
-  /* Glossy colour swatch; the chosen one gets a gold ring and a tick. */
-  function drawSwatch(c, x, y, col, selected, hot) {
+  /* Colour swatch drawn as the thing it colours: a lock of hair, a patch
+     of cloth, a boot, an eye, a glass bubble or a cheek. The chosen one
+     gets a gold ring and a tick. */
+  function swatchShape(c, kind, r) {
+    c.beginPath();
+    if (kind === 'hair') {
+      /* a tress: broad at the root, curling to a point */
+      c.moveTo(-r * 0.75, -r * 0.9);
+      c.bezierCurveTo(r * 0.3, -r * 1.2, r * 1.15, -r * 0.5, r * 0.9, r * 0.25);
+      c.bezierCurveTo(r * 0.7, r * 0.8, r * 0.1, r * 1.05, -r * 0.6, r * 0.95);
+      c.bezierCurveTo(-r * 0.1, r * 0.75, r * 0.25, r * 0.35, r * 0.05, -r * 0.05);
+      c.bezierCurveTo(-r * 0.15, -r * 0.45, -r * 0.75, -r * 0.4, -r * 0.95, -r * 0.55);
+      c.bezierCurveTo(-r * 0.95, -r * 0.75, -r * 0.9, -r * 0.85, -r * 0.75, -r * 0.9);
+    } else if (kind === 'cloth') {
+      roundRect(c, -r * 0.9, -r * 0.9, r * 1.8, r * 1.8, r * 0.3);
+    } else if (kind === 'boot') {
+      c.moveTo(-r * 0.75, -r * 0.9);
+      c.lineTo(r * 0.1, -r * 0.9);
+      c.quadraticCurveTo(r * 0.15, -r * 0.1, r * 0.5, 0);
+      c.quadraticCurveTo(r * 1.05, r * 0.15, r * 0.95, r * 0.9);
+      c.lineTo(-r * 0.8, r * 0.9);
+      c.quadraticCurveTo(-r * 0.95, 0, -r * 0.75, -r * 0.9);
+    } else {
+      c.arc(0, 0, r, 0, Math.PI * 2);
+    }
+    c.closePath();
+  }
+  function drawSwatch(c, x, y, col, selected, hot, kind) {
+    var r = SWATCH_R;
     c.save();
-    c.fillStyle = 'rgba(4, 0, 20, 0.45)';
-    c.beginPath(); c.arc(x, y + 2, 14, 0, Math.PI * 2); c.fill();
-    var g = c.createRadialGradient(x - 4, y - 5, 1, x, y, 15);
-    g.addColorStop(0, '#ffffff');
-    g.addColorStop(0.25, col);
-    g.addColorStop(1, col);
-    c.fillStyle = g;
-    c.beginPath(); c.arc(x, y, 14, 0, Math.PI * 2); c.fill();
-    c.fillStyle = 'rgba(0, 0, 0, 0.18)';
-    c.beginPath(); c.arc(x, y, 14, 0.15 * Math.PI, 0.85 * Math.PI); c.arc(x, y + 3, 11, 0.85 * Math.PI, 0.15 * Math.PI, true); c.fill();
-    c.strokeStyle = hot ? 'rgba(255, 255, 255, 0.8)' : 'rgba(20, 6, 48, 0.6)';
-    c.lineWidth = 1;
-    c.beginPath(); c.arc(x, y, 14, 0, Math.PI * 2); c.stroke();
+    c.translate(x, y);
+    if (hot && Game.input.pointer.down) c.translate(0, 1);
+    /* drop shadow */
+    c.save(); c.translate(0, 2); swatchShape(c, kind, r); c.fillStyle = 'rgba(4, 0, 20, 0.45)'; c.fill(); c.restore();
+    swatchShape(c, kind, r);
+    if (kind === 'glass') {
+      var gg = c.createRadialGradient(-4, -5, 1, 0, 0, r);
+      gg.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+      gg.addColorStop(0.5, hexAlpha(shadeHex(col, 0.45), 0.5));
+      gg.addColorStop(1, hexAlpha(col, 0.8));
+      c.fillStyle = gg;
+      c.fill();
+      c.strokeStyle = col;
+      c.lineWidth = 2.5;
+      c.stroke();
+      c.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      c.lineWidth = 1.6;
+      c.lineCap = 'round';
+      c.beginPath(); c.arc(0, 0, r - 4.5, Math.PI * 1.1, Math.PI * 1.45); c.stroke();
+    } else if (kind === 'eyes') {
+      c.fillStyle = '#fffafd';
+      c.fill();
+      var ig = c.createLinearGradient(0, -r, 0, r);
+      ig.addColorStop(0, shadeHex(col, -0.62));
+      ig.addColorStop(0.5, col);
+      ig.addColorStop(1, shadeHex(col, 0.5));
+      c.fillStyle = ig;
+      c.beginPath(); c.arc(0, 0.5, r - 2.5, 0, Math.PI * 2); c.fill();
+      c.fillStyle = 'rgba(20, 4, 24, 0.85)';
+      c.beginPath(); c.arc(0, 1, r * 0.36, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffffff';
+      c.beginPath(); c.arc(-r * 0.36, -r * 0.34, r * 0.24, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(r * 0.36, r * 0.42, r * 0.12, 0, Math.PI * 2); c.fill();
+    } else {
+      var g = c.createLinearGradient(-r, -r, r * 0.6, r);
+      g.addColorStop(0, shadeHex(col, 0.42));
+      g.addColorStop(0.42, col);
+      g.addColorStop(1, shadeHex(col, -0.3));
+      c.fillStyle = g;
+      c.fill();
+      c.save();
+      c.clip();
+      if (kind === 'hair') {
+        c.strokeStyle = shadeHex(col, -0.4);
+        c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(-r * 0.6, -r * 0.7); c.bezierCurveTo(r * 0.3, -r * 0.8, r * 0.75, -r * 0.1, r * 0.1, r * 0.8);
+        c.stroke();
+        c.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+        c.lineWidth = 1.8;
+        c.beginPath(); c.moveTo(-r * 0.1, -r * 0.88); c.bezierCurveTo(r * 0.55, -r * 0.8, r * 0.9, -r * 0.3, r * 0.75, r * 0.2); c.stroke();
+      } else if (kind === 'cloth') {
+        /* a fold, and a row of stitches round the edge */
+        c.fillStyle = 'rgba(255, 255, 255, 0.22)';
+        c.beginPath(); c.moveTo(-r, -r); c.lineTo(r * 0.2, -r); c.lineTo(-r, r * 0.4); c.closePath(); c.fill();
+        c.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+        c.lineWidth = 1;
+        c.setLineDash([2.2, 2]);
+        roundRect(c, -r * 0.9 + 2.6, -r * 0.9 + 2.6, r * 1.8 - 5.2, r * 1.8 - 5.2, r * 0.2);
+        c.stroke();
+        c.setLineDash([]);
+      } else if (kind === 'boot') {
+        c.fillStyle = 'rgba(30, 10, 60, 0.55)';
+        c.fillRect(-r, r * 0.62, r * 2, r);
+        c.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        c.fillRect(-r, -r * 0.92, r * 1.2, r * 0.3);
+        c.beginPath(); c.ellipse(r * 0.5, r * 0.3, r * 0.3, r * 0.14, 0.2, 0, Math.PI * 2); c.fill();
+      } else {
+        /* cheek: a blush and a soft highlight */
+        c.fillStyle = 'rgba(255, 110, 150, 0.3)';
+        c.beginPath(); c.ellipse(r * 0.3, r * 0.42, r * 0.42, r * 0.26, 0, 0, Math.PI * 2); c.fill();
+        c.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        c.beginPath(); c.ellipse(-r * 0.35, -r * 0.45, r * 0.3, r * 0.18, -0.6, 0, Math.PI * 2); c.fill();
+      }
+      c.restore();
+    }
+    swatchShape(c, kind, r);
+    c.strokeStyle = hot ? 'rgba(255, 255, 255, 0.9)' : 'rgba(20, 6, 48, 0.7)';
+    c.lineWidth = hot ? 1.5 : 1;
+    if (kind !== 'glass') c.stroke();
     if (selected) {
       c.strokeStyle = 'rgba(255, 221, 136, 0.35)';
       c.lineWidth = 6;
-      c.beginPath(); c.arc(x, y, 18, 0, Math.PI * 2); c.stroke();
+      c.beginPath(); c.arc(0, 0, r + 3.5, 0, Math.PI * 2); c.stroke();
       c.strokeStyle = '#ffdd88';
-      c.lineWidth = 2.5;
-      c.beginPath(); c.arc(x, y, 18, 0, Math.PI * 2); c.stroke();
+      c.lineWidth = 2.2;
+      c.beginPath(); c.arc(0, 0, r + 3.5, 0, Math.PI * 2); c.stroke();
+      checkBadge(c, r * 0.82, -r * 0.82, 6);
     }
     c.restore();
   }
+  /* Lighten (k > 0) or darken (k < 0) a #rrggbb colour. */
+  function shadeHex(h, k) {
+    var n = parseInt(h.slice(1, 7), 16), t = k > 0 ? 255 : 0, a = Math.abs(k);
+    var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    r = Math.round(r + (t - r) * a); g = Math.round(g + (t - g) * a); b = Math.round(b + (t - b) * a);
+    return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+  }
 
   function drawPagerArrow(c, x, y, dir, enabled, hot) {
-    drawChip(c, x, y, PAGER_W, PAGER_H, 8, false, enabled && hot);
+    drawChip(c, x, y, PAGER_W, ROW_H - 2, 9, false, enabled && hot);
     c.fillStyle = enabled ? '#ffffff' : 'rgba(255, 255, 255, 0.3)';
     c.beginPath();
-    var cx = x + PAGER_W / 2, cy = y + PAGER_H / 2;
-    c.moveTo(cx + dir * 6, cy);
-    c.lineTo(cx - dir * 4, cy - 7);
-    c.lineTo(cx - dir * 4, cy + 7);
+    var cx = x + PAGER_W / 2, cy = y + (ROW_H - 2) / 2;
+    c.moveTo(cx + dir * 8, cy);
+    c.lineTo(cx - dir * 5, cy - 9);
+    c.lineTo(cx - dir * 5, cy + 9);
     c.closePath();
     c.fill();
   }
 
+  /* What is at (mx, my) in the layout: 'tab:i', 'card:i' (index into
+     the tab's variants), 'page:-1' / 'page:1' or 'color:row:i'; '' for
+     nothing. Painting (hover) and clicks share it. */
+  function customHit(mx, my, tab, page) {
+    var i;
+    for (i = 0; i < customTabs.length; i++) {
+      var tr = tabRect(i);
+      if (hitButton(mx, my, tr[0], tr[1], tr[2], TAB_H)) return 'tab:' + i;
+    }
+    var first = page * PER_PAGE, last = Math.min(tab.variants.length, first + PER_PAGE);
+    for (i = first; i < last; i++) {
+      var rr = tileRect(i - first);
+      if (hitButton(mx, my, rr[0], rr[1], GRID_TILE_W, GRID_TILE_H)) return 'card:' + i;
+    }
+    var rows = rowsFor(tab);
+    for (i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (my < row.y || my >= row.y + ROW_H) continue;
+      if (row.pager) {
+        if (hitButton(mx, my, PANEL_X, row.y, PAGER_W, ROW_H)) return 'page:-1';
+        if (hitButton(mx, my, PANEL_X + PANEL_W - PAGER_W, row.y, PAGER_W, ROW_H)) return 'page:1';
+        return '';
+      }
+      var ci = Math.floor((mx - (COLOR_X - COLOR_STEP / 2)) / COLOR_STEP);
+      return ci >= 0 && ci < row.colors.length ? 'color:' + i + ':' + ci : '';
+    }
+    return '';
+  }
+
+  /* Tabs, option cards and the rows under them. hot is the customHit
+     target under the mouse. */
+  function paintPanel(c, activeTab, page, hot) {
+    /* Tabs: a row of five and a row of four */
+    for (var ti = 0; ti < customTabs.length; ti++) {
+      var tr = tabRect(ti);
+      var tab = customTabs[ti];
+      var active = activeTab === tab;
+      drawChip(c, tr[0], tr[1], tr[2], TAB_H, 9, active, hot === 'tab:' + ti);
+      c.fillStyle = active ? '#ffffff' : '#d8c8f4';
+      fitFont(c, Game.i18n.t(tab.label), tr[2] - 10, 14, 'bold');
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(Game.i18n.t(tab.label), tr[0] + tr[2] / 2, tr[1] + TAB_H / 2 + 1);
+    }
+
+    /* Option cards for the active tab (current page) */
+    var currentVariantId = Game.customization[activeTab.field];
+    var first = page * PER_PAGE;
+    var last = Math.min(activeTab.variants.length, first + PER_PAGE);
+    for (var vi = first; vi < last; vi++) {
+      var rr = tileRect(vi - first);
+      var v = activeTab.variants[vi];
+      drawOptionCard(c, activeTab, v, rr[0], rr[1], v.id === currentVariantId, hot === 'card:' + vi);
+    }
+
+    /* Rows under the grid: pager, colour swatches, skin tones */
+    var rows = rowsFor(activeTab);
+    for (var ri = 0; ri < rows.length; ri++) {
+      var row = rows[ri], ry = row.y;
+      if (row.pager) {
+        var pages = pageCount(activeTab);
+        drawPagerArrow(c, PANEL_X, ry + 1, -1, page > 0, hot === 'page:-1');
+        drawPagerArrow(c, PANEL_X + PANEL_W - PAGER_W, ry + 1, 1, page < pages - 1, hot === 'page:1');
+        for (var pd = 0; pd < pages; pd++) {
+          c.fillStyle = pd === page ? '#ffdd88' : 'rgba(200, 180, 255, 0.45)';
+          c.beginPath(); c.arc(PANEL_X + PANEL_W / 2 + (pd - (pages - 1) / 2) * 18, ry + ROW_H / 2, pd === page ? 5.5 : 4, 0, Math.PI * 2); c.fill();
+        }
+        continue;
+      }
+      c.fillStyle = '#a8c4e8';
+      fitFont(c, Game.i18n.t(row.label), 46, 13, 'bold');
+      c.textAlign = 'left';
+      c.textBaseline = 'middle';
+      c.fillText(Game.i18n.t(row.label), PANEL_X + 2, ry + ROW_H / 2 + 1);
+      var selColor = Game.customization[row.field];
+      for (var ci = 0; ci < row.colors.length; ci++) {
+        drawSwatch(c, COLOR_X + ci * COLOR_STEP, ry + ROW_H / 2, row.colors[ci], row.colors[ci] === selColor,
+                   hot === 'color:' + ri + ':' + ci, row.swatch);
+      }
+    }
+  }
+
+  /* The parts of the screen that only change now and then are painted
+     into layers at device resolution and blitted each frame: the stage
+     under Momoko once, the panel whenever the look, the tab, the page,
+     the hover or the language changes. */
+  var PANEL_BOX = [PANEL_X - 16, TAB_Y - 16, PANEL_W + 32,
+                   GRID_Y + GRID_ROWS * (GRID_TILE_H + GRID_GAP) + 2 * (ROW_H + ROW_GAP) + 18 - (TAB_Y - 16)];
+  var STAGE_BOX = [10, 70, 300, 350];
+  var panelSlot = { key: '', cv: null }, stageSlot = { key: '', cv: null };
+  function drawLayer(c, slot, key, box, paint) {
+    var sc = c.getTransform().a;
+    key += '|' + sc;
+    if (key !== slot.key) {
+      slot.key = key;
+      var w = Math.ceil(box[2] * sc), h = Math.ceil(box[3] * sc);
+      if (!slot.cv || slot.cv.width !== w || slot.cv.height !== h) {
+        slot.cv = document.createElement('canvas');
+        slot.cv.width = w;
+        slot.cv.height = h;
+      }
+      var g = slot.cv.getContext('2d');
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, w, h);
+      g.setTransform(sc, 0, 0, sc, -box[0] * sc, -box[1] * sc);
+      paint(g);
+    }
+    c.drawImage(slot.cv, box[0], box[1], box[2], box[3]);
+  }
+
+  /* Preview stage – soft radial glow and a lit pedestal so Momoko pops */
+  var STAGE_CX = 160, STAGE_PAD_Y = 325;
+  function paintStage(c) {
+    var stageCY = 240;
+    var stageGrad = c.createRadialGradient(STAGE_CX, stageCY, 20, STAGE_CX, stageCY, 150);
+    stageGrad.addColorStop(0, 'rgba(255, 170, 235, 0.3)');
+    stageGrad.addColorStop(0.5, 'rgba(170, 120, 255, 0.12)');
+    stageGrad.addColorStop(1, 'rgba(170, 120, 255, 0)');
+    c.fillStyle = stageGrad;
+    c.fillRect(10, 70, 300, 340);
+    var pg = c.createRadialGradient(STAGE_CX, STAGE_PAD_Y, 4, STAGE_CX, STAGE_PAD_Y, 92);
+    pg.addColorStop(0, 'rgba(255, 200, 250, 0.5)');
+    pg.addColorStop(0.6, 'rgba(150, 110, 255, 0.18)');
+    pg.addColorStop(1, 'rgba(150, 110, 255, 0)');
+    c.fillStyle = pg;
+    c.beginPath(); c.ellipse(STAGE_CX, STAGE_PAD_Y, 92, 20, 0, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = 'rgba(160, 230, 255, 0.55)';
+    c.lineWidth = 1.5;
+    c.beginPath(); c.ellipse(STAGE_CX, STAGE_PAD_Y, 62, 11, 0, 0, Math.PI * 2); c.stroke();
+    c.strokeStyle = 'rgba(255, 200, 250, 0.35)';
+    c.beginPath(); c.ellipse(STAGE_CX, STAGE_PAD_Y, 76, 14, 0, 0, Math.PI * 2); c.stroke();
+  }
+
   var customizeTimer = 0;
+  var previewZoom = 1;
   function drawCustomizeScreen(c) {
     customizeTimer++;
     /* Background – the title's starfield, dimmed so the controls stay
@@ -1863,116 +2203,56 @@
     drawSpaceBackdrop(c);
     c.fillStyle = 'rgba(6, 2, 20, 0.4)';
     c.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
-    clipGame(c);
+    customLayout();
+    c.save();
+    c.translate(custXf.x, custXf.y);
+    c.scale(custXf.k, custXf.k);
 
     /* Title */
     c.fillStyle = '#66ccff';
-    c.font = 'bold 26px "M PLUS Rounded 1c", sans-serif';
+    c.font = 'bold 24px "M PLUS Rounded 1c", sans-serif';
     c.textAlign = 'center';
-    c.fillText(Game.i18n.t('customize'), W / 2, 36);
+    c.fillText(Game.i18n.t('customize'), W / 2, 30);
 
-    /* Preview stage – soft radial glow and a lit pedestal so Momoko pops */
-    var stageCX = 160, stageCY = 240;
-    var stageGrad = c.createRadialGradient(stageCX, stageCY, 20, stageCX, stageCY, 150);
-    stageGrad.addColorStop(0, 'rgba(255, 170, 235, 0.3)');
-    stageGrad.addColorStop(0.5, 'rgba(170, 120, 255, 0.12)');
-    stageGrad.addColorStop(1, 'rgba(170, 120, 255, 0)');
-    c.fillStyle = stageGrad;
-    c.fillRect(10, 70, 300, 340);
-    var padY = stageCY + 85;
-    var pg = c.createRadialGradient(stageCX, padY, 4, stageCX, padY, 92);
-    pg.addColorStop(0, 'rgba(255, 200, 250, 0.5)');
-    pg.addColorStop(0.6, 'rgba(150, 110, 255, 0.18)');
-    pg.addColorStop(1, 'rgba(150, 110, 255, 0)');
-    c.fillStyle = pg;
-    c.beginPath(); c.ellipse(stageCX, padY, 92, 20, 0, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = 'rgba(160, 230, 255, 0.55)';
-    c.lineWidth = 1.5;
-    c.beginPath(); c.ellipse(stageCX, padY, 62, 11, 0, 0, Math.PI * 2); c.stroke();
-    c.strokeStyle = 'rgba(255, 200, 250, 0.35)';
-    c.beginPath(); c.ellipse(stageCX, padY, 76, 14, 0, 0, Math.PI * 2); c.stroke();
+    var activeTab = getTab(customSelection.tab);
 
-    /* Momoko preview */
+    drawLayer(c, stageSlot, '', STAGE_BOX, paintStage);
+
+    /* Momoko preview: she steps a little closer on the tabs that edit
+       her head, and back to make room for her pup. */
+    previewZoom += ((activeTab.zoom || 1) - previewZoom) * 0.14;
     c.save();
-    c.translate(stageCX - 70, stageCY - 85);
-    c.scale(5, 5);
+    c.translate(STAGE_CX, STAGE_PAD_Y);
+    c.scale(5 * previewZoom, 5 * previewZoom);
+    c.translate(-14, -34);
     drawMomokoPreview(c, Game.customization);
     c.restore();
 
-    /* Tabs: two rows of four */
-    for (var ti = 0; ti < customTabs.length; ti++) {
-      var tr = tabRect(ti);
-      var tab = customTabs[ti];
-      var active = customSelection.tab === tab.id;
-      var tabHot = pointerOver(c, tr[0], tr[1], TAB_W, TAB_H);
-      drawChip(c, tr[0], tr[1], TAB_W, TAB_H, 8, active, tabHot);
-      c.fillStyle = active ? '#ffffff' : '#d8c8f4';
-      fitFont(c, Game.i18n.t(tab.label), TAB_W - 12, 13, 'bold');
-      c.textAlign = 'center';
-      c.textBaseline = 'middle';
-      c.fillText(Game.i18n.t(tab.label), tr[0] + TAB_W / 2, tr[1] + TAB_H / 2 + 1);
+    /* Tabs, cards and swatches, from their layer */
+    var page = curPage(activeTab), hot = '';
+    var ptr = Game.input && Game.input.pointer;
+    if (ptr && ptr.px >= 0 && c.getTransform) {
+      var pt = c.getTransform().inverse().transformPoint(new DOMPoint(ptr.px, ptr.py));
+      hot = customHit(pt.x, pt.y, activeTab, page);
+      if (hot) anyHot = true;
     }
-    c.textBaseline = 'alphabetic';
-
-    /* Option cards for the active tab (current page) */
-    var activeTab = getTab(customSelection.tab);
-    var currentVariantId = Game.customization[activeTab.field];
-    var page = curPage(activeTab), first = page * PER_PAGE;
-    var last = Math.min(activeTab.variants.length, first + PER_PAGE);
-    for (var vi = first; vi < last; vi++) {
-      var rr = tileRect(vi - first);
-      var v = activeTab.variants[vi];
-      drawOptionCard(c, activeTab, v, rr[0], rr[1], v.id === currentVariantId,
-                     pointerOver(c, rr[0], rr[1], GRID_TILE_W, GRID_TILE_H));
-    }
-    c.textBaseline = 'alphabetic';
-
-    /* Pager */
-    var pages = pageCount(activeTab);
-    if (pages > 1) {
-      var py = pagerY(activeTab);
-      drawPagerArrow(c, GRID_X, py, -1, page > 0, pointerOver(c, GRID_X, py, PAGER_W, PAGER_H));
-      var rx = GRID_X + 3 * GRID_TILE_W + 2 * GRID_GAP - PAGER_W;
-      drawPagerArrow(c, rx, py, 1, page < pages - 1, pointerOver(c, rx, py, PAGER_W, PAGER_H));
-      var midX = GRID_X + (3 * GRID_TILE_W + 2 * GRID_GAP) / 2;
-      for (var pd = 0; pd < pages; pd++) {
-        c.fillStyle = pd === page ? '#ffdd88' : 'rgba(200, 180, 255, 0.45)';
-        c.beginPath(); c.arc(midX + (pd - (pages - 1) / 2) * 16, py + PAGER_H / 2, pd === page ? 5 : 4, 0, Math.PI * 2); c.fill();
-      }
-    }
-
-    /* Color swatches (when the active tab has a color dimension) */
-    var colorY = colorYFor(activeTab);
-    if (activeTab.colorField && activeTab.colors) {
-      var labelKey = activeTab.colorField === 'hair' ? 'hairColor'
-                   : activeTab.colorField === 'suit' ? 'suitColor'
-                   : activeTab.colorField === 'flipper' ? 'tabShoes'
-                   : 'skinTone';
-      c.fillStyle = '#88aacc';
-      c.font = '13px "M PLUS Rounded 1c", sans-serif';
-      c.textAlign = 'left';
-      c.fillText(Game.i18n.t(labelKey), COLOR_X, colorY - 8);
-      var selColor = Game.customization[activeTab.colorField];
-      for (var ci = 0; ci < activeTab.colors.length; ci++) {
-        var ccx = COLOR_X + ci * COLOR_STEP + 16;
-        drawSwatch(c, ccx, colorY + 16, activeTab.colors[ci], activeTab.colors[ci] === selColor,
-                   pointerOver(c, ccx - 16, colorY, 32, 32));
-      }
-    }
-
-    /* Skin tones – always visible regardless of tab */
-    c.fillStyle = '#88aacc';
-    c.font = '13px "M PLUS Rounded 1c", sans-serif';
-    c.textAlign = 'left';
-    c.fillText(Game.i18n.t('skinTone'), COLOR_X, colorY + 46);
-    for (var ki = 0; ki < skinTones.length; ki++) {
-      var kcx = COLOR_X + ki * COLOR_STEP + 16;
-      drawSwatch(c, kcx, colorY + 66, skinTones[ki], skinTones[ki] === Game.customization.skin,
-                 pointerOver(c, kcx - 16, colorY + 50, 32, 32));
+    var cu = Game.customization;
+    var key = activeTab.id + '|' + page + '|' + hot + '|' + (hot && ptr.down ? 1 : 0) + '|' + Game.i18n.lang;
+    for (var f in cu) key += '|' + cu[f];
+    drawLayer(c, panelSlot, key, PANEL_BOX, function (g) { paintPanel(g, activeTab, page, hot); });
+    /* the chosen card's gold ring breathes */
+    for (var vi = page * PER_PAGE; vi < Math.min(activeTab.variants.length, (page + 1) * PER_PAGE); vi++) {
+      if (activeTab.variants[vi].id !== Game.customization[activeTab.field]) continue;
+      var rr = tileRect(vi - page * PER_PAGE);
+      c.strokeStyle = 'rgba(255, 240, 190, ' + (0.3 + 0.3 * Math.sin(customizeTimer * 0.08)).toFixed(3) + ')';
+      c.lineWidth = 3;
+      roundRect(c, rr[0] - 1.5, rr[1] - 1.5, GRID_TILE_W + 3, GRID_TILE_H + 3, 11.5);
+      c.stroke();
     }
 
     /* Start button */
     drawButton(c, Game.i18n.t('startGame'), START_BTN_X, START_BTN_Y, START_BTN_W, START_BTN_H, false, 'primary');
+    c.restore();
   }
 
   function drawMomokoPreview(c, cust) {
@@ -1983,7 +2263,7 @@
     /* Crab pet appears next to her feet in the preview so the player can
        see the companion they just picked. */
     if (Game.entities.drawCrabPet && cust.crab && cust.crab !== 'none') {
-      Game.entities.drawCrabPet(c, -8, 32, cust.crab, 0);
+      Game.entities.drawCrabPet(c, -8, 30.5, cust.crab, customizeTimer);
     }
   }
 
@@ -2008,73 +2288,31 @@
   }
 
   function handleCustomizeClick(mx, my) {
-    /* Tabs */
-    for (var ti = 0; ti < customTabs.length; ti++) {
-      var tr = tabRect(ti);
-      if (hitButton(mx, my, tr[0], tr[1], TAB_W, TAB_H)) {
-        customSelection.tab = customTabs[ti].id;
-        Game.audio.play('select');
-        return null;
-      }
-    }
+    /* into the layout's own coordinates (see customLayout) */
+    mx = (mx - custXf.x) / custXf.k;
+    my = (my - custXf.y) / custXf.k;
 
     var activeTab = getTab(customSelection.tab);
-    var page = curPage(activeTab), first = page * PER_PAGE;
-    var last = Math.min(activeTab.variants.length, first + PER_PAGE);
-
-    /* Option cards */
-    for (var vi = first; vi < last; vi++) {
-      var rr = tileRect(vi - first);
-      if (hitButton(mx, my, rr[0], rr[1], GRID_TILE_W, GRID_TILE_H)) {
-        Game.customization[activeTab.field] = activeTab.variants[vi].id;
-        customized();
-        return null;
-      }
-    }
-
-    /* Pager arrows */
-    var pages = pageCount(activeTab);
-    if (pages > 1) {
-      var py = pagerY(activeTab);
-      var rx = GRID_X + 3 * GRID_TILE_W + 2 * GRID_GAP - PAGER_W;
-      if (hitButton(mx, my, GRID_X, py, PAGER_W, PAGER_H) && page > 0) {
-        customSelection.page[activeTab.id] = page - 1;
+    var page = curPage(activeTab);
+    var hit = customHit(mx, my, activeTab, page).split(':');
+    var n = +hit[1];
+    if (hit[0] === 'tab') {
+      customSelection.tab = customTabs[n].id;
+      Game.audio.play('select');
+    } else if (hit[0] === 'card') {
+      Game.customization[activeTab.field] = activeTab.variants[n].id;
+      customized();
+    } else if (hit[0] === 'page') {
+      if (page + n >= 0 && page + n < pageCount(activeTab)) {
+        customSelection.page[activeTab.id] = page + n;
         Game.audio.play('select');
-        return null;
       }
-      if (hitButton(mx, my, rx, py, PAGER_W, PAGER_H) && page < pages - 1) {
-        customSelection.page[activeTab.id] = page + 1;
-        Game.audio.play('select');
-        return null;
-      }
+    } else if (hit[0] === 'color') {
+      var row = rowsFor(activeTab)[n];
+      Game.customization[row.field] = row.colors[+hit[2]];
+      customized();
     }
-
-    /* Tab color swatches */
-    var colorY = colorYFor(activeTab);
-    if (activeTab.colorField && activeTab.colors) {
-      for (var ci = 0; ci < activeTab.colors.length; ci++) {
-        var ccx = COLOR_X + ci * COLOR_STEP + 16;
-        var ccy = colorY + 16;
-        var dx = mx - ccx, dy = my - ccy;
-        if (dx * dx + dy * dy < 18 * 18) {
-          Game.customization[activeTab.colorField] = activeTab.colors[ci];
-          customized();
-          return null;
-        }
-      }
-    }
-
-    /* Skin tone swatches (always shown) */
-    for (var ki = 0; ki < skinTones.length; ki++) {
-      var kcx = COLOR_X + ki * COLOR_STEP + 16;
-      var kcy = colorY + 66;
-      var kdx = mx - kcx, kdy = my - kcy;
-      if (kdx * kdx + kdy * kdy < 18 * 18) {
-        Game.customization.skin = skinTones[ki];
-        customized();
-        return null;
-      }
-    }
+    if (hit[0]) return null;
 
     /* Start button */
     if (hitButton(mx, my, START_BTN_X, START_BTN_Y, START_BTN_W, START_BTN_H)) {
@@ -7325,7 +7563,7 @@
   if (document.fonts && document.fonts.load) {
     var sample = Game.i18n.allText();
     ['400', '700'].forEach(function (wgt) {
-      document.fonts.load(wgt + ' 16px "M PLUS Rounded 1c"', sample).catch(function () {});
+      document.fonts.load(wgt + ' 16px "M PLUS Rounded 1c"', sample).then(function () { panelSlot.key = ''; }).catch(function () {});
     });
   }
 

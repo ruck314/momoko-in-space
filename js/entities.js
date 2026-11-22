@@ -186,72 +186,253 @@
     Game.momoko.paint(c, sx, sy, cust, { rig: o.rig, pose: o.pose, mirror: o.mirror, env: o.env });
   }
 
-  /* Pet-dog companion — re-themed from crab. `variant` picks the coat
-     palette (brown/blue/gold remapped to brown/spotted/golden) or 'none'.
-     Body, head, ear and muzzle get Momoko's cel shading; pass mirror
-     when the canvas is flipped so the light stays on the upper left. */
+  /* Pet-dog companion (the field is still called `crab`). `variant`
+     picks the pup: three smooth coats, a fluffy poodle, a husky, a robot
+     pup and a star pup, or 'none'. Everything gets Momoko's cel shading;
+     pass mirror when the canvas is flipped so the light stays on the
+     upper left. The pup faces left with its paws on py + 5.5. */
+  var PETS = ['none', 'red', 'blue', 'gold', 'fluffy', 'husky', 'robo', 'star'];
+  var PET_COATS = {
+    red:    { body: '#9a6238', accent: '#5e3a1c', muzzle: '#e6bc8c', collar: '#e8305c' },
+    blue:   { body: '#f2f0f6', accent: '#3e3440', muzzle: '#ffffff', collar: '#3a8ae8' },
+    gold:   { body: '#f2c05c', accent: '#b0702a', muzzle: '#fde8b8', collar: '#e8305c' },
+    fluffy: { body: '#fff4fa', accent: '#ffc0da', muzzle: '#ffffff', collar: '#ff7ab0' },
+    husky:  { body: '#8a96b4', accent: '#566080', muzzle: '#ffffff', collar: '#38b8d0' },
+    robo:   { body: '#c4cee8', accent: '#7a84a8', muzzle: '#e6eeff', collar: '#ff5a8a' },
+    star:   { body: '#c8a8f4', accent: '#8a5ad8', muzzle: '#f4e6ff', collar: '#ffd24a' },
+  };
+  var PET_INK = '#2a1a22', PET_GOLD = '#ffd24a';
+  /* The pup's wag-and-trot loop is cut into PET_FRAMES poses, each
+     painted once per coat, light side and device scale and then blitted,
+     so it costs one drawImage a frame. PET_BOX is the window around
+     (px, py) a pose is painted in. */
+  var PET_FRAMES = 48, PET_BOX = [-15, -14, 31, 21];
+  var petCache = {}, petCacheN = 0;
   function drawCrabPet(c, px, py, variant, frame, mirror) {
-    if (!variant || variant === 'none') return;
-    var body, accent, muzzle;
-    if (variant === 'blue' || variant === 'spotted') {
-      body = '#e6e6e6'; accent = '#4a3a30'; muzzle = '#ffffff';
-    } else if (variant === 'gold' || variant === 'golden') {
-      body = '#f0bf5a'; accent = '#a86a22'; muzzle = '#fbe6b4';
+    if (variant === 'spotted') variant = 'blue';
+    else if (variant === 'golden') variant = 'gold';
+    var coat = PET_COATS[variant];
+    if (!coat) return;
+    var m = c.getTransform();
+    var s = Math.sqrt(m.c * m.c + m.d * m.d);
+    s = Math.min(24, Math.pow(2, Math.ceil(Math.log(Math.max(s, 0.5)) / Math.LN2 * 4) / 4));
+    var idx = Math.round((frame || 0) * 0.1 / (Math.PI * 2) * PET_FRAMES) % PET_FRAMES;
+    var key = variant + (mirror ? 'm' : '') + '@' + s + '#' + idx;
+    var cv = petCache[key];
+    if (!cv) {
+      if (petCacheN >= 480) { petCache = {}; petCacheN = 0; }
+      cv = document.createElement('canvas');
+      cv.width = Math.ceil(PET_BOX[2] * s);
+      cv.height = Math.ceil(PET_BOX[3] * s);
+      var g = cv.getContext('2d');
+      g.setTransform(s, 0, 0, s, -PET_BOX[0] * s, -PET_BOX[1] * s);
+      /* a size up from its old 19x11 box, standing on the same paws */
+      g.translate(0, 5.5);
+      g.scale(1.15, 1.15);
+      g.translate(0, -5.5);
+      g.lineCap = 'round';
+      g.lineJoin = 'round';
+      var S = Game.momoko.shader(g, mirror);
+      var u = idx / PET_FRAMES * Math.PI * 2;
+      if (variant === 'robo') drawRoboPup(g, S, coat, u);
+      else drawFurPup(g, S, variant, coat, u);
+      S.done();
+      petCache[key] = cv;
+      petCacheN++;
+    }
+    c.drawImage(cv, px + PET_BOX[0], py + PET_BOX[1], cv.width / s, cv.height / s);
+  }
+
+  function petDot(c, x, y, r, col) {
+    c.fillStyle = col;
+    c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+  }
+  function petLeg(c, S, x, sw, col, paw, far) {
+    S.shape(S.limb(x, 1.4, x + sw, 4.5, 1.35, 1.05), col, { d: 0.7, lw: 0.42, rim: !far });
+    S.shape(S.ellipse(x + sw - 0.45, 5.0, 1.5, 0.78), paw, { d: 0.4, lw: 0.38, rim: false });
+  }
+
+  /* u is the phase of the loop, 0 to 2 pi. */
+  function drawFurPup(c, S, kind, coat, u) {
+    var body = coat.body, acc = coat.accent, mz = coat.muzzle, TAU = Math.PI * 2;
+    var fluffy = kind === 'fluffy', husky = kind === 'husky', star = kind === 'star';
+    var wag = Math.sin(u * 2) * 0.8, step = Math.sin(u * 3) * 0.9;
+    var far = S.shade(body), paw = husky || kind === 'red' ? mz : fluffy ? acc : body;
+
+    /* tail */
+    if (fluffy) {
+      S.shape(S.lock(5.0, -1.4, 6.6, -3.6 + wag, 7.4 + wag, -5.0, 0.9), body, { d: 0.4, lw: 0.4 });
+      S.shape(S.cloud(7.8 + wag * 1.2, -6.2 + wag * 0.5, 1.2, 1.2, 6, 1.0), body, { d: 0.7, lw: 0.42 });
+    } else if (husky) {
+      S.shape(S.lock(4.8, -1.2, 10.6, -4.6 + wag, 5.6 + wag * 0.8, -7.4, 2.4), body, { d: 0.8, lw: 0.45 });
+      /* white tip */
+      c.save();
+      c.beginPath(); c.arc(5.6 + wag * 0.8, -7.4, 3.0, 0, TAU); c.clip();
+      S.shape(S.lock(4.8, -1.2, 10.6, -4.6 + wag, 5.6 + wag * 0.8, -7.4, 2.4), mz, { d: 0.6, lw: 0.45 });
+      c.restore();
     } else {
-      /* red -> brown */
-      body = '#8a5a32'; accent = '#5a3818'; muzzle = '#c9a070';
+      S.shape(S.lock(5.2, -0.9, 8.8, -2.2 + wag * 1.5, 9.6, -6.2 + wag * 2, 1.35), star ? acc : body, { d: 0.6, lw: 0.45 });
+      if (star) {
+        S.shape(S.star(9.7, -6.6 + wag * 2, 1.7, 0.5), PET_GOLD, { d: 0.5, lw: 0.36, rim: false });
+        var k = u / TAU;
+        c.fillStyle = 'rgba(255, 255, 255, ' + (1 - k).toFixed(3) + ')';
+        c.beginPath(); c.arc(11.6 + k * 1.6, -4.6 + k * 2.2, 0.45 * (1 - k) + 0.1, 0, TAU); c.fill();
+        c.beginPath(); c.arc(8.0 + k * 1.2, -8.6 + k * 1.4, 0.4 * (1 - k) + 0.1, 0, TAU); c.fill();
+      }
     }
-    var t = frame || 0;
-    var wobble = Math.sin(t * 0.2) * 0.8;
-    var step = Math.sin(t * 0.3) * 1;
-    c.save();
-    c.lineCap = 'round';
-    /* Tail (wagging) */
-    c.strokeStyle = body;
-    c.lineWidth = 1.8;
-    c.beginPath();
-    c.moveTo(px + 5, py - 1);
-    c.quadraticCurveTo(px + 8, py - 3 + wobble * 2, px + 9, py - 5 + wobble * 2);
-    c.stroke();
-    /* Far legs */
-    c.strokeStyle = accent;
-    c.lineWidth = 1.6;
-    c.beginPath();
-    c.moveTo(px - 3, py + 2.5); c.lineTo(px - 3.5 - step, py + 5.5);
-    c.moveTo(px + 3, py + 2.5); c.lineTo(px + 3.5 + step, py + 5.5);
-    c.stroke();
-    var S = Game.momoko.shader(c, mirror);
-    /* Body — plump ellipse */
-    S.shape(S.ellipse(px, py, 6.2, 4), body, { d: 1.4, lw: 0.5 });
-    /* Near legs with paws */
-    c.strokeStyle = body;
-    c.lineWidth = 1.8;
-    c.beginPath();
-    c.moveTo(px - 2, py + 2.5); c.lineTo(px - 1.5 + step, py + 5.5);
-    c.moveTo(px + 4, py + 2.5); c.lineTo(px + 4.5 - step, py + 5.5);
-    c.stroke();
-    /* Spots for 'spotted' coat */
-    if (variant === 'blue' || variant === 'spotted') {
-      c.fillStyle = '#443322';
-      c.beginPath(); c.arc(px + 1, py - 1.5, 1.3, 0, Math.PI * 2); c.fill();
-      c.beginPath(); c.arc(px + 3.5, py + 1, 0.9, 0, Math.PI * 2); c.fill();
+
+    petLeg(c, S, -3.1, -step, far, S.shade(paw), true);
+    petLeg(c, S, 3.4, step, far, S.shade(paw), true);
+
+    /* body */
+    if (fluffy) S.shape(S.cloud(0, -0.2, 5.2, 3.2, 11, 1.55), body, { d: 1.4, lw: 0.5 });
+    else S.shape(S.ellipse(0, 0, 6.3, 4.1), body, { d: 1.4, lw: 0.5 });
+    if (husky) S.shape(S.ellipse(-0.8, 2.0, 4.6, 1.9), mz, { d: 0.5, lw: 0, rim: false, soft: true });
+    if (kind === 'blue') {
+      petDot(c, 1.3, -1.7, 1.45, acc);
+      petDot(c, 3.8, 0.9, 1.0, acc);
+      petDot(c, -1.2, 1.4, 0.75, acc);
+    } else if (star) {
+      S.shape(S.star(2.2, -0.4, 1.5, 0.5), PET_GOLD, { d: 0.4, lw: 0.32, rim: false });
+      petDot(c, -0.6, -2.2, 0.26, '#ffffff');
+      petDot(c, 4.4, 1.4, 0.22, '#ffffff');
+      petDot(c, 0.2, 1.8, 0.22, '#ffffff');
+    } else if (fluffy) {
+      c.strokeStyle = 'rgba(230, 150, 190, 0.6)';
+      c.lineWidth = 0.28;
+      c.beginPath();
+      c.moveTo(1.6, -1.2); c.arc(0.8, -1.2, 0.8, 0, Math.PI * 1.3);
+      c.moveTo(3.6, 1.0); c.arc(2.8, 1.0, 0.8, 0, Math.PI * 1.3);
+      c.moveTo(-0.6, 1.4); c.arc(-1.4, 1.4, 0.8, 0, Math.PI * 1.3);
+      c.stroke();
     }
-    /* Head, muzzle, floppy ear */
-    S.shape(S.ellipse(px - 5.5, py - 2, 3.6, 3.6), body, { d: 1.2, lw: 0.5 });
-    S.shape(S.ellipse(px - 7.5, py - 0.8, 2.2, 1.7), muzzle, { d: 0.7, lw: 0.4 });
-    S.shape(S.ellipse(px - 3.2, py - 2.6, 1.3, 2.6, 0.3), accent, { d: 0.7, lw: 0.4 });
-    S.done();
-    /* Nose + eye */
-    c.fillStyle = '#1a1a1a';
-    c.beginPath(); c.ellipse(px - 9.2, py - 1.4, 1, 0.8, 0, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(px - 6.2, py - 3, 0.75, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(px - 6.5, py - 3.3, 0.3, 0, Math.PI * 2); c.fill();
-    /* Collar */
-    c.strokeStyle = '#d23a5a';
+    /* chest bib */
+    if (!fluffy) S.shape(S.ellipse(-4.3, 1.4, 1.9, 2.0), mz, { d: 0.5, lw: 0, rim: false, soft: true });
+
+    petLeg(c, S, -1.7, step, husky ? mz : body, paw, false);
+    petLeg(c, S, 4.4, -step, body, paw, false);
+    if (fluffy) {
+      /* pom cuffs */
+      S.shape(S.cloud(-1.9 + step * 0.7, 3.6, 0.9, 0.7, 5, 0.75), body, { d: 0.4, lw: 0.36, rim: false });
+      S.shape(S.cloud(4.2 - step * 0.7, 3.6, 0.9, 0.7, 5, 0.75), body, { d: 0.4, lw: 0.36, rim: false });
+    }
+
+    /* far ear */
+    if (husky) {
+      S.shape(function () { c.moveTo(-8.6, -4.6); c.quadraticCurveTo(-8.6, -8.0, -7.6, -8.9); c.quadraticCurveTo(-6.2, -7.4, -5.8, -5.4); c.closePath(); },
+        acc, { d: 0.5, lw: 0.42 });
+    }
+
+    /* head */
+    if (fluffy) S.shape(S.cloud(-5.6, -2.3, 2.9, 2.9, 9, 1.35), body, { d: 1.2, lw: 0.5 });
+    else S.shape(S.ellipse(-5.6, -2.3, 3.8, 3.8), body, { d: 1.2, lw: 0.5 });
+    if (husky) {
+      /* white mask over the cheeks and brow spots */
+      S.shape(S.ellipse(-6.3, -0.9, 3.0, 2.2), mz, { d: 0.5, lw: 0, rim: false, soft: true });
+      petDot(c, -6.6, -4.7, 0.62, mz);
+    } else if (kind === 'red') {
+      petDot(c, -6.5, -4.7, 0.55, mz);
+    } else if (star) {
+      S.shape(S.star(-5.3, -5.0, 1.25, 0.5), PET_GOLD, { d: 0.4, lw: 0.3, rim: false });
+    }
+    S.shape(S.ellipse(-7.9, -1.1, 2.35, 1.8), mz, { d: 0.7, lw: 0.4 });
+
+    /* near ear */
+    if (husky) {
+      S.shape(function () { c.moveTo(-5.2, -5.2); c.quadraticCurveTo(-4.6, -8.4, -3.2, -9.2); c.quadraticCurveTo(-2.2, -7.4, -2.4, -4.6); c.closePath(); },
+        body, { d: 0.6, lw: 0.45 });
+      c.fillStyle = '#ffb0cc';
+      c.beginPath(); c.moveTo(-4.3, -5.6); c.quadraticCurveTo(-3.9, -7.6, -3.2, -8.2); c.quadraticCurveTo(-2.8, -7.0, -3.0, -5.4); c.closePath(); c.fill();
+    } else if (fluffy) {
+      S.shape(S.cloud(-3.0, -1.6, 1.0, 1.9, 7, 1.0), acc, { d: 0.7, lw: 0.42 });
+      /* topknot and bow */
+      S.shape(S.cloud(-5.6, -5.9, 1.3, 0.9, 6, 0.95), body, { d: 0.6, lw: 0.42 });
+      S.shape(S.ellipse(-6.5, -5.2, 0.95, 0.7, -0.4), coat.collar, { d: 0.3, lw: 0.3, rim: false });
+      S.shape(S.ellipse(-4.9, -5.2, 0.95, 0.7, 0.4), coat.collar, { d: 0.3, lw: 0.3, rim: false });
+      petDot(c, -5.7, -5.2, 0.42, '#ffffff');
+    } else {
+      S.shape(S.ellipse(-3.2, -2.5, 1.5, 3.0, 0.3), acc, { d: 0.7, lw: 0.42 });
+    }
+
+    /* face: nose, smile and tongue, a bright eye, a blush */
+    c.fillStyle = PET_INK;
+    c.beginPath(); c.ellipse(-9.75, -1.75, 1.0, 0.8, 0, 0, TAU); c.fill();
+    petDot(c, -10.0, -2.0, 0.26, 'rgba(255, 255, 255, 0.85)');
+    c.fillStyle = '#ff7aa0';
+    c.beginPath(); c.ellipse(-8.3, 0.25, 0.62, 0.8, -0.2, 0, TAU); c.fill();
+    c.strokeStyle = PET_INK;
+    c.lineWidth = 0.32;
+    c.beginPath(); c.moveTo(-9.7, -0.9); c.quadraticCurveTo(-8.9, 0.1, -7.5, -0.4); c.stroke();
+    petDot(c, -6.2, -3.2, 1.0, PET_INK);
+    if (husky) { petDot(c, -6.2, -3.2, 0.78, '#4ac8ff'); petDot(c, -6.2, -3.2, 0.42, PET_INK); }
+    petDot(c, -6.5, -3.55, 0.34, '#ffffff');
+    c.fillStyle = 'rgba(255, 120, 160, 0.45)';
+    c.beginPath(); c.ellipse(-5.0, -1.3, 0.95, 0.55, 0, 0, TAU); c.fill();
+
+    /* collar and tag */
+    c.strokeStyle = PET_INK;
+    c.lineWidth = 1.7;
+    c.beginPath(); c.arc(-4.9, -0.6, 3.0, 0.45, Math.PI - 0.75); c.stroke();
+    c.strokeStyle = coat.collar;
     c.lineWidth = 1.1;
-    c.beginPath(); c.arc(px - 5, py - 0.5, 2.8, 0.5, Math.PI - 0.6); c.stroke();
-    c.restore();
+    c.stroke();
+    S.shape(S.ellipse(-5.6, 2.9, 0.85, 0.85), PET_GOLD, { d: 0.3, lw: 0.3, rim: false });
+  }
+
+  function drawRoboPup(c, S, coat, u) {
+    var metal = coat.body, dark = coat.accent, TAU = Math.PI * 2;
+    var wag = Math.sin(u * 2) * 0.8, step = Math.sin(u * 3) * 0.9;
+    var pulse = 0.65 + 0.35 * Math.sin(u);
+    /* aerial tail with a beacon */
+    c.strokeStyle = PET_INK; c.lineWidth = 1.0;
+    c.beginPath(); c.moveTo(5.2, -1.6); c.quadraticCurveTo(7.6, -2.8, 8.6, -6.0 + wag); c.stroke();
+    c.strokeStyle = metal; c.lineWidth = 0.5;
+    c.stroke();
+    petDot(c, 8.6, -6.2 + wag, 1.9, 'rgba(255, 90, 138, ' + (0.35 * pulse).toFixed(3) + ')');
+    S.shape(S.ellipse(8.6, -6.2 + wag, 0.95, 0.95), '#ff5a8a', { d: 0.4, lw: 0.34, rim: false });
+    /* far legs */
+    var leg = function (x, sw, col, far) {
+      S.shape(S.limb(x, 1.6, x + sw, 4.2, 0.95, 0.8), col, { d: 0.5, lw: 0.4, rim: !far });
+      S.shape(S.ellipse(x + sw, 4.75, 1.15, 0.9), '#4a5478', { d: 0.4, lw: 0.38, rim: false });
+    };
+    leg(-3.1, -step, dark, true);
+    leg(3.4, step, dark, true);
+    /* hull */
+    S.shape(S.rect(-5.8, -3.6, 11.6, 6.8, 2.6), metal, { d: 1.3, lw: 0.5 });
+    S.shape(S.rect(1.6, -3.6, 1.5, 6.8, 0.2), coat.collar, { d: 0.3, lw: 0, rim: false, hi: false });
+    c.strokeStyle = S.shade(metal);
+    c.lineWidth = 0.3;
+    c.beginPath(); c.moveTo(-2.4, -3.4); c.lineTo(-2.4, 3.0); c.stroke();
+    petDot(c, 4.6, -2.3, 0.3, '#ffffff');
+    petDot(c, 4.6, 1.9, 0.3, '#ffffff');
+    /* chest light */
+    petDot(c, 0.0, -0.2, 2.2, 'rgba(90, 230, 255, ' + (0.3 * pulse).toFixed(3) + ')');
+    S.shape(S.ellipse(0.0, -0.2, 1.3, 1.3), '#2a3458', { d: 0.3, lw: 0.34, rim: false });
+    petDot(c, 0.0, -0.2, 0.85, '#7af0ff');
+    petDot(c, -0.25, -0.45, 0.3, '#ffffff');
+    leg(-1.7, step, metal, false);
+    leg(4.4, -step, metal, false);
+    /* neck joint, head, visor */
+    S.shape(S.rect(-5.4, -3.0, 1.8, 2.6, 0.5), dark, { d: 0.3, lw: 0.36, rim: false });
+    /* dish ear */
+    S.shape(function () { c.moveTo(-3.6, -5.4); c.lineTo(-1.9, -8.4); c.lineTo(-1.5, -4.6); c.closePath(); }, dark, { d: 0.4, lw: 0.4 });
+    S.shape(S.rect(-9.8, -6.3, 7.6, 5.8, 2.0), metal, { d: 1.2, lw: 0.5 });
+    S.shape(S.rect(-9.3, -5.3, 5.6, 2.5, 1.1), '#1e2440', { d: 0.4, lw: 0.36, rim: false, hi: false });
+    c.fillStyle = '#7af0ff';
+    c.beginPath(); c.ellipse(-7.3, -4.05, 1.05, 0.8, 0, 0, TAU); c.fill();
+    petDot(c, -7.6, -4.3, 0.3, '#ffffff');
+    c.fillStyle = 'rgba(122, 240, 255, 0.5)';
+    c.beginPath(); c.ellipse(-5.0, -4.05, 0.5, 0.4, 0, 0, TAU); c.fill();
+    /* snout with a pink nose and a speaker grille */
+    S.shape(S.rect(-10.9, -2.9, 2.6, 2.0, 0.7), coat.muzzle, { d: 0.4, lw: 0.4 });
+    petDot(c, -10.5, -2.4, 0.45, '#ff5a8a');
+    c.strokeStyle = dark; c.lineWidth = 0.26;
+    c.beginPath(); c.moveTo(-7.6, -1.9); c.lineTo(-4.6, -1.9); c.moveTo(-7.6, -1.3); c.lineTo(-4.6, -1.3); c.stroke();
+    /* antenna */
+    c.strokeStyle = PET_INK; c.lineWidth = 0.8;
+    c.beginPath(); c.moveTo(-6.2, -6.2); c.lineTo(-6.2 + wag * 0.3, -8.4); c.stroke();
+    petDot(c, -6.2 + wag * 0.3, -8.8, 1.5, 'rgba(255, 220, 90, ' + (0.4 * pulse).toFixed(3) + ')');
+    S.shape(S.ellipse(-6.2 + wag * 0.3, -8.8, 0.75, 0.75), PET_GOLD, { d: 0.3, lw: 0.32, rim: false });
   }
 
   /* Gameplay draw: the figure is painted a size up from her 28x34
@@ -2421,5 +2602,6 @@
     drawMomokoSprite: drawMomokoSprite,
     drawMomokoFloss: drawMomokoFloss,
     drawCrabPet: drawCrabPet,
+    PETS: PETS,
   };
 })();

@@ -41,7 +41,7 @@ Open `index.html` in any modern browser. Works offline after first visit (PWA).
 - **Oliver the Otter** — a friendly otter who tells jokes
 - **Kitty Corn** — a sparkle-spotter who shares comet-wishing tips
 - **Bob** — a space expert who shares fun facts
-- **Wolfe** — Momoko's pet dog (customizable coat)
+- **Wolfe** — Momoko's pet dog (seven pups to choose from)
 
 ## Tech Stack
 

@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.19.0';
+  Game.VERSION = 'v2.20.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -53,14 +53,17 @@
   var prevState = null;
 
   /* ---- Customization defaults ----
-     Split across two concerns: tintable colors (hair/suit/skin/flipper) and
-     swappable variants (hairStyle/outfit/shoes/crab/food). Variants are
-     strings that the sprite painter branches on; 'none' means skip. */
+     Split across two concerns: tintable colors (hair/suit/skin/flipper/
+     eyes/glass) and swappable variants (hairStyle/outfit/shoes/crab/food/
+     helmet/gear/face). Variants are strings that the sprite painter
+     branches on; 'none' means skip. */
   Game.customization = {
     hair: '#e06088',
     suit: '#e06088',
     skin: '#ffddbb',
     flipper: '#ff99cc',
+    eyes: '#9a3c68',
+    glass: '#5ee8ff',
     hairStyle: 'twinTails',
     outfit: 'frillyDress',
     shoes: 'maryJane',
@@ -68,6 +71,7 @@
     food: 'none',
     helmet: 'bubble',
     gear: 'none',
+    face: 'none',
   };
 
   /* Quest state – persisted in localStorage. */
@@ -4293,7 +4297,7 @@
           var clean = Game.momoko.readCust(Game.customization);
           for (var ck in clean) Game.customization[ck] = clean[ck];
         }
-        if (['none', 'red', 'blue', 'gold'].indexOf(Game.customization.crab) < 0) Game.customization.crab = 'none';
+        if (Game.entities.PETS.indexOf(Game.customization.crab) < 0) Game.customization.crab = 'none';
       }
       var qs = localStorage.getItem('momoko-space-quests');
       if (qs) {
