@@ -104,6 +104,7 @@
        frames, which made its tail and legs snap back) and quickens with
        her speed. */
     this.petT = (this.petT || 0) + 0.45 + Math.min(2, Math.abs(this.vx) / Momoko.MAX_VEL) * 0.9;
+    this.petSwing = petSwingStep(this.petSwing, this.facing, 1 / 60);
     if (this.rig) {
       if (!this.env || this.envLevel !== level) {
         this.envLevel = level;
@@ -119,6 +120,22 @@
       });
     }
   };
+
+  /* Pet swing: instead of mirroring flat when she turns, the pet swings
+     round behind her on a shallow ellipse. th runs 0 (behind her left,
+     she faces right) to PI (behind her right); sin(th) is its depth.
+     The same timing and depth constants are used in every Momoko game. */
+  var PET_SWING_T = 0.3, PET_SWING_SHRINK = 0.18, PET_SWING_LIFT = 3, PET_SWING_NARROW = 0.5;
+  function petSwingStep(S, facing, dt) {
+    var to = facing > 0 ? 0 : Math.PI;
+    if (!S) return { th: to, from: to, to: to, u: 1 };
+    if (S.to !== to) { S.from = S.th; S.to = to; S.u = 0; }
+    if (S.u < 1) {
+      S.u = Math.min(1, S.u + dt / PET_SWING_T);
+      S.th = S.from + (S.to - S.from) * S.u * S.u * (3 - 2 * S.u);
+    }
+    return S;
+  }
 
   /* Pale regolith tint for the dust puffs from the level's ground. */
   function mixDust(hex) {
@@ -317,6 +334,20 @@
       S.shape(S.cloud(4.2 - step * 0.7, 3.6, 0.9, 0.7, 5, 0.75), body, { d: 0.4, lw: 0.36, rim: false });
     }
 
+    /* collar: a band wrapping the neck where it meets the chest, painted
+       before the head so the jaw and ear tuck over its top; the tag
+       hangs from it at the throat */
+    c.beginPath();
+    c.moveTo(-1.9, -3.7);
+    c.quadraticCurveTo(-1.6, 0.2, -4.9, 2.6);
+    c.strokeStyle = PET_INK;
+    c.lineWidth = 2.0;
+    c.stroke();
+    c.strokeStyle = coat.collar;
+    c.lineWidth = 1.3;
+    c.stroke();
+    S.shape(S.ellipse(-5.1, 3.5, 0.85, 0.85), PET_GOLD, { d: 0.3, lw: 0.3, rim: false });
+
     /* far ear */
     if (husky) {
       S.shape(function () { c.moveTo(-8.6, -4.6); c.quadraticCurveTo(-8.6, -8.0, -7.6, -8.9); c.quadraticCurveTo(-6.2, -7.4, -5.8, -5.4); c.closePath(); },
@@ -368,15 +399,6 @@
     petDot(c, -6.5, -3.55, 0.34, '#ffffff');
     c.fillStyle = 'rgba(255, 120, 160, 0.45)';
     c.beginPath(); c.ellipse(-5.0, -1.3, 0.95, 0.55, 0, 0, TAU); c.fill();
-
-    /* collar and tag */
-    c.strokeStyle = PET_INK;
-    c.lineWidth = 1.7;
-    c.beginPath(); c.arc(-4.9, -0.6, 3.0, 0.45, Math.PI - 0.75); c.stroke();
-    c.strokeStyle = coat.collar;
-    c.lineWidth = 1.1;
-    c.stroke();
-    S.shape(S.ellipse(-5.6, 2.9, 0.85, 0.85), PET_GOLD, { d: 0.3, lw: 0.3, rim: false });
   }
 
   function drawRoboPup(c, S, coat, u) {
@@ -399,10 +421,9 @@
     leg(3.4, step, dark, true);
     /* hull */
     S.shape(S.rect(-5.8, -3.6, 11.6, 6.8, 2.6), metal, { d: 1.3, lw: 0.5 });
-    S.shape(S.rect(1.6, -3.6, 1.5, 6.8, 0.2), coat.collar, { d: 0.3, lw: 0, rim: false, hi: false });
     c.strokeStyle = S.shade(metal);
     c.lineWidth = 0.3;
-    c.beginPath(); c.moveTo(-2.4, -3.4); c.lineTo(-2.4, 3.0); c.stroke();
+    c.beginPath(); c.moveTo(1.6, -3.4); c.lineTo(1.6, 3.0); c.stroke();
     petDot(c, 4.6, -2.3, 0.3, '#ffffff');
     petDot(c, 4.6, 1.9, 0.3, '#ffffff');
     /* chest light */
@@ -412,6 +433,9 @@
     petDot(c, -0.25, -0.45, 0.3, '#ffffff');
     leg(-1.7, step, metal, false);
     leg(4.4, -step, metal, false);
+    /* collar ring round the neck, under the head, with its tag */
+    S.shape(S.rect(-4.5, -3.6, 1.5, 6.8, 0.2), coat.collar, { d: 0.3, lw: 0.3, rim: false, hi: false });
+    S.shape(S.ellipse(-3.75, 3.8, 0.8, 0.8), PET_GOLD, { d: 0.3, lw: 0.3, rim: false });
     /* neck joint, head, visor */
     S.shape(S.rect(-5.4, -3.0, 1.8, 2.6, 0.5), dark, { d: 0.3, lw: 0.36, rim: false });
     /* dish ear */
@@ -449,12 +473,18 @@
     var pose = this.rig ? this.rig.pose : null;
     var face = pose ? pose.face : this.facing;
 
-    /* Pet trails at foot level on the side away from her facing. */
+    /* Pet trails at foot level on the side away from her facing. When she
+       turns it swings round behind her (see petSwingStep): it shrinks and
+       rises as it goes deeper, narrows toward a front view and swaps its
+       facing at the far point, where she hides it. The pup painter faces
+       left, so it is flipped while it trails on her left, facing her. */
     if (cust.crab && cust.crab !== 'none') {
+      var ps = this.petSwing || { th: this.facing > 0 ? 0 : Math.PI };
+      var pco = Math.cos(ps.th), pz = Math.sin(ps.th), pd = 1 - PET_SWING_SHRINK * pz, pm = pco < 0 ? 1 : -1;
       c.save();
-      c.translate(sx + this.w / 2, 0);
-      c.scale(this.facing, 1);
-      drawCrabPet(c, -this.w / 2 - 12, sy + 32, cust.crab, this.petT || 0, this.facing === -1);
+      c.translate(sx + this.w / 2 - (this.w / 2 + 12) * pco, sy + 37.5 - PET_SWING_LIFT * pz);
+      c.scale(pm * (PET_SWING_NARROW + (1 - PET_SWING_NARROW) * Math.abs(pco)) * pd, pd);
+      drawCrabPet(c, 0, -5.5, cust.crab, this.petT || 0, pm === -1);
       c.restore();
     }
     c.save();
@@ -756,7 +786,57 @@
     c.stroke();
   }
 
-  /* ========== OLIVER (NPC - Otter) ========== */
+  /* Glass space helmet for the explorer NPCs: a faint tinted dome, a
+     rim and a curved glint, drawn over the head it encloses. */
+  function drawBubbleHelmet(c, cx, cy, r) {
+    c.save();
+    c.fillStyle = 'rgba(170, 220, 255, 0.18)';
+    c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = 'rgba(220, 240, 255, 0.85)';
+    c.lineWidth = Math.max(0.8, r * 0.09);
+    c.stroke();
+    c.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    c.lineWidth = Math.max(0.7, r * 0.12);
+    c.lineCap = 'round';
+    c.beginPath(); c.arc(cx, cy, r * 0.72, Math.PI * 1.08, Math.PI * 1.42); c.stroke();
+    c.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    c.beginPath(); c.arc(cx + r * 0.42, cy - r * 0.5, r * 0.08, 0, Math.PI * 2); c.fill();
+    c.restore();
+  }
+
+  /* Fills a rounded rectangle (path helper, no native roundRect). */
+  function fillRRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+    c.fill();
+  }
+
+  /* Short flickering thruster flame pointing along (dx, dy). */
+  function drawThrustFlame(c, x, y, dx, dy, len, w, t) {
+    var f = len * (0.8 + 0.2 * Math.sin(t * 0.6) + 0.1 * Math.sin(t * 1.7));
+    var nx = -dy, ny = dx;
+    c.save();
+    c.fillStyle = 'rgba(255, 140, 60, 0.85)';
+    c.beginPath();
+    c.moveTo(x + nx * w, y + ny * w);
+    c.quadraticCurveTo(x + dx * f * 0.6 + nx * w, y + dy * f * 0.6 + ny * w, x + dx * f, y + dy * f);
+    c.quadraticCurveTo(x + dx * f * 0.6 - nx * w, y + dy * f * 0.6 - ny * w, x - nx * w, y - ny * w);
+    c.closePath(); c.fill();
+    c.fillStyle = 'rgba(255, 240, 160, 0.95)';
+    c.beginPath();
+    c.moveTo(x + nx * w * 0.5, y + ny * w * 0.5);
+    c.quadraticCurveTo(x + dx * f * 0.35, y + dy * f * 0.35, x + dx * f * 0.55, y + dy * f * 0.55);
+    c.quadraticCurveTo(x + dx * f * 0.35, y + dy * f * 0.35, x - nx * w * 0.5, y - ny * w * 0.5);
+    c.closePath(); c.fill();
+    c.restore();
+  }
+
+  /* ========== OLIVER (NPC - Astronaut Otter) ========== */
   function Oliver(x, y) {
     this.x = x;
     this.y = y;
@@ -791,33 +871,40 @@
     var sx = Math.round(this.x - camX);
     var sy = Math.round(this.y - camY);
     var FUR = '#8a5a30', FUR_D = '#5e3a1a', CREAM = '#dcbc8c', INK = '#2a1a10';
-    var wag = Math.sin(this.timer * 0.1) * 3;
+    var SUIT = '#f4f6ff', SUIT_D = '#aab2d4', TRIM = '#ff8a3a';
 
     c.save();
-    /* Tail — thick at the rump, tapering as it drifts behind */
     c.lineCap = 'round';
-    c.strokeStyle = FUR_D; c.lineWidth = 5;
-    c.beginPath();
-    c.moveTo(sx + 24, sy + 12);
-    c.quadraticCurveTo(sx + 31, sy + 11 + wag, sx + 35, sy + 7 + wag);
-    c.stroke();
-    c.strokeStyle = FUR; c.lineWidth = 2.4;
-    c.beginPath();
-    c.moveTo(sx + 30, sy + 10.5 + wag * 0.8);
-    c.lineTo(sx + 35, sy + 7 + wag);
-    c.stroke();
+    /* Jetpack on his back, its thruster puffing behind him */
+    drawThrustFlame(c, sx + 28, sy + 5, 1, 0.15, 9, 2.2, this.timer);
+    c.fillStyle = '#8a90b0';
+    fillRRect(c, sx + 13, sy + 0.5, 15, 6, 2);
+    c.fillStyle = '#c4c8e0';
+    fillRRect(c, sx + 14, sy + 1.2, 13, 2, 1);
+    c.fillStyle = '#5a6080';
+    fillRRect(c, sx + 26.5, sy + 2.5, 2.5, 4, 0.8);
 
-    /* Body — long sleek otter torpedo, lit from above */
+    /* Body — white space suit on his long otter frame, lit from above */
     var bg = c.createLinearGradient(0, sy + 3, 0, sy + 20);
-    bg.addColorStop(0, FUR); bg.addColorStop(1, FUR_D);
+    bg.addColorStop(0, SUIT); bg.addColorStop(1, SUIT_D);
     c.fillStyle = bg;
     c.beginPath(); c.ellipse(sx + 16, sy + 12, 13, 7.5, -0.1, 0, Math.PI * 2); c.fill();
-    /* Pale belly */
-    c.fillStyle = CREAM;
-    c.beginPath(); c.ellipse(sx + 15, sy + 14.5, 8.5, 4, -0.1, 0, Math.PI * 2); c.fill();
-    /* Webbed hind foot tucked under the rump */
-    c.fillStyle = FUR_D;
-    c.beginPath(); c.ellipse(sx + 25, sy + 17.5, 3.6, 1.8, 0.5, 0, Math.PI * 2); c.fill();
+    /* Orange suit stripe and a chest control panel with blinking lights */
+    c.strokeStyle = TRIM; c.lineWidth = 1.6;
+    c.beginPath(); c.ellipse(sx + 16, sy + 12, 12.4, 6.8, -0.1, 0.35, 1.25); c.stroke();
+    c.fillStyle = '#3a4a78';
+    fillRRect(c, sx + 11, sy + 12, 7, 4, 1);
+    var blink = Math.floor(this.timer / 20) % 3;
+    c.fillStyle = blink === 0 ? '#7af0ff' : '#2a6a8a';
+    c.beginPath(); c.arc(sx + 13, sy + 14, 0.9, 0, Math.PI * 2); c.fill();
+    c.fillStyle = blink === 1 ? '#ffd24a' : '#7a6a2a';
+    c.beginPath(); c.arc(sx + 16, sy + 14, 0.9, 0, Math.PI * 2); c.fill();
+    /* Moon boot tucked under the rump */
+    c.fillStyle = '#8a90b0';
+    c.beginPath(); c.ellipse(sx + 25, sy + 17.5, 3.6, 2.0, 0.5, 0, Math.PI * 2); c.fill();
+    /* Helmet neck ring */
+    c.fillStyle = '#c4c8e0';
+    c.beginPath(); c.ellipse(sx + 8.5, sy + 11, 2.2, 5.5, 0.35, 0, Math.PI * 2); c.fill();
 
     /* Head — round with small ears set wide */
     c.fillStyle = FUR;
@@ -853,14 +940,16 @@
     c.moveTo(sx + 10, sy + 9); c.lineTo(sx + 16, sy + 8);
     c.moveTo(sx + 10, sy + 10); c.lineTo(sx + 16, sy + 11.5);
     c.stroke();
-    /* Paws clasped on the chest */
-    c.fillStyle = FUR_D;
-    c.beginPath(); c.ellipse(sx + 11.5, sy + 13, 2.4, 1.8, 0.4, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.ellipse(sx + 15.5, sy + 13.5, 2.4, 1.8, -0.4, 0, Math.PI * 2); c.fill();
+    /* Gloved paws resting on the chest panel */
+    c.fillStyle = SUIT_D;
+    c.beginPath(); c.ellipse(sx + 11.5, sy + 17, 2.4, 1.8, 0.4, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(sx + 17.5, sy + 17.5, 2.4, 1.8, -0.4, 0, Math.PI * 2); c.fill();
+    /* Bubble helmet round his head */
+    drawBubbleHelmet(c, sx + 6, sy + 6.5, 9.5);
     c.restore();
   };
 
-  /* ========== KITTY CORN (NPC - Cat Mermaid) ========== */
+  /* ========== KITTY CORN (NPC - Astronaut Cat-Unicorn) ========== */
   function KittyCorn(x, y) {
     this.x = x;
     this.y = y;
@@ -902,34 +991,40 @@
 
     c.save();
 
-    /* Mermaid tail – smooth bezier */
-    c.fillStyle = '#33ccaa';
-    var tailWave = Math.sin(this.timer * 0.08) * 4;
-    c.beginPath();
-    c.moveTo(sx + 6, sy + 16);
-    c.lineTo(sx + 18, sy + 16);
-    c.bezierCurveTo(sx + 18, sy + 20, sx + 16 + tailWave, sy + 24, sx + 20, sy + 28);
-    c.lineTo(sx + 4, sy + 28);
-    c.bezierCurveTo(sx + 8 - tailWave, sy + 24, sx + 6, sy + 20, sx + 6, sy + 16);
-    c.closePath();
-    c.fill();
-    /* Tail fin */
-    c.fillStyle = '#22aa88';
-    c.beginPath();
-    c.moveTo(sx + 12, sy + 27);
-    c.quadraticCurveTo(sx + 2, sy + 30, sx + 0, sy + 32);
-    c.quadraticCurveTo(sx + 6, sy + 29, sx + 12, sy + 27);
-    c.fill();
-    c.beginPath();
-    c.moveTo(sx + 12, sy + 27);
-    c.quadraticCurveTo(sx + 22, sy + 30, sx + 24, sy + 32);
-    c.quadraticCurveTo(sx + 18, sy + 29, sx + 12, sy + 27);
-    c.fill();
+    /* Twin jetpack tanks peeking past her shoulders, flames below */
+    drawThrustFlame(c, sx + 3.5, sy + 24, 0, 1, 8, 1.8, this.timer);
+    drawThrustFlame(c, sx + 20.5, sy + 24, 0, 1, 8, 1.8, this.timer + 7);
+    c.fillStyle = '#ff6699';
+    fillRRect(c, sx + 1, sy + 11, 5, 13, 2.2);
+    fillRRect(c, sx + 18, sy + 11, 5, 13, 2.2);
+    c.fillStyle = '#ffb3cc';
+    fillRRect(c, sx + 2, sy + 12, 1.6, 10, 0.8);
+    fillRRect(c, sx + 19, sy + 12, 1.6, 10, 0.8);
 
-    /* Body – ellipse */
-    c.fillStyle = '#ff9944';
+    /* Legs with moon boots, kicking gently as she floats */
+    var kick = Math.sin(this.timer * 0.08) * 1.2;
+    c.fillStyle = '#f4f6ff';
+    fillRRect(c, sx + 7.5, sy + 18, 4, 7 + kick, 1.8);
+    fillRRect(c, sx + 12.5, sy + 18, 4, 7 - kick, 1.8);
+    c.fillStyle = '#9a78e8';
+    fillRRect(c, sx + 7, sy + 23.5 + kick, 5, 3, 1.4);
+    fillRRect(c, sx + 12, sy + 23.5 - kick, 5, 3, 1.4);
+
+    /* Space suit body with a star badge */
+    var sg = c.createLinearGradient(0, sy + 10, 0, sy + 22);
+    sg.addColorStop(0, '#f4f6ff'); sg.addColorStop(1, '#b8c0dc');
+    c.fillStyle = sg;
     c.beginPath();
-    c.ellipse(sx + 12, sy + 14, 7, 5, 0, 0, Math.PI * 2);
+    c.ellipse(sx + 12, sy + 16, 7.5, 6.5, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ff6699';
+    fillRRect(c, sx + 5, sy + 17, 14, 1.6, 0.8);
+    c.fillStyle = '#ffd24a';
+    fillStar(c, sx + 12, sy + 14.5, 2.2);
+    /* Helmet neck ring */
+    c.fillStyle = '#c4c8e0';
+    c.beginPath();
+    c.ellipse(sx + 12, sy + 12, 7.5, 2, 0, 0, Math.PI * 2);
     c.fill();
 
     /* Head */
@@ -996,10 +1091,13 @@
     c.moveTo(sx + 19, sy + 8); c.lineTo(sx + 25, sy + 9);
     c.stroke();
 
+    /* Bubble helmet over her head, horn and all */
+    drawBubbleHelmet(c, sx + 12, sy + 2.5, 12.5);
+
     c.restore();
   };
 
-  /* ========== BOB (NPC - Submarine) ========== */
+  /* ========== BOB (NPC - Explorer Spaceship) ========== */
   function Bob(x, y) {
     this.x = x;
     this.y = y;
@@ -1011,12 +1109,10 @@
     this.talking = false;
     this.talkTimer = 0;
     this.currentText = '';
-    this.propPhase = 0;
   }
 
   Bob.prototype.update = function () {
     this.timer++;
-    this.propPhase += 0.2;
     this.x = this.spawnX + Math.sin(this.timer * 0.01) * 20;
     this.y = this.spawnY + Math.cos(this.timer * 0.015) * 10;
     if (this.talking) {
@@ -1035,75 +1131,105 @@
     var sx = Math.round(this.x - camX);
     var sy = Math.round(this.y - camY);
 
-    c.save();
+    var t = this.timer;
 
-    /* Hull */
+    c.save();
+    c.lineCap = 'round';
+
+    /* Main thruster flame out of the stern */
+    drawThrustFlame(c, sx + 60, sy + 18, 1, 0, 14, 4, t);
+
+    /* Solar panel wing on a strut above the hull */
+    c.strokeStyle = '#8a90b0'; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(sx + 42, sy + 6); c.lineTo(sx + 42, sy - 1); c.stroke();
+    c.fillStyle = '#2a4a9a';
+    fillRRect(c, sx + 33, sy - 7, 18, 6, 1);
+    c.strokeStyle = '#6a9aff'; c.lineWidth = 0.6;
+    c.beginPath();
+    c.moveTo(sx + 39, sy - 7); c.lineTo(sx + 39, sy - 1);
+    c.moveTo(sx + 45, sy - 7); c.lineTo(sx + 45, sy - 1);
+    c.moveTo(sx + 33, sy - 4); c.lineTo(sx + 51, sy - 4);
+    c.stroke();
+
+    /* Dish antenna with a blinking beacon */
+    c.strokeStyle = '#8a90b0'; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(sx + 22, sy + 6); c.lineTo(sx + 20, sy - 1); c.stroke();
+    c.fillStyle = '#d8dcf0';
+    c.beginPath();
+    c.ellipse(sx + 19, sy - 3, 6, 2.6, -0.5, 0, Math.PI);
+    c.fill();
+    c.strokeStyle = '#8a90b0'; c.lineWidth = 0.8;
+    c.beginPath(); c.moveTo(sx + 19, sy - 3); c.lineTo(sx + 16, sy - 8); c.stroke();
+    var beacon = Math.sin(t * 0.12) > 0;
+    c.fillStyle = beacon ? '#ff5a5a' : '#7a2a2a';
+    c.beginPath(); c.arc(sx + 16, sy - 8.5, 1.4, 0, Math.PI * 2); c.fill();
+    if (beacon) {
+      c.fillStyle = 'rgba(255, 90, 90, 0.3)';
+      c.beginPath(); c.arc(sx + 16, sy - 8.5, 3.5, 0, Math.PI * 2); c.fill();
+    }
+
+    /* Tail fins (behind the hull) */
+    c.fillStyle = '#e8504a';
+    c.beginPath();
+    c.moveTo(sx + 44, sy + 8); c.lineTo(sx + 56, sy + 1); c.lineTo(sx + 56, sy + 10); c.closePath();
+    c.fill();
+    c.beginPath();
+    c.moveTo(sx + 44, sy + 28); c.lineTo(sx + 56, sy + 35); c.lineTo(sx + 56, sy + 26); c.closePath();
+    c.fill();
+
+    /* Engine nozzle */
+    c.fillStyle = '#6a7090';
+    c.beginPath();
+    c.moveTo(sx + 52, sy + 12); c.lineTo(sx + 61, sy + 10);
+    c.lineTo(sx + 61, sy + 26); c.lineTo(sx + 52, sy + 24);
+    c.closePath(); c.fill();
+
+    /* Hull: a white capsule with a pointed nose, lit from above */
+    var hg = c.createLinearGradient(0, sy + 4, 0, sy + 32);
+    hg.addColorStop(0, '#ffffff'); hg.addColorStop(1, '#a8b0d0');
+    c.fillStyle = hg;
+    c.beginPath();
+    c.moveTo(sx + 14, sy + 5);
+    c.lineTo(sx + 50, sy + 5);
+    c.quadraticCurveTo(sx + 56, sy + 5, sx + 56, sy + 11);
+    c.lineTo(sx + 56, sy + 25);
+    c.quadraticCurveTo(sx + 56, sy + 31, sx + 50, sy + 31);
+    c.lineTo(sx + 14, sy + 31);
+    c.quadraticCurveTo(sx - 2, sy + 28, sx - 2, sy + 18);
+    c.quadraticCurveTo(sx - 2, sy + 8, sx + 14, sy + 5);
+    c.closePath();
+    c.fill();
+
+    /* Red nose cap */
+    c.save();
+    c.clip();
+    c.fillStyle = '#e8504a';
+    c.fillRect(sx - 2, sy + 4, 9, 28);
+    /* Yellow mission stripe (Bob's colours) */
     c.fillStyle = '#ffcc33';
-    c.beginPath();
-    c.ellipse(sx + 28, sy + 18, 28, 14, 0, 0, Math.PI * 2);
-    c.fill();
-
-    /* Red stripe */
-    c.fillStyle = '#cc3333';
-    c.beginPath();
-    c.ellipse(sx + 28, sy + 18, 26, 3, 0, 0, Math.PI * 2);
-    c.fill();
-
-    /* Cabin / tower – rounded */
-    c.fillStyle = '#ddaa22';
-    c.beginPath();
-    c.moveTo(sx + 20, sy + 12);
-    c.quadraticCurveTo(sx + 20, sy + 2, sx + 28, sy + 2);
-    c.quadraticCurveTo(sx + 36, sy + 2, sx + 36, sy + 12);
-    c.closePath();
-    c.fill();
-
-    /* Periscope – rounded ends */
-    c.fillStyle = '#999999';
-    c.beginPath();
-    c.moveTo(sx + 27, sy - 8);
-    c.quadraticCurveTo(sx + 28, sy - 10, sx + 30, sy - 10);
-    c.lineTo(sx + 32, sy - 10);
-    c.quadraticCurveTo(sx + 34, sy - 10, sx + 32, sy - 8);
-    c.lineTo(sx + 30, sy - 8);
-    c.lineTo(sx + 30, sy + 0);
-    c.lineTo(sx + 27, sy + 0);
-    c.closePath();
-    c.fill();
-
-    /* Windows */
-    c.fillStyle = '#88ddff';
-    c.beginPath(); c.arc(sx + 14, sy + 14, 5, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 28, sy + 14, 5, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 42, sy + 14, 5, 0, Math.PI * 2); c.fill();
-    /* Window rims */
-    c.strokeStyle = '#aa8822';
-    c.lineWidth = 1.5;
-    c.beginPath(); c.arc(sx + 14, sy + 14, 5, 0, Math.PI * 2); c.stroke();
-    c.beginPath(); c.arc(sx + 28, sy + 14, 5, 0, Math.PI * 2); c.stroke();
-    c.beginPath(); c.arc(sx + 42, sy + 14, 5, 0, Math.PI * 2); c.stroke();
-
-    /* Face in middle window */
-    c.fillStyle = '#ffddbb';
-    c.beginPath(); c.arc(sx + 28, sy + 14, 3, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#333';
-    c.beginPath(); c.arc(sx + 27, sy + 13, 0.8, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 30, sy + 13, 0.8, 0, Math.PI * 2); c.fill();
-
-    /* Propeller */
-    c.fillStyle = '#888888';
-    c.save();
-    c.translate(sx + 56, sy + 18);
-    c.rotate(this.propPhase);
-    c.beginPath();
-    c.ellipse(0, -5, 2, 5, 0, 0, Math.PI * 2);
-    c.fill();
-    c.beginPath();
-    c.ellipse(0, 5, 2, 5, 0, 0, Math.PI * 2);
-    c.fill();
+    c.fillRect(sx, sy + 23, 56, 3);
     c.restore();
-    c.fillStyle = '#666666';
-    c.beginPath(); c.arc(sx + 56, sy + 18, 3, 0, Math.PI * 2); c.fill();
+
+    /* Portholes */
+    var ports = [17, 30, 43];
+    for (var pi = 0; pi < ports.length; pi++) {
+      c.fillStyle = '#88ddff';
+      c.beginPath(); c.arc(sx + ports[pi], sy + 15, 4.6, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = '#7a84a8';
+      c.lineWidth = 1.5;
+      c.stroke();
+      c.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      c.beginPath(); c.arc(sx + ports[pi] - 1.6, sy + 13.4, 1.1, 0, Math.PI * 2); c.fill();
+    }
+
+    /* Bob waving from the middle porthole */
+    c.fillStyle = '#ffddbb';
+    c.beginPath(); c.arc(sx + 30, sy + 15.5, 3, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#333';
+    c.beginPath(); c.arc(sx + 29, sy + 14.8, 0.8, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + 31.5, sy + 14.8, 0.8, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#a05a4a'; c.lineWidth = 0.6;
+    c.beginPath(); c.arc(sx + 30.2, sy + 16.2, 1.3, 0.2, Math.PI - 0.2); c.stroke();
 
     c.restore();
   };
@@ -1225,8 +1351,14 @@
     c.restore();
   };
 
-  /* ========== CRAB (NPC – friendly joke-teller) ========== */
+  /* ========== ASTRO PUP (NPC – friendly joke-teller; the type is
+     still called `crab`) ==========
+     A pet-dog pup in a glass space helmet, trotting a short patrol.
+     Each one takes the next coat in ASTRO_PUP_COATS. */
+  var ASTRO_PUP_COATS = ['gold', 'husky', 'star', 'blue', 'red', 'fluffy'];
+  var astroPupCount = 0;
   function Crab(x, y) {
+    this.coat = ASTRO_PUP_COATS[astroPupCount++ % ASTRO_PUP_COATS.length];
     this.x = x;
     this.y = y;
     this.w = 22;
@@ -1235,7 +1367,7 @@
     this.spawnY = y;
     this.timer = Math.random() * 100;
     this.dir = Math.random() > 0.5 ? 1 : -1;
-    this.legPhase = 0;
+    this.petT = 0;
     this.talking = false;
     this.talkTimer = 0;
     this.currentJoke = '';
@@ -1243,15 +1375,14 @@
 
   Crab.prototype.update = function () {
     this.timer++;
-    this.legPhase += 0.18;
-    /* Sidestep along a short patrol; flip when you reach the ends so the
-       claws lead the walk – feels more crab-like than smooth oscillation. */
+    this.petT += this.talking ? 0.45 : 0.9;
+    /* Trot along a short patrol, turning round at each end. */
     var range = 36;
     var off = this.x - this.spawnX;
     if (off > range) this.dir = -1;
     else if (off < -range) this.dir = 1;
     if (!this.talking) this.x += 0.3 * this.dir;
-    /* Tiny sand-bob */
+    /* Tiny low-gravity bob */
     this.y = this.spawnY + Math.sin(this.timer * 0.06) * 0.6;
     if (this.talking) {
       this.talkTimer--;
@@ -1268,93 +1399,20 @@
   Crab.prototype.draw = function (c, camX, camY) {
     var sx = Math.round(this.x - camX);
     var sy = Math.round(this.y - camY);
-    var leg = Math.sin(this.legPhase) * 2;
+    /* The pup painter faces left; flip the canvas when trotting right
+       and tell it so, keeping the light on the upper left. */
+    var mirror = this.dir === 1;
+    var px = sx + this.w / 2, py = sy + 8.5;
 
     c.save();
-    if (this.dir === -1) {
-      c.translate(sx + this.w / 2, 0);
+    if (mirror) {
+      c.translate(px, 0);
       c.scale(-1, 1);
-      sx = -this.w / 2;
+      px = 0;
     }
-
-    /* Legs (behind body) – three pairs, alternating sway */
-    c.strokeStyle = '#9a2418';
-    c.lineWidth = 1.5;
-    c.lineCap = 'round';
-    for (var lg = 0; lg < 3; lg++) {
-      var lx = sx + 6 + lg * 4;
-      var lOff = (lg % 2 === 0 ? leg : -leg);
-      /* Left side leg */
-      c.beginPath();
-      c.moveTo(lx - 1, sy + 8);
-      c.lineTo(lx - 4, sy + 13 + lOff);
-      c.stroke();
-      /* Right side leg */
-      c.beginPath();
-      c.moveTo(lx + 1, sy + 8);
-      c.lineTo(lx + 4, sy + 13 - lOff);
-      c.stroke();
-    }
-
-    /* Body shell, cel-shaded in the hero's light */
-    var S = Game.momoko.shader(c, this.dir === -1);
-    S.shape(S.ellipse(sx + 11, sy + 7, 10, 6), '#d8442f', { d: 2, lw: 0.7 });
-    S.done();
-    /* Shell gloss */
-    c.fillStyle = 'rgba(255, 190, 170, 0.75)';
-    c.beginPath();
-    c.ellipse(sx + 8.5, sy + 4.4, 4.5, 1.6, -0.15, 0, Math.PI * 2);
-    c.fill();
-    /* Shell speckles */
-    c.fillStyle = '#7a1a10';
-    c.beginPath(); c.arc(sx + 7,  sy + 8, 0.8, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 13, sy + 9, 0.8, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 15, sy + 6, 0.7, 0, Math.PI * 2); c.fill();
-
-    /* Claws – pinched ovals on each side */
-    var clawWiggle = this.talking ? Math.sin(this.timer * 0.4) * 0.6 : 0;
-    c.fillStyle = '#d8442f';
-    c.save();
-    c.translate(sx + 1, sy + 6);
-    c.rotate(-0.4 + clawWiggle);
-    c.beginPath(); c.ellipse(0, 0, 4, 2.6, 0, 0, Math.PI * 2); c.fill();
-    /* Pincer notch */
-    c.fillStyle = '#7a1a10';
-    c.beginPath(); c.moveTo(-3.2, 0); c.lineTo(-1.5, -0.6); c.lineTo(-1.5, 0.6); c.closePath(); c.fill();
-    c.restore();
-    c.fillStyle = '#d8442f';
-    c.save();
-    c.translate(sx + 21, sy + 6);
-    c.rotate(0.4 - clawWiggle);
-    c.beginPath(); c.ellipse(0, 0, 4, 2.6, 0, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#7a1a10';
-    c.beginPath(); c.moveTo(3.2, 0); c.lineTo(1.5, -0.6); c.lineTo(1.5, 0.6); c.closePath(); c.fill();
-    c.restore();
-
-    /* Eye stalks */
-    c.strokeStyle = '#7a1a10';
-    c.lineWidth = 1;
-    c.beginPath();
-    c.moveTo(sx + 8, sy + 3); c.lineTo(sx + 7, sy);
-    c.stroke();
-    c.beginPath();
-    c.moveTo(sx + 14, sy + 3); c.lineTo(sx + 15, sy);
-    c.stroke();
-    /* Eyes */
-    c.fillStyle = '#ffffff';
-    c.beginPath(); c.arc(sx + 7, sy, 1.6, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 15, sy, 1.6, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#1a1a1a';
-    c.beginPath(); c.arc(sx + 7, sy, 0.8, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.arc(sx + 15, sy, 0.8, 0, Math.PI * 2); c.fill();
-
-    /* Friendly smile */
-    c.strokeStyle = '#7a1a10';
-    c.lineWidth = 0.8;
-    c.beginPath();
-    c.arc(sx + 11, sy + 7, 2, 0.2, Math.PI - 0.2);
-    c.stroke();
-
+    drawCrabPet(c, px, py, this.coat, this.petT, mirror);
+    /* Glass space helmet round the head and muzzle */
+    drawBubbleHelmet(c, px - 8.0, py - 4.3, 8.2);
     c.restore();
   };
 

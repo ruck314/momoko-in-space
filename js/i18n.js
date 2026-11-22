@@ -158,8 +158,8 @@
       oliverGreet: 'Hey Momoko! Want to hear a joke?',
       kittyGreet: "Hi! I'm Kitty Corn! I love watching shooting stars with you!",
       kittyHint: 'If you see a comet, make a wish! It always works!',
-      bobGreet: "Ahoy! I'm Bob the space expert! Did you know…",
-      crabName: 'Pet Dog',
+      bobGreet: "Beep beep! I'm Bob, captain of this explorer ship! Did you know…",
+      crabName: 'Astro Pup',
       lilaGreet: "Hi Momoko! I lost my 5 starry gems somewhere in town. Can you help me find them?",
       lilaThanks: "You found them ALL! You're the best neighbor ever!",
       migwordGreet: 'Mmm! I\'m MigWord! My 3 mouse pals — Pip, Sprout and Tilly — are hiding around the moon. Can you go say hi to all 3 for me?',
@@ -315,7 +315,7 @@
 
       /* ---- Oliver's silly jokes (20) – kid friendly ---- */
       joke1: 'Why did the toilet paper roll down the hill?\nTo get to the bottom!',
-      joke2: "What's a pirate's favorite bathroom?\nThe POOP deck!",
+      joke2: 'What does a rocket toilet say?\n"3… 2… 1… FLUSH-OFF!"',
       joke3: "Why don't skeletons ever poop?\nThey have no guts!",
       joke4: 'What did one toilet say to the other?\n"You look a little flushed!"',
       joke5: 'Why did the poop cross the road?\nBecause it was on a roll!',
@@ -508,8 +508,8 @@
       oliverGreet: 'やあ モモコ！ジョークをきく？',
       kittyGreet: 'こんにちは！キティコーンだよ！モモコと ながれぼしを みるのが だいすき！',
       kittyHint: 'すいせいを みたら おねがいごとを しようね！きっと かなうよ！',
-      bobGreet: 'やあ！うちゅうのはかせ、ボブだよ！しってた？',
-      crabName: 'ワンちゃん',
+      bobGreet: 'ピピッ！たんさせんの せんちょう、ボブだよ！しってた？',
+      crabName: 'アストロワン',
       lilaGreet: 'モモコ！キラキラほうせきを 5こ まちのなかで なくしちゃったの。いっしょに さがしてくれる？',
       lilaThanks: 'ぜんぶ みつけてくれた！モモコは さいこうの おとなりさんだよ！',
       migwordGreet: 'やあ！ミグワードだよ！ともだちの ねずみが 3びき つきの どこかに かくれちゃった。ピップと スプラウトと ティリーに 「やあ」って いってきてくれる？',
@@ -665,7 +665,7 @@
 
       /* ---- オリバーのジョーク (20) ---- */
       joke1: 'トイレットペーパーは なぜ さかを ころがったの？\nいちばん したへ いきたかったから！',
-      joke2: 'かいぞくの だいすきな トイレは？\nうんちデッキ！',
+      joke2: 'ロケットの トイレの かけごえは？\n「3、2、1… ジャーッと はっしゃ！」',
       joke3: 'ガイコツは なぜ うんちを しないの？\nないぞうが ないから！',
       joke4: 'トイレが もう ひとつの トイレに なんていった？\n「かおが まっかだよ！」',
       joke5: 'うんちが どうろを わたったのは なぜ？\nころころ ころがってたから！',

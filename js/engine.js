@@ -28,7 +28,7 @@
   /* Version stamp shown on the title screen and pause menu. Bump manually
      at release time and tag the matching git release (`git tag vX.Y.Z`)
      so the in-game stamp lines up with the git tag for debugging. */
-  Game.VERSION = 'v2.20.0';
+  Game.VERSION = 'v2.21.0';
   Game.BUILD = '';
   var canvas, ctx;
 
@@ -2085,7 +2085,7 @@
       }
     }
 
-    /* Bob submarine (drawn by npc loop above) */
+    /* Bob's explorer ship (drawn by npc loop above) */
 
     /* Enemies */
     for (var ei = 0; ei < enemies.length; ei++) {

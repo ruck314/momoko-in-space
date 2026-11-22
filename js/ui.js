@@ -2258,13 +2258,69 @@
   function drawMomokoPreview(c, cust) {
     if (!Game.entities) return;
     previewRig = heroRig(previewRig);
-    if (previewRig) previewRig.tick(0, 0, { facing: 1 });
-    if (Game.entities.drawMomokoSprite) Game.entities.drawMomokoSprite(c, 0, 0, cust, 0, { rig: previewRig });
+    var P = stepPreviewRig();
+    /* mirrored about her middle while she turns */
+    c.save();
+    if (P) { c.translate(14, 0); c.scale(P.sx, 1); c.translate(-14, 0); }
+    if (Game.entities.drawMomokoSprite) Game.entities.drawMomokoSprite(c, 0, 0, cust, 0, { rig: previewRig, mirror: !!P && P.face === -1 });
+    c.restore();
     /* Crab pet appears next to her feet in the preview so the player can
-       see the companion they just picked. */
+       see the companion they just picked. It runs on her paced clock, so
+       it calms down with her. */
     if (Game.entities.drawCrabPet && cust.crab && cust.crab !== 'none') {
-      Game.entities.drawCrabPet(c, -8, 30.5, cust.crab, customizeTimer);
+      Game.entities.drawCrabPet(c, -8, 30.5, cust.crab, P ? previewPetClock : customizeTimer);
     }
+  }
+
+  /* Preview pacing, shared by every Momoko game: a pick sets off a cute
+     reaction for PREVIEW_REACT s, then she settles nearly still so the
+     outfit is easy to see, with one short moment (PREVIEW_MOMENT s) every
+     PREVIEW_GAP_MIN..PREVIEW_GAP_MAX s. `calm` eases toward 1 while
+     settled and 0 during a reaction or moment (time constant PREVIEW_EASE)
+     and damps her idle sway (and slows the pup's wag) by up to PREVIEW_DAMP. */
+  var PREVIEW_REACT = 2, PREVIEW_MOMENT = 1.2, PREVIEW_GAP_MIN = 6, PREVIEW_GAP_MAX = 12;
+  var PREVIEW_EASE = 0.3, PREVIEW_DAMP = 0.85;
+  var pace = { act: '', age: 0, len: 0, gap: 0, calm: 1, cue: -1, next: null, last: 0 };
+  var previewPetClock = 0;
+  function pickOf(list) { return list[Math.floor(Math.random() * list.length)]; }
+  function previewAct(kind, len) {
+    pace.act = kind; pace.age = 0; pace.len = len; pace.cue = -1;
+    var R = previewRig;
+    /* a new reaction waits for the current one, so a hop is never cut off mid-air */
+    if (kind === 'cheer') { pace.next = 'cheer'; pace.cue = 1.1; }
+    else if (kind === 'twirl') { pace.next = 'cheer'; pace.cue = 1.0; }
+    else if (kind === 'hop') pace.next = 'cheer';
+    else if (kind === 'wave') pace.next = 'wave';
+    else if (kind === 'look' && R.glanceT <= 0) { R.glanceX = (R.rnd() < 0.5 ? -1 : 1) * 0.3; R.glanceY = -0.75; R.glanceT = 1.1; }
+  }
+  function previewPick() { if (previewRig) previewAct(pickOf(['cheer', 'twirl', 'wave']), PREVIEW_REACT); }
+  function stepPreviewRig() {
+    var R = previewRig;
+    if (!R) return null;
+    var now = performance.now();
+    var fresh = !pace.last || now - pace.last > 500;
+    var dt = fresh ? 1 / 60 : Math.min(0.05, (now - pace.last) / 1000);
+    pace.last = now;
+    if (fresh) previewPick();                              /* she says hello */
+    var a = pace.act, u = pace.age;
+    if (pace.cue >= 0 && u >= pace.cue) { pace.cue = -1; pace.next = 'cheer'; }
+    if (pace.next && !R.react) { R.doReact(pace.next); pace.next = null; }
+    var t0 = R.time;
+    var P = R.tick(0, 0, { facing: (a === 'twirl' || a === 'turn') && u < (a === 'twirl' ? 0.5 : 0.6) ? -1 : 1 });
+    pace.calm += ((a ? 0 : 1) - pace.calm) * (1 - Math.exp(-dt / PREVIEW_EASE));
+    var k = 1 - PREVIEW_DAMP * pace.calm;
+    if (R.time !== t0) {                                   /* posed this frame */
+      P.hx *= k;
+      P.tilt *= k;
+    }
+    previewPetClock += dt * 60 * k;
+    if (a) {
+      pace.age += dt;
+      if (pace.age >= pace.len) { pace.act = ''; pace.gap = PREVIEW_GAP_MIN + Math.random() * (PREVIEW_GAP_MAX - PREVIEW_GAP_MIN); }
+    } else if ((pace.gap -= dt) <= 0) {
+      previewAct(pickOf(['hop', 'wave', 'turn', 'look']), PREVIEW_MOMENT);
+    }
+    return P;
   }
 
   function roundRect(c, x, y, w, h, r) {
@@ -2281,10 +2337,10 @@
     c.closePath();
   }
 
-  /* A change on the customise screen gets a little cheer from her. */
+  /* A change on the customise screen gets a little reaction from her. */
   function customized() {
     Game.audio.play('select');
-    if (previewRig) previewRig.doReact('cheer');
+    previewPick();
   }
 
   function handleCustomizeClick(mx, my) {
